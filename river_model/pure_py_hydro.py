@@ -374,7 +374,6 @@ def solve_hydrodynamics(
         bc_dn_type = "stage"
         tide_phase = 2.0 * np.pi * t_current / T_tide
         bc_stage_target = downstream_stage_m + tidal_amplitude_m * np.sin(tide_phase)
-        bc_dn_dz = bc_stage_target - Z[-1]
 
         # ---- 非线性迭代 (处理摩擦项) ----
         max_iter = config.max_newton_iter
@@ -383,6 +382,12 @@ def solve_hydrodynamics(
         Q_save = Q.copy()
 
         for niter in range(max_iter):
+            # 下游水位边界: 每轮迭代按【当前】水位重新计算增量。
+            # _double_sweep 内 dZ[-1] = bc_dn_dz 是把该值当作本轮修正量直接施加,
+            # 因此必须在迭代内重算; 若在循环外只算一次, 同一个陈旧增量会被
+            # 每一轮重复施加, 使末节点变化量恒为 omega*|bc_dn_dz|,
+            # 收敛判据 dz_max < tol 永远无法满足, 边界节点也就无法跟踪潮位过程线。
+            bc_dn_dz = bc_stage_target - Z[-1]
             dZ, dQ = _double_sweep(
                 geo_list, Z, Q, dx_array,
                 dt_s, phi, theta,
