@@ -1,0 +1,56 @@
+# ---------- 密钥（绝不提交）----------
+.env
+.mcp.json
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# ---------- 前端 ----------
+node_modules/
+frontend/dist/
+.vite/
+
+# ---------- IDE / OS ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.claude/
+
+# ---------- 大体积媒体（GitHub 单文件 100MB 限制）----------
+*.mp4
+*.avi
+*.mov
+
+# ---------- 运行时生成物 ----------
+_uploaded_data.xlsx
+time_series.png
+trace_map.html
+cross_validation.png
+correlation_heatmap.png
+river_hydro_profile.png
+river_discharge_profile.png
+river_wq_contour.png
+river_wq_profile.png
+river_wq_timeseries.png
+river_dashboard.png
+river_pollution_animation.html
+
+# ---------- 数据导出 ----------
+anomaly_results.csv
+processed_water_data.csv
+final_trace_report.txt
+river_model_export.json
+river_model_export.csv
+
+# ---------- 临时文件 ----------
+~$*
+*.tmp

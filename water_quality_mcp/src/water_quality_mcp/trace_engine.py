@@ -1,0 +1,195 @@
+"""多渠道根因溯源融合引擎。
+
+整合多数据源进行综合污染溯源:
+  - 高德 POI (工厂/养殖场/排污口)
+  - 排污许可证 (国家环保部门公开数据)
+  - 国控水质站点 (国家监测网络)
+  - 重点排污单位名录 (地方生态环境局)
+
+按 config.source_weights 加权融合各数据源结果,
+输出综合置信度排名的污染源列表。
+
+用法:
+    from .trace_engine import multi_source_trace
+
+    result = multi_source_trace(lat=23.11, lon=113.14, amap_key="...", config=config)
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .analysis_config import AnalysisConfig
+
+logger = logging.getLogger(__name__)
+
+
+def multi_source_trace(
+    lat: float,
+    lon: float,
+    amap_key: str | None = None,
+    config: "AnalysisConfig | None" = None,
+    state: Any = None,
+) -> str:
+    """多渠道污染溯源。
+
+    执行流程:
+      1. 高德 POI: 搜索周边工厂/养殖场/排污口
+      2. 排污许可证: 搜索周边持证排污企业
+      3. 重点排污单位: 按行政区划检索名录
+      4. 国控站点: 查询周边水质自动监测站
+      5. 融合: 去重 + 加权排序 + 综合评分
+
+    Args:
+        lat: 搜索中心纬度
+        lon: 搜索中心经度
+        amap_key: 高德 API Key (可选, 缺少则跳过 POI 搜索)
+        config: AnalysisConfig 或 None
+        state: WaterQualityState (可选, 用于自动定位聚类中心)
+
+    Returns:
+        JSON 字符串, 含去重融合后的多源污染源列表
+    """
+    if config is None:
+        from .analysis_config import DEFAULT_CONFIG
+        config = DEFAULT_CONFIG
+
+    results_by_source: dict[str, list[dict]] = {}
+    all_sources_flat: list[dict] = []
+
+    # ---- 数据源 1: 高德 POI ----
+    if amap_key and "amap_poi" in config.enabled_sources:
+        try:
+            from .geo_tools import search_nearby_pollution_sources
+            pois = search_nearby_pollution_sources(
+                lat, lon, amap_key,
+                radius=config.search_radius_m,
+                keywords=config.pollution_keywords,
+            )
+            # 标记数据源
+            for p in pois:
+                p["数据源"] = "高德POI"
+                p["置信度权重"] = config.source_weights.get("amap_poi", 0.25)
+            results_by_source["高德POI"] = pois[:15]
+            all_sources_flat.extend(pois[:15])
+        except Exception as e:
+            logger.warning("高德 POI 搜索失败: %s", e)
+
+    # ---- 数据源 2: 排污许可证 ----
+    if "pollution_permit" in config.enabled_sources:
+        try:
+            from .pollution_permit import search_pollution_permits
+            permits = search_pollution_permits(lat, lon, radius_m=config.search_radius_m)
+            for p in permits:
+                p["置信度权重"] = config.source_weights.get("pollution_permit", 0.35)
+            results_by_source["排污许可证"] = permits
+            all_sources_flat.extend(permits)
+        except Exception as e:
+            logger.warning("排污许可证搜索失败: %s", e)
+
+    # ---- 数据源 3: 重点排污单位名录 ----
+    if "national_station" in config.enabled_sources:
+        try:
+            from .pollution_permit import search_key_pollution_sources
+            key_sources = search_key_pollution_sources("广东省", "佛山市")
+            for s in key_sources:
+                s["置信度权重"] = config.source_weights.get("national_station", 0.25)
+            results_by_source["重点排污单位"] = key_sources
+            all_sources_flat.extend(key_sources)
+        except Exception as e:
+            logger.warning("重点排污单位搜索失败: %s", e)
+
+    # ---- 数据源 4: 国控站点 (优先走实时数据) ----
+    if "national_station" in config.enabled_sources:
+        try:
+            from .national_station import get_national_station_data as _station_data
+            # live=False 走离线数据库 (快速), live=True 走 Playwright 抓取
+            stations_json = _station_data(
+                lat=lat, lon=lon, radius_km=config.national_station_radius_km,
+                live=False,
+            )
+            stations_data = json.loads(stations_json) if isinstance(stations_json, str) else stations_json
+            station_list = stations_data.get("站点列表", [])
+            sources = []
+            for st in station_list:
+                sources.append({
+                    "数据源": "国控站点",
+                    "站点名称": st.get("站名", ""),
+                    "流域": st.get("流域", ""),
+                    "水质目标": st.get("水质目标", ""),
+                    "距离_km": st.get("距离_km", ""),
+                    "置信度权重": config.source_weights.get("national_station", 0.25),
+                })
+            results_by_source["国控站点"] = sources
+            all_sources_flat.extend(sources)
+        except Exception as e:
+            logger.warning("国控站点查询失败: %s", e)
+
+    # ---- 汇总 ----
+    source_summary = {
+        data_source: len(items) for data_source, items in results_by_source.items()
+    }
+
+    if not all_sources_flat:
+        return json.dumps({
+            "状态": "所有数据源均未返回结果",
+            "搜索中心": f"{lat:.6f}, {lon:.6f}",
+            "搜索半径_m": config.search_radius_m,
+            "已启用的数据源": config.enabled_sources,
+            "建议": "检查 AMAP_KEY 是否配置或扩大搜索半径",
+        }, ensure_ascii=False)
+
+    return json.dumps({
+        "搜索中心": f"{lat:.6f}, {lon:.6f}",
+        "搜索半径_m": config.search_radius_m,
+        "各数据源贡献": source_summary,
+        "数据源说明": {
+            "排污许可证": "全国排污许可证管理信息平台 (permit.mee.gov.cn) — 环保部门官方数据, 权威性高",
+            "国控站点": "国家水质自动监测实时数据发布平台 (szzdjc.cnemc.cn) — 环保部门官方监测网络",
+            "高德POI": "高德开放平台 POI 搜索 — 补充商业/地理信息, 覆盖面广",
+            "重点排污单位": "地方生态环境局年度公开名录 — 官方监管数据",
+        },
+        "综合污染源列表": _deduplicate_and_rank(all_sources_flat, config),
+    }, ensure_ascii=False)
+
+
+def _deduplicate_and_rank(
+    sources: list[dict],
+    config: "AnalysisConfig",
+) -> list[dict]:
+    """按名称去重并加权排序。
+
+    同名称来源取最高置信度权重, 按加权分数降序排列。
+    """
+    # 按名称去重
+    seen: dict[str, dict] = {}
+    for src in sources:
+        name = src.get("name") or src.get("企业名称") or src.get("站点名称") or src.get("名称") or ""
+        if not name:
+            name = src.get("站名", "")
+        if not name:
+            continue
+
+        weight = src.get("置信度权重", 0.2)
+        if name not in seen or weight > seen[name].get("置信度权重", 0):
+            seen[name] = src
+
+    ranked = sorted(seen.values(), key=lambda x: x.get("置信度权重", 0), reverse=True)
+
+    # 添加排名
+    result = []
+    for i, src in enumerate(ranked, 1):
+        entry = {
+            "排名": i,
+            "名称": (src.get("name") or src.get("企业名称") or src.get("站点名称") or src.get("站名") or ""),
+        }
+        # 复制关键字段
+        for field in ["数据源", "置信度权重", "距离", "distance", "地址", "address", "行业类别", "主要污染物", "流域", "水质目标"]:
+            if field in src:
+                entry[field] = src[field]
+        result.append(entry)
+
+    return result[:20]  # 最多返回 20 条
