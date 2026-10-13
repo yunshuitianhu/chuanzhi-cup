@@ -199,6 +199,45 @@ report("Newton 迭代能提前收敛", ratio < 0.95, f"实际占用上限 {ratio
 
 # ============================================================
 print()
+print("算例 6  端到端引擎选择（覆盖应用真实运行路径）")
+print("  性质: 带潮汐的非恒定流工况，必须由纯 Python 求解器处理，")
+print("        不得被 HEC-RAS 恒定流分支截走。")
+print("  背景: 本仓库此前的全部测试都直接 import pure_py_hydro，")
+print("        从不经过 hydro_engine.detect_engine()，因此未覆盖应用真实路径。")
+print("-" * 74)
+
+from river_model import hydro_engine
+
+detected = hydro_engine.detect_engine()
+print(f"  detect_engine() 本机返回: {detected}")
+print(f"  is_nonconstant(amp=0.8): {hydro_engine.is_nonconstant(0.8)}")
+print(f"  is_nonconstant(amp=0.0): {hydro_engine.is_nonconstant(0.0)}")
+
+h_e2e = hydro_engine.run_hydrodynamic(
+    cfg, cs, upstream_flow_m3s=Q_UP, downstream_stage_m=STAGE0,
+    tidal_amplitude_m=AMP, tidal_period_h=T_TIDE,
+    duration_h=6.0, dt_s=60.0, output_interval_min=30.0,
+)
+wl_e2e = np.asarray(h_e2e.water_level)
+engine_used = h_e2e.params.get("engine", "unknown")
+n_frames = wl_e2e.shape[0]
+span = float(wl_e2e.max() - wl_e2e.min())
+
+print(f"  实际使用引擎: {engine_used}")
+print(f"  输出帧数: {n_frames}")
+print(f"  水位变幅: {span:.4f} m   (潮振幅 {AMP} m)")
+
+report("非恒定流未被 HEC-RAS 分支截走", engine_used == "pure_python_preissmann",
+       f"实际引擎 = {engine_used}")
+report("端到端结果具有时间演化", n_frames > 1,
+       f"输出帧数 = {n_frames}")
+# 注: 模拟时长 6h < 潮周期 12.42h, 不足一个完整潮周期,
+#     故可见变幅约为振幅 AMP 而非潮差 2*AMP。
+report("端到端结果体现潮汐变幅", span > 0.5 * AMP,
+       f"水位变幅 {span:.4f} m (6h 窗口不足一个潮周期, 可见变幅约为振幅 {AMP} m)")
+
+# ============================================================
+print()
 print("=" * 74)
 n_pass = sum(1 for _, ok in results if ok)
 n_fail = len(results) - n_pass

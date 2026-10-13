@@ -27,6 +27,27 @@ def detect_engine() -> str:
     return "pure_python"
 
 
+def is_nonconstant(tidal_amplitude_m: float) -> bool:
+    """判断工况是否属非恒定流。
+
+    下游潮位边界使流动随时间变化, 属非恒定流。HEC-RAS COM 分支只支持
+    恒定流 (见 hecras_bridge 模块说明), 若由其处理非恒定工况, 得到的将
+    是一张恒定流水面线, 潮汐边界与污染物输移过程会完全丢失。
+    因此非恒定流一律交由纯 Python Preissmann 求解器处理。
+
+    Args:
+        tidal_amplitude_m: 潮汐振幅 (m)
+
+    Returns:
+        True 表示非恒定流 (应使用纯 Python 求解器)
+    """
+    try:
+        return abs(float(tidal_amplitude_m)) > 0.0
+    except (TypeError, ValueError):
+        # 参数异常时保守选择纯 Python — 它总能给出随时间演化的解
+        return True
+
+
 def get_engine_info() -> str:
     engine = detect_engine()
     ras_installed = False
@@ -34,7 +55,8 @@ def get_engine_info() -> str:
     ras_installed = is_hecras_available()
 
     if engine == "hecras":
-        return "HEC-RAS 7.0 (COM) — 使用 HEC-RAS 非恒定流引擎"
+        return ("HEC-RAS 7.0 (COM) 可用 — 仅用于恒定流工况; "
+                "非恒定流(潮汐)工况自动使用纯 Python Preissmann 求解器")
     elif ras_installed:
         return "纯 Python Preissmann 隐式格式求解器 (HEC-RAS 7.0 已检测到但 COM 未注册 — 以管理员运行 _Register_New_RAS_and_RASMapper_Files.bat)"
     else:
@@ -52,8 +74,17 @@ def run_hydrodynamic(
     dt_s: float = 60.0,
     output_interval_min: float = 30.0,
 ) -> HydroResult:
-    """运行水动力模拟 (自动选择引擎, HEC-RAS 失败时降级到纯 Python)。"""
-    engine = detect_engine()
+    """运行水动力模拟 (自动选择引擎, HEC-RAS 失败时降级到纯 Python)。
+
+    引擎选择规则:
+      1. 非恒定流 (潮汐振幅 != 0) → **强制**纯 Python Preissmann 求解器。
+         HEC-RAS COM 分支仅支持恒定流, 若由其处理潮汐工况, 返回的将是
+         一张恒定流水面线 (实测: 输出帧数=1, 水位变幅=0.0), 潮汐边界
+         与污染物输移过程完全丢失。
+      2. 恒定流且 HEC-RAS COM 可用 → HEC-RAS。
+      3. 其余 → 纯 Python 求解器。
+    """
+    engine = "pure_python" if is_nonconstant(tidal_amplitude_m) else detect_engine()
 
     if engine == "hecras":
         try:
