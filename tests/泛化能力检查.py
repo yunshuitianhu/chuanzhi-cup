@@ -204,9 +204,13 @@ else:
           not still_default,
           f"仍写死: {still_default}" if still_default else "参数默认值已改为 None 并回落到 config")
 
-uses_cfg = len(re.findall(r"state\.config\.(avg_discharge_m3s|tidal_range_m|downstream_stage)",
-                          tools_src))
-check("5.求解器调用点引用了 config 的自动参数", uses_cfg > 0,
+# 注意：不要限定成 `state.config.xxx` —— 实现里可能先 `cfg = state.config`
+# 再 `cfg.xxx`。写成 `state\.config\.` 会误报（本检查器第一版就这么错过一次，
+# 而当时行为已验证正确）。只认字段名本身。
+uses_cfg = len(re.findall(
+    r"\b(?:state\.config|cfg|config)\.(avg_discharge_m3s|tidal_range_m"
+    r"|high_water_mean_m|m2_period_h)\b", tools_src))
+check("5.求解器入口引用了 config 的自动参数", uses_cfg > 0,
       f"引用 {uses_cfg} 处" if uses_cfg else "0 处引用 —— 自动参数进不了求解器")
 
 

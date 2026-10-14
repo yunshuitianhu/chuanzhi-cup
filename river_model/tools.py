@@ -5,6 +5,7 @@
 
 import json
 import os
+from typing import Optional
 
 import numpy as np
 
@@ -173,16 +174,37 @@ def tool_river_init(
 
 def tool_river_hydro_simulation(
     state: RiverModelState,
-    upstream_flow_m3s: float = 6.9,
-    downstream_stage_m: float = 0.83,
-    tidal_amplitude_m: float = 0.8,
-    tidal_period_h: float = 12.42,
+    upstream_flow_m3s: Optional[float] = None,
+    downstream_stage_m: Optional[float] = None,
+    tidal_amplitude_m: Optional[float] = None,
+    tidal_period_h: Optional[float] = None,
     duration_h: float = 24.0,
     dt_s: float = 60.0,
 ) -> str:
-    """运行雅瑶水道一维水动力模拟。"""
+    """运行一维水动力模拟。
+
+    四个边界参数默认取 **state.config 的值**（可能是从走航数据自动推导出来的），
+    而不是写死的常数。原先写死导致：自动检测推导出的流量/潮差**根本进不了
+    求解器** —— 求解器永远收到 6.9 / 0.83 / 0.8 / 12.42。
+
+    传了显式值仍以显式值为准（向后兼容）。
+    """
     if not state.model_initialized:
         return json.dumps({"error": "请先调用 init_river_model 初始化模型"}, ensure_ascii=False)
+
+    # 未显式指定时回落到 config。
+    # ⚠️ config 的默认值恰好等于原先写死的常数
+    #    （avg_discharge 6.9 / high_water 0.83 / tidal_range÷2 = 0.8 / m2_period 12.42），
+    #    因此对本项目样本数据的输出**完全不变**；只有自动推导出别的值时才不同。
+    cfg = state.config
+    if upstream_flow_m3s is None:
+        upstream_flow_m3s = cfg.avg_discharge_m3s
+    if downstream_stage_m is None:
+        downstream_stage_m = cfg.high_water_mean_m
+    if tidal_amplitude_m is None:
+        tidal_amplitude_m = cfg.tidal_range_m / 2.0
+    if tidal_period_h is None:
+        tidal_period_h = cfg.m2_period_h
 
     try:
         result = run_hydrodynamic(
