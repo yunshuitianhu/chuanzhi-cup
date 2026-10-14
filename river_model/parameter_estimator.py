@@ -527,6 +527,17 @@ class RiverParameterEstimator:
 
                     # 智能水资源名称提取: 按优先级匹配
                     # 优先找大型河道名称 (含 水道/河/江/涌/渠)
+                    #
+                    # ⚠️ 该策略在高德真实返回上**误报率很高**，使用前须知：
+                    # 高德 regeo 的 formatted_address 是**街道地址与场所名**
+                    # （实测："广东省佛山市南海区狮山镇唐苑居江南园艺花场"），
+                    # 其中"江/河"等字常是"江南""河畔"这类词的一部分。
+                    # 原实现会从中抠出「唐苑居江」这样一个并不存在的水体名。
+                    # 因此下面加了场所类字符的排除表（见 _NON_WATER_CHARS）。
+                    #
+                    # 更可靠的水体名来源是：已知河道坐标库 > OSM 水道匹配 >
+                    # 高德 POI 搜索（按水体关键词）。本层只是最后的兜底猜测，
+                    # 置信度也只给到 0.50/0.70。
                     water_keywords_ordered = [
                         "水道",  # 水道 优先 (如 雅瑶水道)
                         "河",    # 其次 (如 汾江河)
@@ -535,6 +546,9 @@ class RiverParameterEstimator:
                         "渠",    # (如 排灌渠)
                         "湖",    # (如 千灯湖)
                     ]
+                    # 出现以下任一字符的候选一律丢弃 —— 它们表明这一段是
+                    # 场所/建筑/道路名而非水体名（苑居园场楼厦路号镇街公司厂店馆院校站）。
+                    _NON_WATER_CHARS = "苑居园场楼厦路号镇街公司厂店馆院校站"
                     best_match = None
                     best_priority = 99  # 越小越好 (0=水道)
 
@@ -553,10 +567,11 @@ class RiverParameterEstimator:
                                     start += len(prefix_word)
 
                             maybe_name = address[start:idx + len(keyword)].strip()
-                            # 确保名称不包含分隔符且长度合理
-                            if 2 <= len(maybe_name) <= 12 and not any(
-                                s in maybe_name for s in ["省", "市", "区", "镇", "路", "街"]
-                            ):
+                            # 三层过滤：长度合理 / 不含行政区划与道路词 /
+                            # 不含场所建筑类字符（后者专治"唐苑居江"这类误报）
+                            if (2 <= len(maybe_name) <= 12
+                                    and not any(s in maybe_name for s in ["省", "市", "区", "镇", "路", "街"])
+                                    and not any(ch in maybe_name for ch in _NON_WATER_CHARS)):
                                 priority = water_keywords_ordered.index(keyword)
                                 if priority < best_priority:
                                     best_priority = priority
