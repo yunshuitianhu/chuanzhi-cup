@@ -185,10 +185,41 @@ def solve_water_quality(
     theta_rea = config.theta_reaeration
 
     # ---- 计算离散系数 ----
-    # 对每个断面估算 Fischer 离散系数
+    # 纵向离散系数物理上取决于河宽、水深、流速与摩阻流速。
+    #
+    # 原实现写死 B=55.0 m、K=5.0 m²/s —— 都是雅瑶水道的标定值。换任何
+    # 宽度/流速不同的河流，污染物扩散范围仍按雅瑶算，这是泛化的硬伤。
+    # 本模块早已定义 Fischer 公式（_fischer_dispersion），但从未被调用。
+    #
+    # 代表性水力条件取水动力结果的时间平均：K 在时间循环外算一次，
+    # 与既有结构保持一致（避免把 K 的重算塞进每个子步）。
     g = 9.81
-    B_array = np.array([55.0] * n_cs)  # 平均河宽
-    K_array = np.ones(n_cs) * 5.0      # 默认 5 m²/s
+    B_array = np.ones(n_cs) * float(config.width_avg_m)
+
+    try:
+        vel = np.asarray(hydro.velocity, dtype=float)
+        u_rep = np.abs(vel).mean(axis=0) if vel.ndim == 2 else np.abs(vel)
+    except (TypeError, ValueError, AttributeError):
+        u_rep = np.ones(n_cs) * float(config.velocity_avg_ms)
+
+    try:
+        if hydro.area is not None:
+            A_rep = np.asarray(hydro.area, dtype=float).mean(axis=0)
+        else:
+            A_rep = B_array * float(config.depth_avg_m)
+    except (TypeError, ValueError, AttributeError):
+        A_rep = B_array * float(config.depth_avg_m)
+
+    H_rep = np.maximum(A_rep / np.maximum(B_array, 1.0),
+                       float(config.depth_range_m[0]) * 0.5)
+
+    # 摩阻流速 u* = sqrt(g·H·Sf)，Sf 由 Manning 反算
+    u_safe = np.maximum(u_rep, 0.001)
+    S_f = (float(config.mannings_n) * u_safe
+           / np.maximum(H_rep, 0.1) ** (2.0 / 3.0)) ** 2
+    u_star = np.sqrt(g * H_rep * S_f)
+
+    K_array = _fischer_dispersion(u_rep, B_array, H_rep, u_star)
 
     # ---- 初始浓度场 ----
     cbod = np.ones(n_cs) * config.bod_cbod_mgL
