@@ -17,6 +17,38 @@ from .cross_sections import CrossSection
 from .state import HydroResult
 
 
+# HEC-RAS 工程内的河名/河段名。几何文件、非恒定流边界文件、稳态流文件
+# 三处必须完全一致，否则 HEC-RAS 找不到边界所属的河道。
+# 原先这三处各自硬编码字面量，改名时极易漏改其中一处。
+_RIVER_NAME = "Yayao"
+_REACH_NAME = "Main"
+_PROJECT_STEM = "Yayao"   # 文件名前缀（.prj/.g01/.u01/.p01/.f01）
+
+
+def _flow_table(values, fmt: str = "{:8.2f}") -> str:
+    """HEC-RAS 数值表排版：每值 8 字符右对齐，每行 10 个（80 列）。
+
+    这是 HEC-RAS 原生写出的格式，实测按其排版才能被正确解析。
+    """
+    lines = []
+    for i in range(0, len(values), 10):
+        lines.append("".join(fmt.format(v) for v in values[i:i + 10]))
+    return "\n".join(lines)
+
+
+def _boundary_location(rm) -> str:
+    """HEC-RAS 非恒定流边界行的 9 字段格式。
+
+    格式: 河名,河段名,断面号,下游断面号,蓄水区连接,蓄水区名,泵站名,保留,保留
+
+    实测教训：只写一个断面号（如 `Boundary Location=3200.000`）会被
+    HEC-RAS 当成**河名**，河段名与断面号留空，于是上下游边界全部识别不到，
+    报 "needs a upstream/downstream boundary condition"。
+    """
+    return (f"Boundary Location={_RIVER_NAME},{_REACH_NAME},{rm}"
+            ",,,,,,")
+
+
 def _get_hecras_com():
     """获取 HEC-RAS COM 控制器实例。"""
     import win32com.client
@@ -64,7 +96,7 @@ Current Flow=f01
 Default Exp/Contr=0.3,0.1
 SI Units
 Geom File=g01
-Unsteady Flow File=u01
+Unsteady File=u01
 Plan File=p01
 Flow File=f01
 Y Axis Title=Elevation
@@ -105,11 +137,13 @@ def _build_geometry_file(work_dir: str, config: YayaoConfig,
     n = len(cross_sections)
 
     lines = [
-        "Geom Title=Yayao",
+        f"Geom Title={_RIVER_NAME}",
         "Program Version=7.00",
         "Viewing Rectangle= 0 , 1 , 1 , 0 ",
         "",
-        "River Reach=Yayao             ,Main            ",
+        # 河名/河段名必须与 .u01 的 Boundary Location 完全一致，
+        # 否则 HEC-RAS 找不到边界所属河道（统一取模块常量）
+        f"River Reach={_RIVER_NAME:<18},{_REACH_NAME:<16}",
         "Reach XY= 2 ",
         "-0.20228215767630.726141078838170.567427385892120.56224066390042",
         "Rch Text X Y=-0.0098548,0.685166",
@@ -187,49 +221,55 @@ def _build_unsteady_flow_file(work_dir: str, config: YayaoConfig,
                                upstream_flow_m3s: float, downstream_stage_m: float,
                                tidal_amplitude_m: float, tidal_period_h: float,
                                duration_h: float, dt_s: float) -> str:
-    """生成非恒定流边界条件文件 (.u01)。"""
+    """生成非恒定流边界条件文件 (.u01)。
+
+    格式要点（均为 HEC-RAS 7.0 实测确认，详见
+    research/hydro-wq-model/HEC-RAS实测笔记.md）：
+      - `Boundary Location=` 必须是 9 个逗号分隔字段。原先只写一个断面号，
+        被 HEC-RAS 当成**河名** → 上下游边界全部识别不到
+      - 时间步关键字是 `Interval=`，不是 `Flow Hydrograph Time Step=`
+      - 数值表每值 8 字符右对齐、每行 10 个（80 列）
+      - 边界桩号取自 config.length_m，不再写死 3200
+    """
     T_tide = tidal_period_h * 3600.0
     dt_min = dt_s / 60.0
     total_minutes = int(duration_h * 60)
     n_steps = int(total_minutes / dt_min) + 1
 
+    if dt_min < 60:
+        interval_tok = f"{int(dt_min)}MIN"
+    else:
+        interval_tok = f"{int(dt_min // 60)}HOUR"
+
+    # 边界桩号必须落在几何文件实际生成的断面上：
+    # 首断面桩号 = length_m（上游），末断面桩号 = 0（下游）
+    rm_up = int(config.length_m)
+    rm_dn = 0
+
+    flows = [upstream_flow_m3s * (1.0 + 0.05 * np.sin(2 * np.pi * m * dt_s / T_tide))
+             for m in range(n_steps)]
+    stages = [downstream_stage_m + tidal_amplitude_m * np.sin(2 * np.pi * m * dt_s / T_tide)
+              for m in range(n_steps)]
+
     lines = [
-        "Flow Title=Yayao",
+        f"Flow Title={_RIVER_NAME}",
         "Program Version=7.00",
         "",
-        "Boundary Location=3200.000",
-        "Flow Hydrograph=1",
-        "Flow Hydrograph Name=Upstream_Q",
-        f"Flow Hydrograph Data={n_steps}",
-        f"Flow Hydrograph Time Step={int(dt_min)}min",
-        "Flow Hydrograph Date=01Jan2024",
-    ]
-    for m in range(n_steps):
-        t_sec = m * dt_s
-        q = upstream_flow_m3s * (1.0 + 0.05 * np.sin(2 * np.pi * t_sec / T_tide))
-        lines.append(f"Flow={q:.4f}")
-
-    lines += [
+        _boundary_location(rm_up),
+        f"Interval={interval_tok}",
+        f"Flow Hydrograph= {n_steps} ",
+        _flow_table(flows),
         "",
-        "Boundary Location=0.000",
-        "Stage Hydrograph=1",
-        "Stage Hydrograph Name=Downstream_H",
-        f"Stage Hydrograph Data={n_steps}",
-        f"Stage Hydrograph Time Step={int(dt_min)}min",
-        "Stage Hydrograph Date=01Jan2024",
-    ]
-    for m in range(n_steps):
-        t_sec = m * dt_s
-        stage = downstream_stage_m + tidal_amplitude_m * np.sin(2 * np.pi * t_sec / T_tide)
-        lines.append(f"Stage={stage:.4f}")
-
-    lines += [
+        _boundary_location(rm_dn),
+        f"Interval={interval_tok}",
+        f"Stage Hydrograph= {n_steps} ",
+        _flow_table(stages),
         "",
         f"Initial Flow={upstream_flow_m3s:.4f}",
         f"Initial Stage={downstream_stage_m:.4f}",
     ]
 
-    path = os.path.join(work_dir, "Yayao.u01")
+    path = os.path.join(work_dir, f"{_PROJECT_STEM}.u01")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     return path
@@ -264,13 +304,21 @@ def _build_plan_file(work_dir: str, duration_h: float, dt_s: float,
     return path
 
 
-def _build_f01_file(work_dir: str, upstream_flow_m3s: float,
+def _build_f01_file(work_dir: str, config: YayaoConfig,
+                    upstream_flow_m3s: float,
                     downstream_stage_m: float) -> str:
-    """生成稳态流数据文件 (.f01) — 精确匹配 HEC-RAS 7.0 格式。"""
+    """生成稳态流数据文件 (.f01) — 精确匹配 HEC-RAS 7.0 格式。
+
+    RM 取自 config.length_m（= 上游首断面桩号），不再写死 3200。
+    字段宽度 18/16/8 与 HEC-RAS 原生写出的一致，只让桩号跟随河长。
+    """
+    rm_up = int(config.length_m)
     content = f"Flow Title=Flow 01\nProgram Version=7.00\n"
     content += f"Number of Profiles= 1 \nProfile Names=PF 1\n"
-    content += f"River Rch & RM=Yayao             ,Main            ,3200    \n     {upstream_flow_m3s}\n"
-    content += f"Boundary for River Rch & Prof#=Yayao             ,Main            , 1 \n"
+    content += (f"River Rch & RM={_RIVER_NAME:<18},{_REACH_NAME:<16},{rm_up:<8d}\n"
+                f"     {upstream_flow_m3s}\n")
+    content += (f"Boundary for River Rch & Prof#="
+                f"{_RIVER_NAME:<18},{_REACH_NAME:<16}, 1 \n")
     content += f"Up Type= 0 \nDn Type= 1 \nDn Known WS={downstream_stage_m}\n"
     content += f"DSS Import StartDate=\nDSS Import StartTime=\n"
     content += f"DSS Import EndDate=\nDSS Import EndTime=\n"
@@ -315,7 +363,7 @@ def run_hecras_simulation(
                                    tidal_amplitude_m, tidal_period_h,
                                    duration_h, dt_s)
         _build_plan_file(work_dir, duration_h, dt_s, output_interval_min)
-        _build_f01_file(work_dir, upstream_flow_m3s, downstream_stage_m)
+        _build_f01_file(work_dir, config, upstream_flow_m3s, downstream_stage_m)
 
         # 2. COM 打开项目
         ras = _get_hecras_com()
@@ -378,15 +426,26 @@ def _extract_hecras_results(hdf_path: str, config: YayaoConfig,
 
         if has_unsteady:
             # 非恒定流
-            base_path = "Results/Unsteady/Output/Output Blocks/Base Output"
+            #
+            # 路径与单位均为 HEC-RAS 7.0 实测确认，原先两处都写错了：
+            #   1. Cross Sections 挂在 "Unsteady Time Series" 之下，
+            #      不是直接挂在 Base Output 下（原写法会 KeyError）
+            #   2. Time 的单位是【天】不是秒 —— 0.0416667 表示 1 小时。
+            #      原写法除以 3600 会把 25 小时算成 0.0007 小时
+            #   3. 该组下没有裸 "Velocity"，只有 Velocity Channel / Velocity Total
+            # 参考: research/hydro-wq-model/HEC-RAS实测笔记.md
+            base_path = ("Results/Unsteady/Output/Output Blocks/Base Output"
+                         "/Unsteady Time Series")
             xs = h5[base_path + "/Cross Sections"]
             wl = np.array(xs["Water Surface"])
             q = np.array(xs["Flow"])
-            vel = np.array(xs.get("Velocity", np.zeros_like(wl)))
+            vkey = next((k for k in ("Velocity Total", "Velocity Channel")
+                         if k in xs), None)
+            vel = np.array(xs[vkey]) if vkey else np.zeros_like(wl)
             area = np.zeros_like(wl)
 
             if "Time" in h5[base_path]:
-                t_hours = np.array(h5[base_path]["Time"], dtype=float) / 3600.0
+                t_hours = np.array(h5[base_path]["Time"], dtype=float) * 24.0
             else:
                 t_hours = np.linspace(0, duration_h, wl.shape[0])
 

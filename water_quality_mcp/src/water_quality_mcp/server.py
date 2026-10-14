@@ -1,6 +1,7 @@
 """水质监测溯源 MCP Server — 25 个工具供 Claude Code 调用。"""
 
 import json
+from typing import Optional
 
 import numpy as np
 from mcp.server.fastmcp import FastMCP
@@ -288,14 +289,18 @@ def tool_init_river_model(
 # ---------- Tool 19: run_hydrodynamic_simulation ----------
 @mcp.tool(name="run_hydrodynamic_simulation", annotations={"readOnlyHint": False, "destructiveHint": False})
 def tool_run_hydrodynamic_simulation(
-    upstream_flow_m3s: float = 6.9,
-    downstream_stage_m: float = 0.83,
-    tidal_amplitude_m: float = 0.8,
-    tidal_period_h: float = 12.42,
+    upstream_flow_m3s: Optional[float] = None,
+    downstream_stage_m: Optional[float] = None,
+    tidal_amplitude_m: Optional[float] = None,
+    tidal_period_h: Optional[float] = None,
     duration_h: float = 24.0,
     dt_s: float = 60.0,
 ) -> str:
-    """运行雅瑶水道一维水动力模拟(Saint-Venant方程)。返回水位/流速/流量统计。"""
+    """运行一维水动力模拟(Saint-Venant方程)。返回水位/流速/流量统计。
+
+    边界参数留空时取模型初始化时自动推导出的值（见
+    river_model.tools.tool_river_hydro_simulation），不传即用推导值。
+    """
     from river_model.tools import tool_river_hydro_simulation
     return tool_river_hydro_simulation(
         _get_river_state(),

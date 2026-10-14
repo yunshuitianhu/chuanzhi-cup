@@ -231,22 +231,14 @@ def load_data(uploaded_file):
         df.to_excel("_uploaded_data.xlsx", index=False)
     except Exception:
         pass
-    col_map = {
-        '时间':'timestamp','氨氮(mg/L)':'ammonia_nitrogen','溶解氧(mg/L)':'dissolved_oxygen',
-        '水温(°C)':'water_temperature','经度':'longitude','纬度':'latitude','电导率':'conductivity',
-        '化学需氧量(mg/L)':'cod','总有机碳(mg/L)':'toc','pH':'ph','浑浊度(NTU)':'turbidity'
-    }
-    df.rename(columns=col_map, inplace=True)
-    ts = df['timestamp'].astype(str).str.strip().str.replace('\u3000',' ').str.replace('：',':')
-    dt = pd.to_datetime(ts, format='%Y-%m-%d %H:%M:%S', errors='coerce')
-    mask = dt.isna()
-    if mask.any():
-        short = ts[mask].str.slice(0,16)
-        dt[mask] = pd.to_datetime(short, format='%Y-%m-%d %H:%M', errors='coerce')
-    df['datetime'] = dt
-    df.dropna(subset=['datetime'], inplace=True)
-    df.sort_values('datetime', inplace=True)
-    df.reset_index(drop=True, inplace=True)
+    # ---- 列名识别与时间解析：走 loaders 的统一实现 ----
+    # 这里原先有一份**独立的**列映射与时间解析，与 loaders.load_data 里的
+    # 那份是两套代码。后果：修列名兼容时只改了 loaders，app.py 仍是旧的
+    # （只认一种列命名、时间格式也只认两种）。改为共用，避免再次漏改一边。
+    from water_quality_mcp.src.water_quality_mcp.loaders import normalize_columns
+    df, _norm_err = normalize_columns(df)
+    if _norm_err:
+        return _norm_err
 
     # 数值清洗
     numeric_cols = ['ammonia_nitrogen','dissolved_oxygen','water_temperature','cod','turbidity','ph']

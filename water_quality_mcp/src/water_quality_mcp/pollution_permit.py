@@ -98,18 +98,20 @@ def search_pollution_permits(
 
 
 def search_key_pollution_sources(
-    province: str = "广东省",
+    province: str | None = None,
     city: str | None = None,
 ) -> list[dict[str, Any]]:
     """按行政区划搜索重点排污单位名录。
 
     Args:
-        province: 省份名称
+        province: 省份名称。**默认 None 表示"不知道行政区"**，此时直接返回
+            空列表 —— 不再像原先那样默认成 "广东省"。名录是按省发布的，
+            默认成某个省会把该省企业当成本地污染源返回给任意河流。
         city: 城市名称 (可选)
 
     Returns:
         [{企业名称, 排口类型, 主要污染物, 所属行政区}]
-        名录文件不存在时返回空列表（由调用方跳过该数据源）
+        省份未知或名录文件不存在时返回空列表（由调用方跳过该数据源）
 
     ⚠️ 关于此前的硬编码数据
     -----------------------
@@ -170,13 +172,64 @@ def search_key_pollution_sources(
     return results
 
 
-def _find_key_sources_file(province: str) -> str | None:
-    """查找该省的重点排污单位名录文件。
+# 省级行政区 → 拼音。用于匹配文件名（各地生态环境厅的附件常以拼音命名，
+# 如 guangdong_key_sources.xlsx）。
+# 山西/陕西 按国标拼写区分（shanxi / shaanxi）。
+_PROVINCE_PINYIN: dict[str, str] = {
+    "北京": "beijing", "天津": "tianjin", "河北": "hebei", "山西": "shanxi",
+    "内蒙古": "neimenggu", "辽宁": "liaoning", "吉林": "jilin",
+    "黑龙江": "heilongjiang", "上海": "shanghai", "江苏": "jiangsu",
+    "浙江": "zhejiang", "安徽": "anhui", "福建": "fujian", "江西": "jiangxi",
+    "山东": "shandong", "河南": "henan", "湖北": "hubei", "湖南": "hunan",
+    "广东": "guangdong", "广西": "guangxi", "海南": "hainan",
+    "重庆": "chongqing", "四川": "sichuan", "贵州": "guizhou",
+    "云南": "yunnan", "西藏": "xizang", "陕西": "shaanxi", "甘肃": "gansu",
+    "青海": "qinghai", "宁夏": "ningxia", "新疆": "xinjiang",
+    "台湾": "taiwan", "香港": "hongkong", "澳门": "macau",
+}
 
-    查找顺序：项目 data/ 目录 → 项目根目录。文件名按省份匹配。
-    文件不在仓库里（311KB 且来源为省厅公开附件），需使用者自行下载，
+
+def _province_key(province: str) -> tuple[str, str]:
+    """从省份全称里取出中文简称与拼音。
+
+    兼容 "广东省" / "广西壮族自治区" / "内蒙古自治区" / "北京市" 等写法：
+    取 _PROVINCE_PINYIN 中**最长**的匹配键，避免短键误配。
+
+    Returns:
+        (中文简称, 拼音)，无法识别时返回 ("", "")
+    """
+    if not province:
+        return "", ""
+    key = ""
+    for k in _PROVINCE_PINYIN:
+        if k in province and len(k) > len(key):
+            key = k
+    if not key:
+        return "", ""
+    return key, _PROVINCE_PINYIN[key]
+
+
+def _find_key_sources_file(province: str) -> str | None:
+    """查找**指定省份**的重点排污单位名录文件。
+
+    查找顺序：项目 data/ 目录 → 项目根目录。
+
+    ⚠️ 本函数此前**收下 province 却完全不用它过滤** —— 只按文件名里的
+    "key_source / 排污单位 / 重点单位" 关键字返回**第一个**匹配文件。
+    后果：无论传入哪个省，都会返回目录里碰巧存在的那个省的名录，
+    溯源结果会把外省企业当成本地污染源。现改为必须匹配省份。
+
+    匹配规则：文件名含省份中文简称，或其拼音。匹配不上返回 None
+    （由调用方跳过该数据源）—— **宁可不报，不可用错省份的名录**。
+
+    文件不在仓库里（省厅公开附件），需使用者自行下载，文件名请带上省份，
     获取方式见 `data_acquisition_guide.md`。
     """
+    cn, py = _province_key(province)
+    if not cn:
+        logger.info("无法识别省份 %r，跳过重点排污单位名录", province)
+        return None
+
     roots = [
         os.path.join(_PROJECT_ROOT, "data"),
         _PROJECT_ROOT,
@@ -187,9 +240,17 @@ def _find_key_sources_file(province: str) -> str | None:
         for fn in sorted(os.listdir(root)):
             if not fn.lower().endswith((".xlsx", ".xls")):
                 continue
-            # 广东的名录文件名习惯写作 guangdong_key_sources.xlsx
-            if "key_source" in fn.lower() or "排污单位" in fn or "重点单位" in fn:
+            if not ("key_source" in fn.lower() or "排污单位" in fn
+                    or "重点单位" in fn):
+                continue
+            if cn in fn or (py and py in fn.lower()):
                 return os.path.join(root, fn)
+    logger.info(
+        "未找到 %s（%s）的名录文件。文件名需含省份简称或拼音，"
+        "例如 %s_key_sources.xlsx —— 找不到时跳过该数据源，"
+        "不使用其他省份的名录。",
+        province, cn, py or "province",
+    )
     return None
 
 
