@@ -18,89 +18,141 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 
 ## 常用命令
 
+**后端 / 内核（Python）**
+
 ```bash
 pip install -r requirements.txt
-pip install -e water_quality_mcp/          # 可选；见下方"导入路径"一节
 
-streamlit run app.py                        # 运行 Web 应用
-python -m water_quality_mcp.server          # 以 MCP Server 方式运行（stdio）
-
-python tests/river_model_验收算例.py         # 水动力求解器验收：9 通过 / 0 失败 / 1 已知缺陷
-python tests/字段名一致性检查.py             # 界面读取的字段名 vs 后端实际产出的 JSON 键名
-python test_smoke.py                        # 冒烟测试（当前 1 项失败，原因见下）
-
-python scripts/build_rag_index.py           # 重建 RAG 索引（首次需下载 ~400MB 嵌入模型）
-python scripts/build_rag_index.py --no-reset  # 增量更新
+uvicorn backend.main:app --reload --port 8000   # FastAPI（接口文档 /docs）
+streamlit run app.py                            # 原 Streamlit 版（保留，用于快速自检）
+python -m water_quality_mcp.server              # 以 MCP Server 方式运行（stdio）
+python scripts/build_rag_index.py               # 重建 RAG 索引（首次需下 ~400MB 嵌入模型）
 ```
 
-测试均为**脚本式**（非 pytest），无参数化/筛选机制——"跑单个测试"即单独运行对应脚本。两个验收脚本接受可选的项目根目录参数，默认取自身所在的上一级。
+**前端（Vue）**
 
-`test_smoke.py:45` 有一个**已知的路径错误**：它查找 `提交文件/苗圃杯/.../河道巡航走航样本数据.xlsx`，而样本文件实际在上一级。后果是第 3 项（黑臭检测）与第 5 项（图表生成）被 `if df is not None` **静默跳过**，连计数都不进——所以"4 总计"是虚的，核心算法链路目前零自动化覆盖。修复前不要把它当作可信的回归基线。
+```bash
+cd frontend
+npm install
+npm run dev        # 开发服务器 :5173，已配 /api 代理到 :8000
+npm run build      # 生产构建
+npm run preview
+```
+
+**测试**（全部为**脚本式**，非 pytest；"跑单个测试"即单独运行对应脚本）
+
+```bash
+python tests/后端接口检查.py           # 16 项 —— 会话保持、接口契约、参数校验
+python tests/字段名一致性检查.py       # 界面读取的键名 vs 后端实际产出
+python tests/密钥泄漏检查.py           # 9 项 —— 密钥不入库 + .env 优先级
+python tests/逆地理识别降级链.py       # 11 项
+python tests/经纬度缺失值对齐.py       # 8 项
+python tests/参数估计路径一致性.py     # 10 项
+python tests/river_model_验收算例.py   # 15 通过 / 0 失败 / 1 项已知缺陷
+python tests/前端演示_真实数据.py      # 驱动 app.py 跑完整流程（会真实调用 LLM，约 2 分钟）
+python test_smoke.py                   # 见下方说明，当前不可信
+```
+
+`test_smoke.py:45` 有一个**已知的路径错误**：它查找 `提交文件/苗圃杯/.../河道巡航走航样本数据.xlsx`，而样本文件实际在上一级。后果是第 3 项（黑臭检测）与第 5 项（图表生成）被 `if df is not None` **静默跳过**，连计数都不进——"4 总计"是虚的。修复前不要把它当作可信的回归基线。
+
+样本数据：`C:\Users\Cloud-Mist Sky Lake\Desktop\苗圃杯\无人船智能水质监测分析和因果溯源样本数据\河道巡航走航样本数据.xlsx`（1805 条，2025-08-01 10:33~13:05，雅瑶水道实际轨迹）。
 
 ## 架构
 
 ```
-app.py                    Streamlit UI + DeepSeek Function Calling Agent 编排
-  │  （薄层：委托给下方两个包，不重复实现分析逻辑）
-  ├─→ water_quality_mcp/  水质分析内核，25 个 MCP 工具
-  └─→ river_model/        一维水动力-水质数值模型
-        └─ knowledge_base/ --(build_rag_index)--> .rag_index/  ChromaDB 向量索引
+frontend/                  Vue 3 + Vite + Pinia + ECharts + Leaflet
+   │  REST / SSE
+backend/                   FastAPI —— 把内核包装成 HTTP 服务
+   │
+   ├─→ water_quality_mcp/  水质分析内核（25 个 MCP 工具）
+   └─→ river_model/        一维水动力-水质数值模型
+         └─ knowledge_base/ --(build_rag_index)--> .rag_index/  ChromaDB 向量索引
+
+app.py                     原 Streamlit 版（等价能力，保留作对照与快速自检）
 ```
 
-**`water_quality_mcp`**（src 布局，`src/water_quality_mcp/`）
-- `analysis.py` — 核心算法：双标准黑臭检测、内梅罗指数、时空增强评分、DBSCAN 聚类、视频-传感器交叉印证、综合摘要
-- `loaders.py` — 数据加载清洗与视频抽帧
-- `trace_engine.py` / `pollution_permit.py` / `national_station.py` / `geo_tools.py` — 多渠道溯源
-- `rag_engine.py` / `knowledge_loader.py` — RAG 检索与索引构建
-- `server.py` — MCP Server 入口（注意：注册的工具有 25 个，文档写 23）
+**`backend/`**
+- `session.py` — 按 session_id 隔离的会话状态，对应原 `st.session_state`
+- `deps.py` + `main.py` 的 `session_middleware` — 会话的解析与回传（见下方坑 1）
+- `routers/{system,data,analysis,charts,agent}.py` — 五组接口
+- `agent/tools.py` — 工具定义与执行分发；**与 `app.py` 里的同名清单是两份**，改工具时两处都要改
+- `agent/loop.py` — Function Calling 流式主循环（SSE）
 
-**`river_model`**
-- `pure_py_hydro.py` — Preissmann 四点隐式格式求解 Saint-Venant 方程
-- `wq_engine.py` — ADR 对流-扩散-反应水质模型（算子分裂 + RK4）
-- `hydro_engine.py` — 引擎调度（选择 HEC-RAS 或纯 Python）
-- `parameter_estimator.py` — 6 层河道参数自发现管道
-- `tools.py` — 7 个 MCP 工具入口
+**`frontend/src/`**
+- `stores/session.js` — Pinia，会话状态集中管理（对应 `st.session_state`）
+- `views/` — 四个视图，与 `app.py` 的四个标签页一一对应
+- `components/EChart.vue` — ECharts 封装（处理尺寸为 0 时的空白图、卸载 dispose）
+- `components/TraceMap.vue` — Leaflet 地图
+
+### 前端视图 ↔ app.py 标签页对照
+
+| 视图 | app.py | 状态 |
+|---|---|---|
+| `views/ChatView.vue` | tab1 智能对话 | ✅ 已通（SSE） |
+| `views/ChartsView.vue` | tab2 分析图表 | ✅ 已通 |
+| `views/RiverView.vue` | tab3 河道模型 | ⬜ 占位 |
+| `views/TechView.vue` | tab4 技术展示 | 🟡 部分（黑臭检测/统计已通） |
 
 ### 关键领域概念
 
 - **双标准黑臭检测**：GB3838-2002 提供连续的内梅罗评分（用于排序/聚类），《城市黑臭水体整治工作指南》(2015) 提供"是/否黑臭"定性判定（用于筛选）。两者分工明确，不要混用。
 - **时空增强评分**：`增强评分 = 内梅罗 × 严重度因子 × (1 + 1.5×时间因子) × (1 + 1.5×空间因子)`。孤立单点超标被抑制，持续成片超标被放大。输出同时含 `black_score`（增强）与 `nemerow_raw`（原始）。
 - **引擎选择**：HEC-RAS COM 分支**仅支持恒定流**。非恒定流（潮汐）工况必须走纯 Python 求解器——`hydro_engine.is_nonconstant()` 负责判定，不要绕过它。
-- **数据源权威性**：政府公示数据 > 商业地图数据。系统对每个外部数据源都做了独立降级（缺 Key / 网络失败 / API 改版都不应阻断整体流程）。
+- **图表改为「后端出数据、前端渲染」**：`backend/routers/charts.py` **不 import matplotlib**，只返回 JSON；ECharts / Leaflet 在前端画。这是赛题"前端工程能力 + 数据分析与可视化"的得分点，不要改回出 PNG。
+- **数据源权威性**：政府公示数据 > 商业地图数据。每个外部数据源都做了独立降级（缺 Key / 网络失败 / API 改版都不应阻断整体流程）。
 
 ## 必须知道的坑
 
-**动手前先读 `docs/` 下两份审计文档**，它们记录了已确认的缺陷、证据等级与修改方案，避免重复劳动或改错方向：
+**动手前先读 `docs/` 下两份审计文档**，它们记录了已确认的缺陷、证据等级与修改方案：
 
 - `docs/代码审计与修改方案.md` — 第一轮，含修复进展表
 - `docs/代码审计-第二轮发现.md` — 第二轮（全文通读后）
 
-其中几条最容易踩的：
+**1. 会话靠 `X-Session-Id` 请求头传递 —— 后端必须回传**
 
-**1. 导入路径不一致 —— 改动任何 import 前先看清**
+HTTP 是无状态的。前端在请求头带 `X-Session-Id`，**后端必须在响应头回传**，否则前端永远不知道自己在用哪个会话，于是每个请求都新建会话。曾因此出现「上传成功 1805 条，但状态始终为空、按钮点不动」。修复见 `backend/main.py` 的 `session_middleware`（放在中间件层而非依赖里，才能覆盖包括错误响应在内的全部出口）。
 
-项目实际上**并未真正 pip 安装**，全部依赖 `sys.path` 操作，且存在两种互相冲突的风格：
+写后端测试时**不要手动替客户端带 `X-Session-Id`** 就把用例写完 —— 那会掩盖客户端侧的问题。`tests/后端接口检查.py` 里专门保留了一条「不带 id 时应查不到数据」的用例守这个语义。
 
-- `from water_quality_mcp.src.water_quality_mcp.X import ...`（`app.py`、`report.py`、`knowledge_loader.py` 等）——要求**项目根目录**在 `sys.path` 上
-- `from .analysis import ...`（包内相对导入）——要求 `water_quality_mcp/src` 在 `sys.path` 上
+**2. 导入必须用全路径，否则会加载到 `D:\aiRAG` 的另一份代码**
 
-`state.py` 会在导入时把项目根目录注入 `sys.path`（为了让 `river_model` 可导入）。`.rag_index` 由 `rag_engine.py` 以 `../../../` 相对 `__file__` 解析到项目根目录。多处输出文件（`trace_map.html`、`_uploaded_data.xlsx`、`river_*.png`）是 **CWD 相对**路径——从别的目录启动会读写到不同位置。
+本机存在一个指向 `D:\aiRAG\water_quality_mcp\src\water_quality_mcp` 的 **editable 安装**。因此：
 
-**2. 字段名不匹配是系统性问题，不是孤例**
+| 写法 | 实际加载 |
+|---|---|
+| `from water_quality_mcp.src.water_quality_mcp.X import ...` + 项目根在 `sys.path` | ✅ 本项目 |
+| `import water_quality_mcp` + `src` 在 `sys.path` | ✅ 本项目 |
+| `from water_quality_mcp.X import ...` + 只有项目根在 `sys.path` | ❌ **`D:\aiRAG`** |
 
-界面/调用层按英文 `snake_case` 键名编写，而后端包产出**中文键名**，`.get()` 取不到时静默返回默认值、不报错。已定位 8 处（详见第二轮审计文档 A 节）。新增前后端交互时**务必用 `tests/字段名一致性检查.py` 校验**，不要凭印象写键名。
+`backend/__init__.py` 已处理 sys.path 并统一走全路径。**写新代码时请沿用**，不要图省事写短路径。
 
-**3. 已知未修复的缺陷，不要"顺手"改**
+项目并未真正 pip 安装，全靠 `sys.path` 操作。`.rag_index` 由 `rag_engine.py` 以 `../../../` 相对 `__file__` 解析；多处输出文件（`trace_map.html`、`_uploaded_data.xlsx`、`river_*.png`）是 **CWD 相对**路径。
+
+**3. 本机环境的两个特性（会干扰测试）**
+
+- **Vite 只监听 IPv6 `[::1]:5173`**，用 `127.0.0.1` 访问不到
+- **curl 默认走系统代理**（Clash，`127.0.0.1:7890`），访问本地服务返回 502，测试需加 `--noproxy '*'`
+
+**4. 字段名不匹配是系统性问题，不是孤例**
+
+调用层曾按英文 `snake_case` 键名读取**中文键名**的产出，`.get()` 取不到时静默返回默认值、不报错。已修复 11 处（详见第二轮审计文档 A 节）。新增前后端交互时**务必用 `tests/字段名一致性检查.py` 校验**，不要凭印象写键名。前端 `BlackSpotResult.vue` 特意按后端返回的字段清单渲染，从结构上避免同类问题。
+
+**5. 已知未修复的缺陷，不要"顺手"改**
 
 - `pure_py_hydro.py` 连续性方程遗漏水面宽 `B_mid`，非恒定工况质量不守恒（残差达蓄水率 103%）。补上 `B_mid` 的实验已回滚——残差不变且破坏 Newton 收敛。**需要重新推导 Preissmann 离散，非外科修复可解。**
 - `analysis_config.py` 有两个独立单例（`get_config()` 管理的 `_DEFAULT_CONFIG` 与模块级 `DEFAULT_CONFIG`）。全库无人调用 `set_config`，属潜伏隐患。**改动零收益、风险非零，建议不动。**
+- `TIDAL_AMPLITUDE_BY_REGION` 的 8 个具体河口键当前不可达（只取 `"default"`）。原因与影响已写在 `regional_defaults.py` 表旁。
 
-**4. 不要在作品说明中美化能力**
+**6. 不要在作品说明中美化能力**
 
-已核实：文档宣称的"6 源溯源"实际只实现 4 源；ESA 土地利用、降雨模块、视频 5 维分析**代码中完全不存在**；河道模型的水动力部分**不可用于潮汐工况**。作品说明必须按代码实际能力撰写。
+按**本仓库实际代码**核对过：溯源是 **4 个加权源**（不是文档说的 6 源）；ESA 土地利用与降雨模块在本仓库中**不存在**；视频分析只有整帧 Laplacian + HSV（不是文档说的 5 维 ROI/光流/水色/纹理/漂浮物）；河道模型的水动力部分**不可用于潮汐工况**。
+
+> 注：`D:\aiRAG`（见坑 2）里**有** `land_use.py` 与 `precipitation.py`，但那是另一份、未纳入本仓库的代码。写说明文档时以本仓库为准。
 
 ## 与苗圃杯原项目的关系
 
-原项目在 `C:\Users\Cloud-Mist Sky Lake\Desktop\苗圃杯\提交文件\`（**无 Git**，是被冻结的只读参照）。其中 `提交文件/` 与 `1/提交文件/` 的 **Python 源码完全相同**，`提交文件/` 是唯一权威版本。
+基线代码来自 `C:\Users\Cloud-Mist Sky Lake\Desktop\苗圃杯\提交文件\`（**无 Git**，冻结的只读参照）。其中 `提交文件/` 与 `1/提交文件/` 的 **Python 源码完全相同**，`提交文件/` 是唯一权威版本。
 
-原仓库 `yunshuitianhu/water-quality-monitoring` **不要使用**：它只有 5 次提交、首次即 `Initial commit` 提交全部功能，正是赛道禁止的形态，且缺失最终版的大量模块。新仓库首次提交已显式标注了代码来源，**绝不补造提交历史**。
+原仓库 `yunshuitianhu/water-quality-monitoring` **不要使用**：它只有 5 次提交、首次即 `Initial commit` 提交全部功能，正是赛道禁止的形态，且缺失最终版的大量模块。本仓库首次提交已显式标注了代码来源，**绝不补造提交历史**。
+
+本机还有 `D:\aiRAG\`（时间戳 2026-06-18，晚于苗圃杯提交的 06-03）。它是同一项目的后续开发版本，多出 `land_use.py`、`precipitation.py`、真实 ESA 数据与名录，但**同样存在本仓库已修复的全部缺陷**。**尚未决定是否并入**——改动前先与用户确认。
