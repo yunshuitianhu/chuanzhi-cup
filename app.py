@@ -8,6 +8,14 @@ import requests
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# 把项目根目录的 .env 载入环境变量（该文件已被 .gitignore 排除，绝不入库）。
+# 必须在任何读取密钥的代码之前执行。
+try:
+    from water_quality_mcp.src.water_quality_mcp.config import load_env
+    load_env()
+except Exception as _e:  # 包未就绪时不阻断应用启动
+    print(f"[warn] .env 未加载: {_e}")
+
 st.set_page_config(page_title="水质监测溯源助手", layout="wide")
 
 @st.cache_resource
@@ -48,40 +56,41 @@ if "font_prop" not in st.session_state:
 # ---------- API 密钥管理 ----------
 
 def _load_api_keys_from_files():
-    """从 .env 和 .mcp.json 加载已保存的 API key 到 session_state。"""
-    keys = {"deepseek": "", "amap": "", "starcloud": ""}
-    # 读 .env
-    env_path = os.path.join(os.path.dirname(__file__), ".env")
-    if os.path.exists(env_path):
-        with open(env_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("DEEPSEEK_API_KEY="):
-                    v = line.split("=", 1)[1].strip()
-                    if v and "your-" not in v:
-                        keys["deepseek"] = v
-                elif line.startswith("DASHSCOPE_API_KEY="):
-                    v = line.split("=", 1)[1].strip()
-                    if v and "your-" not in v and not keys["deepseek"]:
-                        keys["deepseek"] = v
-    # 读 .mcp.json
-    mcp_path = os.path.join(os.path.dirname(__file__), ".mcp.json")
-    if os.path.exists(mcp_path):
-        try:
-            with open(mcp_path, encoding="utf-8") as f:
-                cfg = json.load(f)
-            env_vars = cfg.get("mcpServers", {}).get("water-quality-mcp", {}).get("env", {})
-            for k in ["AMAP_KEY", "DEEPSEEK_API_KEY", "CLOUD_TOKEN"]:
-                v = (env_vars.get(k, "") or "").strip()
-                if v and "your-" not in v:
-                    if k == "AMAP_KEY":
-                        keys["amap"] = v
-                    elif k == "DEEPSEEK_API_KEY":
-                        keys["deepseek"] = v or keys["deepseek"]
-                    elif k == "CLOUD_TOKEN":
-                        keys["starcloud"] = v
-        except Exception:
-            pass
+    """收集已配置的 API 密钥。
+
+    优先级：环境变量（启动时由 load_env() 从项目根目录的 .env 载入）
+            > .mcp.json（MCP 客户端配置）。
+
+    两个文件都在 .gitignore 中，密钥不会进入仓库；
+    源码与示例文件中一律只出现占位符。
+    """
+    def _clean(v):
+        v = (v or "").strip()
+        # 占位符一律视为未配置，否则会拿去请求、得到难定位的认证错误
+        if not v or "your-" in v.lower() or "你的" in v:
+            return ""
+        return v
+
+    keys = {
+        "deepseek": _clean(os.environ.get("DEEPSEEK_API_KEY"))
+                    or _clean(os.environ.get("DASHSCOPE_API_KEY")),
+        "amap": _clean(os.environ.get("AMAP_KEY")),
+        "starcloud": _clean(os.environ.get("CLOUD_TOKEN")),
+    }
+
+    # 环境变量缺失的项，回退到 .mcp.json
+    if not all(keys.values()):
+        mcp_path = os.path.join(os.path.dirname(__file__), ".mcp.json")
+        if os.path.exists(mcp_path):
+            try:
+                with open(mcp_path, encoding="utf-8") as f:
+                    cfg = json.load(f)
+                env_vars = cfg.get("mcpServers", {}).get("water-quality-mcp", {}).get("env", {})
+                keys["amap"] = keys["amap"] or _clean(env_vars.get("AMAP_KEY"))
+                keys["deepseek"] = keys["deepseek"] or _clean(env_vars.get("DEEPSEEK_API_KEY"))
+                keys["starcloud"] = keys["starcloud"] or _clean(env_vars.get("CLOUD_TOKEN"))
+            except Exception:
+                pass
     return keys
 
 def _save_api_keys_to_files(deepseek_key, amap_key, starcloud_token):

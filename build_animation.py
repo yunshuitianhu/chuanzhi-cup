@@ -20,15 +20,29 @@ from river_model.geo_mapping import (build_chainage_gps_mapping, chainage_array_
     get_gps_track_coords, get_map_center, chainage_to_gps)
 from river_model.animation import _build_color_scale, _conc_to_color_relative, _conc_to_radius_relative
 from water_quality_mcp.src.water_quality_mcp.analysis import find_black_spots, calc_black_score_vectorized
+from water_quality_mcp.src.water_quality_mcp.config import load_env, resolve_api_key
+
+# 载入 .env（已被 .gitignore 排除，绝不入库）
+load_env()
 
 EXCEL_DEFAULT = os.path.join(_AIROOT,
     "苗圃杯/无人船智能水质监测分析和因果溯源样本数据/河道巡航走航样本数据.xlsx")
 
 def _load_amap_key():
+    """取高德 Key：环境变量优先，其次 .mcp.json。
+
+    两者都是本地文件，密钥不进入仓库。
+    """
+    key = resolve_api_key("AMAP_KEY")
+    if key:
+        return key
     cfg_path = os.path.join(_AIROOT, ".mcp.json")
     if os.path.exists(cfg_path):
-        with open(cfg_path) as f:
-            return json.load(f)["mcpServers"]["water-quality-mcp"]["env"].get("AMAP_KEY", "")
+        try:
+            with open(cfg_path, encoding="utf-8") as f:
+                return json.load(f)["mcpServers"]["water-quality-mcp"]["env"].get("AMAP_KEY", "")
+        except (OSError, KeyError, json.JSONDecodeError):
+            return ""
     return ""
 
 def build_trace_animation(

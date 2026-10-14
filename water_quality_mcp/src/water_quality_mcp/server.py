@@ -19,7 +19,7 @@ from .charts import (
     generate_time_series,
     generate_trace_map,
 )
-from .config import resolve_api_key
+from .config import load_env, resolve_api_key
 from .geo_tools import (
     get_satellite_image,
     reverse_geocode,
@@ -31,6 +31,11 @@ from .report import generate_report
 from .rag_engine import search_treatment_cases
 from .state import WaterQualityState, _get_river_state
 from .trace_engine import multi_source_trace
+
+# 独立启动（python -m water_quality_mcp.server）时也能读到项目根目录的 .env。
+# 由 MCP 客户端拉起时，客户端通常已通过 .mcp.json 的 env 块注入环境变量，
+# 此时 load_env 不覆盖已有值（override=False），不会造成冲突。
+load_env()
 
 mcp = FastMCP("water-quality-mcp")
 state = WaterQualityState()
