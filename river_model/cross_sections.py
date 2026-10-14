@@ -89,8 +89,9 @@ def generate_yayao_cross_sections(
 ) -> List[CrossSection]:
     """生成雅瑶水道理想化梯形断面序列。
 
-    上游 (id=0) 河底高程略高 (bed - slope*length/2)，
-    下游河底高程略低 (bed + slope*length/2)，形成缓坡。
+    河底沿流向下降：上游 (桩号 0) 高程为 bed + slope·L/2，
+    下游 (桩号 L) 为 bed - slope·L/2，两端相对平均高程对称。
+    默认参数（L=3200m, slope=0.0001）下即上游 -1.84m、下游 -2.16m。
 
     Args:
         n_total: 断面总数
@@ -110,8 +111,15 @@ def generate_yayao_cross_sections(
 
     for i in range(n_total):
         chainage = i * dx
-        # 河底高程沿程线性变化
-        bed_el = bed_elevation_avg_m - bed_slope * (channel_length_m / 2.0 - chainage)
+        # 河底高程沿程线性变化：上游（桩号 0）高、下游（桩号 L）低，
+        # 即河底沿流向下降。
+        #
+        # 原写作 (channel_length_m / 2.0 - chainage)，括号内符号反了，
+        # 导致上游河底反而比下游低 0.32 m（3.2km × 0.0001），
+        # 与真实河道相反 —— 也与本函数自身 docstring 的说明矛盾。
+        # 实测（默认参数）：修正前 上游 -2.16 / 下游 -1.84；
+        #                  修正后 上游 -1.84 / 下游 -2.16。
+        bed_el = bed_elevation_avg_m - bed_slope * (chainage - channel_length_m / 2.0)
 
         # 梯形断面: 5个控制点
         half_bottom = bottom_width_m / 2.0

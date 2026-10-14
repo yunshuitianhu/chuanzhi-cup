@@ -292,6 +292,33 @@ report_known("非恒定工况满足连续方程（残差 < 蓄水率的 10%）",
 
 # ============================================================
 print()
+print("算例 8  断面几何合理性")
+print("  性质: 河底沿流向下降（上游高、下游低）；过水面积随水位单调增")
+print("  背景: cross_sections.py 曾把坡降公式的括号写成")
+print("        (channel_length_m/2 - chainage)，符号反了，导致上游河底")
+print("        反而比下游低 0.32m —— 与真实河道相反，也与该函数自身")
+print("        docstring 的说明矛盾。本项防止该类符号错误再次出现。")
+print("-" * 74)
+
+for slope, label in ((0.0001, "雅瑶水道默认"), (0.0005, "丘陵河道")):
+    cs_t = generate_yayao_cross_sections(11, 3200.0, -2.0, slope, 40.0, mannings_n=0.028)
+    beds_t = [c.bottom_elevation for c in cs_t]
+    drop = beds_t[0] - beds_t[-1]
+    print(f"  slope={slope:<7} 上游河底 {beds_t[0]:+.3f} m  下游河底 {beds_t[-1]:+.3f} m  "
+          f"落差 {drop:+.3f} m")
+    report(f"河底沿流向下降（slope={slope}）", drop > 1e-9,
+           f"上游-下游 = {drop:+.4f} m，应为正")
+
+# 单调性：水位升高，过水面积必须单调不减
+cs0 = cs[0]
+zs = np.linspace(cs0.bottom_elevation + 0.05, 2.0, 25)
+areas = [cs0.flow_area(float(z)) for z in zs]
+mono = all(areas[i + 1] >= areas[i] - 1e-9 for i in range(len(areas) - 1))
+report("过水面积随水位单调不减", mono,
+       f"水位 [{zs[0]:.2f}, {zs[-1]:.2f}] m 内面积由 {areas[0]:.1f} 增至 {areas[-1]:.1f} m²")
+
+# ============================================================
+print()
 print("=" * 74)
 n_pass = sum(1 for _, ok in results if ok)
 n_fail = len(results) - n_pass
