@@ -96,7 +96,7 @@ Current Flow=f01
 Default Exp/Contr=0.3,0.1
 SI Units
 Geom File=g01
-Unsteady Flow File=u01
+Unsteady File=u01
 Plan File=p01
 Flow File=f01
 Y Axis Title=Elevation
@@ -426,15 +426,26 @@ def _extract_hecras_results(hdf_path: str, config: YayaoConfig,
 
         if has_unsteady:
             # 非恒定流
-            base_path = "Results/Unsteady/Output/Output Blocks/Base Output"
+            #
+            # 路径与单位均为 HEC-RAS 7.0 实测确认，原先两处都写错了：
+            #   1. Cross Sections 挂在 "Unsteady Time Series" 之下，
+            #      不是直接挂在 Base Output 下（原写法会 KeyError）
+            #   2. Time 的单位是【天】不是秒 —— 0.0416667 表示 1 小时。
+            #      原写法除以 3600 会把 25 小时算成 0.0007 小时
+            #   3. 该组下没有裸 "Velocity"，只有 Velocity Channel / Velocity Total
+            # 参考: research/hydro-wq-model/HEC-RAS实测笔记.md
+            base_path = ("Results/Unsteady/Output/Output Blocks/Base Output"
+                         "/Unsteady Time Series")
             xs = h5[base_path + "/Cross Sections"]
             wl = np.array(xs["Water Surface"])
             q = np.array(xs["Flow"])
-            vel = np.array(xs.get("Velocity", np.zeros_like(wl)))
+            vkey = next((k for k in ("Velocity Total", "Velocity Channel")
+                         if k in xs), None)
+            vel = np.array(xs[vkey]) if vkey else np.zeros_like(wl)
             area = np.zeros_like(wl)
 
             if "Time" in h5[base_path]:
-                t_hours = np.array(h5[base_path]["Time"], dtype=float) / 3600.0
+                t_hours = np.array(h5[base_path]["Time"], dtype=float) * 24.0
             else:
                 t_hours = np.linspace(0, duration_h, wl.shape[0])
 
