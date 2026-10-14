@@ -36,7 +36,7 @@ async function run() {
 
 /** 相关系数热力图：视频指标 × 传感器指标。 */
 const heatOption = computed(() => {
-  const corr = result.value?.correlations || []
+  const corr = result.value?.['相关系数矩阵'] || []
   if (!corr.length) return {}
 
   const vLabels = [...new Set(corr.map((c) => c.视频指标))]
@@ -85,8 +85,19 @@ const heatOption = computed(() => {
   }
 })
 
-const agreement = computed(() => result.value?.agreement || {})
-const findings = computed(() => result.value?.findings || [])
+/**
+ * ⚠️ 键名必须与 `analysis.cross_validate_video_with_monitoring` 的
+ * **实际产出**一致，全部是中文键。
+ *
+ * 本组件最初按英文键（alignment / agreement / correlations / findings）
+ * 读取，后端一个都没有 —— `.get()` 取不到时静默落到 `?? '—'` 兜底，
+ * 于是四个指标卡全是空白横杠，而接口返回的是 200、数据也完全正常。
+ * 这正是项目里反复出现的那类缺陷，只不过这次发生在新前端上。
+ * 改动前请用 `tests/前端字段名检查.py` 校验。
+ */
+const alignment = computed(() => result.value?.['时间对齐'] || {})
+const agreement = computed(() => result.value?.['黑臭判定一致性'] || {})
+const findings = computed(() => result.value?.['关键发现'] || [])
 
 watch(() => store.status.video_frames, (n) => { if (!n) result.value = null })
 </script>
@@ -116,8 +127,8 @@ watch(() => store.status.video_frames, (n) => { if (!n) result.value = null })
       <div class="metrics">
         <div class="metric">
           <span class="m-label">匹配成功帧</span>
-          <span class="m-val">{{ result.alignment?.匹配成功帧数 ?? '—' }}</span>
-          <span class="m-sub">/ {{ result.alignment?.总视频帧数 ?? '—' }}</span>
+          <span class="m-val">{{ alignment['匹配成功帧数'] ?? '—' }}</span>
+          <span class="m-sub">/ {{ alignment['总视频帧数'] ?? '—' }}</span>
         </div>
         <div class="metric">
           <span class="m-label">黑臭判定一致率</span>
