@@ -24,6 +24,8 @@ import pandas as pd
 from .config import YayaoConfig
 from .geo_mapping import build_chainage_gps_mapping, _haversine
 from .regional_defaults import (
+    DEFAULT_CATCHMENT_KM2,
+    TIDAL_AMPLITUDE_DEFAULT_M,
     classify_region,
     estimate_depth_from_width,
     estimate_discharge,
@@ -141,7 +143,10 @@ class RiverParameterEstimator:
         discharge_source = "known_river_database" if discharge_m3s else "estimated"
         discharge_conf = 0.85 if discharge_m3s else 0.40
         if discharge_m3s is None:
-            catchment = (known or {}).get("catchment_area_km2", 122.8)
+            # 已知河道库中没有 discharge_m3s 时才会走到这里。
+            # 集水面积同样取不到时用占位值 —— 这是**经验估算而非推断**,
+            # 置信度已在下方标为 0.40, 调用方不应把它当成实测值。
+            catchment = (known or {}).get("catchment_area_km2") or DEFAULT_CATCHMENT_KM2
             discharge_m3s = estimate_discharge(catchment)
 
         # 潮汐边界
@@ -150,11 +155,9 @@ class RiverParameterEstimator:
         tidal_source = "known_river_database" if tidal_amp else "regional_defaults"
         tidal_conf = 0.90 if tidal_amp else 0.50
         if tidal_amp is None:
-            if is_tidal:
-                from .regional_defaults import TIDAL_AMPLITUDE_BY_REGION
-                tidal_amp = TIDAL_AMPLITUDE_BY_REGION.get("default", 0.8)
-            else:
-                tidal_amp = 0.0
+            # 注意: TIDAL_AMPLITUDE_BY_REGION 的 8 个具体河口键当前不可达,
+            # 这里取的是统一的默认值。见 regional_defaults 中该表的说明。
+            tidal_amp = TIDAL_AMPLITUDE_DEFAULT_M if is_tidal else 0.0
 
         # 水位基准
         high_water = (known or {}).get("high_water_mean_m", 0.83)
@@ -367,10 +370,20 @@ class RiverParameterEstimator:
     # Layer 2: 河道识别
     # ==================================================================
 
-    def _identify_river(self, df: pd.DataFrame, center_lat: float, center_lon: float) -> dict:
+    def _identify_river(self, df: pd.DataFrame, center_lat: float, center_lon: float,
+                        gps_coords: Optional[Tuple[np.ndarray, np.ndarray]] = None) -> dict:
         """识别河道身份: 名称、类型、位置。
 
         优先级: 已知河道坐标库 > OSM track match > Amap 逆地理 > 默认值
+
+        Args:
+            df: 监测数据 DataFrame；为 None 时须改用 gps_coords 提供轨迹。
+            center_lat / center_lon: 搜索中心。
+            gps_coords: (lats, lons) 数组，直接提供 GPS 轨迹。
+                **走 gps_mapping 的调用方必须传这个** —— 否则下面取不到
+                GPS 点，"已知河道坐标库"（置信度 0.95 的最高优先级来源）
+                与"OSM 轨迹匹配"两层都会被整层跳过，河道识别只能退到
+                单点 OSM 查询与高德逆地理。
         """
         result = {
             "name": None,
@@ -385,7 +398,12 @@ class RiverParameterEstimator:
         }
 
         # ---- 提取 GPS 轨迹 ----
-        gps_lats, gps_lons = self._get_coords(df) if df is not None else (np.array([]), np.array([]))
+        if gps_coords is not None:
+            gps_lats, gps_lons = gps_coords
+        elif df is not None:
+            gps_lats, gps_lons = self._get_coords(df)
+        else:
+            gps_lats, gps_lons = np.array([]), np.array([])
 
         # ---- 第0优先级: 已知河道坐标库 ----
         # 如果 GPS 坐标落入已知河道的 bbox, 直接采用该河道身份 (最高置信度)
@@ -876,9 +894,18 @@ def estimate_config_from_gps(
     else:
         gps_width = None
 
-    # 河道识别
-    river_identity = estimator._identify_river(None, center_lat, center_lon)
+    # 河道识别 —— 把 GPS 轨迹一并传入。
+    # 原来这里传 None，导致 _identify_river 取不到坐标点，
+    # 「已知河道坐标库」与「OSM 轨迹匹配」两层被整层跳过：
+    # 明明手上就有 gps_mapping 的全部轨迹点，却只能退回单点查询。
+    river_identity = estimator._identify_river(
+        None, center_lat, center_lon,
+        gps_coords=(np.asarray(lats, dtype=float), np.asarray(lons, dtype=float)),
+    )
     river_type = river_identity.get("waterway_type", "river")
+
+    # 已知河道库查表（命中时其参数置信度最高，见下方 *_src 取值）
+    known = lookup_known_river(river_identity.get("name", ""))
 
     # 解算宽度
     width_m, width_src, width_conf = estimator._resolve_width(
@@ -886,17 +913,44 @@ def estimate_config_from_gps(
         gps_width=gps_width,
         sat_width_info=None,
         river_type=river_type,
-        known=lookup_known_river(river_identity.get("name", "")),
+        known=known,
     )
 
+    # ---- 以下各项的取值优先级与 estimate() 路径保持一致：----
+    #      已知河道库标定值 > 区域/类型默认值
+    # 本函数原先只在算宽度时查已知库，糙率/坡降/水深/流量/潮汐全部走通用
+    # 默认值 —— 同样输入下与 estimate() 路径给出两套不同参数。现补齐。
     region = classify_region(center_lat, center_lon)
-    depth_m = estimate_depth_from_width(width_m, river_type)
-    mannings_n = lookup_mannings_n(river_type)
-    slope = lookup_slope(region, river_type)
-    discharge = estimate_discharge(122.8)
+
+    depth_m = (known or {}).get("depth_avg_m")
+    depth_src = "known_river_database" if depth_m else "estimated_from_width"
+    if depth_m is None:
+        depth_m = estimate_depth_from_width(width_m, river_type)
+
+    mannings_n = (known or {}).get("mannings_n")
+    mannings_src = "known_river_database" if mannings_n else "regional_defaults"
+    if mannings_n is None:
+        mannings_n = lookup_mannings_n(river_type)
+
+    slope = (known or {}).get("slope")
+    slope_src = "known_river_database" if slope else "regional_defaults"
+    if slope is None:
+        slope = lookup_slope(region, river_type)
+
+    discharge = (known or {}).get("discharge_m3s")
+    discharge_src = "known_river_database" if discharge else "estimated"
+    if discharge is None:
+        # 集水面积未知 -> 用占位值。这是经验估算而非推断，置信度见下。
+        discharge = estimate_discharge(DEFAULT_CATCHMENT_KM2)
 
     is_tidal = river_identity.get("is_tidal", True)
-    tidal_amp = 0.8 if is_tidal else 0.0
+    tidal_amp = (known or {}).get("tidal_amplitude_m")
+    tidal_src = "known_river_database" if tidal_amp else "regional_defaults"
+    if tidal_amp is None:
+        # 与 estimate() 路径共用同一个默认值，避免两处各自硬编码。
+        # 注: TIDAL_AMPLITUDE_BY_REGION 的具体河口键当前不可达，
+        #     详见 regional_defaults 中该表的说明。
+        tidal_amp = TIDAL_AMPLITUDE_DEFAULT_M if is_tidal else 0.0
 
     return YayaoConfig(
         river_name=river_identity.get("name", "未知河道"),
@@ -912,18 +966,31 @@ def estimate_config_from_gps(
         tidal_range_m=round(tidal_amp * 2, 1),
         center_lat=round(center_lat, 4),
         center_lon=round(center_lon, 4),
+        # 来源标签按实际取值动态填写 —— 原来这几项写死为区域默认值，
+        # 即使命中了已知河道库也照报"regional_defaults"，UI 上的置信度
+        # 色标（🟢≥80% 🟡≥50% 🟠≥30% 🔴<30%）因此始终显示低置信度。
+        # 同时补齐 river_name / location / avg_discharge_m3s / tidal_range_m
+        # 三项原先缺失的标签（UI 上显示为空白）。
         param_sources={
+            "river_name": river_identity.get("name_source", "unknown"),
+            "location": river_identity.get("location_source", "unknown"),
             "length_m": "gps",
             "width_avg_m": width_src,
-            "depth_avg_m": "estimated_from_width",
-            "mannings_n": "regional_defaults",
-            "longitudinal_slope": "regional_defaults",
+            "depth_avg_m": depth_src,
+            "mannings_n": mannings_src,
+            "longitudinal_slope": slope_src,
+            "avg_discharge_m3s": discharge_src,
+            "tidal_range_m": tidal_src,
         },
         param_confidence={
+            "river_name": river_identity.get("name_confidence", 0.0),
+            "location": river_identity.get("location_confidence", 0.0),
             "length_m": 0.95,
             "width_avg_m": width_conf,
-            "depth_avg_m": 0.50,
-            "mannings_n": 0.50,
-            "longitudinal_slope": 0.50,
+            "depth_avg_m": 0.90 if depth_src == "known_river_database" else 0.50,
+            "mannings_n": 0.90 if mannings_src == "known_river_database" else 0.50,
+            "longitudinal_slope": 0.85 if slope_src == "known_river_database" else 0.50,
+            "avg_discharge_m3s": 0.85 if discharge_src == "known_river_database" else 0.40,
+            "tidal_range_m": 0.90 if tidal_src == "known_river_database" else 0.50,
         },
     )
