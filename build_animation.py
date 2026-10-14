@@ -232,6 +232,10 @@ def build_trace_animation(
         "address":f.get("address","")[:60],"distance":f.get("distance","?"),
         "lat":f.get("lat",source_lat),"lon":f.get("lon",source_lon)} for f in nearby_factories], ensure_ascii=False)
     other_src_json = json.dumps(other_sources, ensure_ascii=False)
+    # 主源名称：Python 侧已算好（未配高德 Key 时 nearby_factories 为空，
+    # 此处即那条分支的兜底名）。用 json.dumps 生成 JS 字符串字面量，
+    # 避免 POI 名称含引号时截断脚本。
+    src_name_js = json.dumps(source_name, ensure_ascii=False)
     cs_max = cs['max']
 
     html = f"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -276,7 +280,7 @@ def build_trace_animation(
 <option value="0.5">0.5x</option><option value="1">1x</option><option value="2" selected>2x</option><option value="5">5x</option><option value="10">10x</option></select><span id="status">加载中...</span></div>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.min.js"></script><script>
-var frames={frames_json},timeLabels={labels_json},lats={lats_json},lons={lons_json},trackCoords={track_json},center=[{center[0]:.6f},{center[1]:.6f}],srcLat={source_lat:.6f},srcLon={source_lon:.6f},totalFrames=frames.length,modelLengthM={gps_length:.0f},nSections=lats.length,realPoints={real_json},nearbyFactories={factories_json},otherSources={other_src_json},srcChainageM={src_chainage:.0f},estLoad={est_load:.0f},ammoniaPeak={ammonia_peak:.1f};
+var frames={frames_json},timeLabels={labels_json},lats={lats_json},lons={lons_json},trackCoords={track_json},center=[{center[0]:.6f},{center[1]:.6f}],srcLat={source_lat:.6f},srcLon={source_lon:.6f},totalFrames=frames.length,modelLengthM={gps_length:.0f},nSections=lats.length,realPoints={real_json},nearbyFactories={factories_json},otherSources={other_src_json},srcChainageM={src_chainage:.0f},estLoad={est_load:.0f},ammoniaPeak={ammonia_peak:.1f},sourceName={src_name_js};
 var cf=0,playing=!1,timer=null,speed=2,realMarkers=[],heatLayer=null,STORAGE_KEY='yayao_anim_v2';
 	function saveState(){{try{{localStorage.setItem(STORAGE_KEY,JSON.stringify({{f:cf,p:playing,s:speed}}))}}catch(e){{}}}}
 	function loadState(){{try{{var s=JSON.parse(localStorage.getItem(STORAGE_KEY));if(s&&typeof s.f==='number'){{cf=Math.min(s.f,totalFrames-1);speed=s.s||2;document.getElementById('speed-select').value=speed;document.getElementById('status').textContent='已恢复上次位置(帧'+(cf+1)+'/'+totalFrames+')';return true}}}}catch(e){{}}return false}}
@@ -289,7 +293,7 @@ L.polyline(trackCoords,{{color:'#0066CC',weight:5,opacity:.7}}).addTo(map);
 L.marker(trackCoords[0]).addTo(map).bindPopup('上游:北村水闸');L.marker(trackCoords[trackCoords.length-1]).addTo(map).bindPopup('下游:珠江');
 for(var i=0;i<realPoints.length;i++){{var p=realPoints[i],m=L.circleMarker([p.lat,p.lon],{{radius:p.radius,fillColor:p.color,color:p.color,weight:0,opacity:.25,fillOpacity:.2}}).addTo(map);m.bindPopup('实测:'+p.conc.toFixed(1)+' mg/L');realMarkers.push(m)}}
 var srcIcon=L.divIcon({{html:'<div style="background:#F00;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;border:3px solid #fff;box-shadow:0 0 10px red">!</div>',className:'',iconSize:[28,28],iconAnchor:[14,14]}});
-L.marker([srcLat,srcLon],{{icon:srcIcon}}).addTo(map).bindPopup('<b>主源:'+nearbyFactories[0].name+'</b><br/>桩号:'+srcChainageM+'m<br/>估算排放:'+estLoad.toFixed(0)+'kg');
+L.marker([srcLat,srcLon],{{icon:srcIcon}}).addTo(map).bindPopup('<b>主源:'+sourceName+'</b><br/>桩号:'+srcChainageM+'m<br/>估算排放:'+estLoad.toFixed(0)+'kg');
 var pulseRing=L.circleMarker([srcLat,srcLon],{{radius:20,color:'#F00',fillOpacity:0,weight:3,opacity:.6}}).addTo(map);
 for(var i=0;i<otherSources.length;i++){{var os=otherSources[i],oIcon=L.divIcon({{html:'<div style="background:#FF8800;color:white;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:9px;border:2px solid #fff">'+(i+2)+'</div>',className:'',iconSize:[18,18],iconAnchor:[9,9]}});L.marker([os.lat,os.lon],{{icon:oIcon}}).addTo(map).bindPopup('<b>'+os.name+'</b><br/>桩号:'+Math.round(os.chainage)+'m<br/>距离聚类:'+os.distance+'m')}}
 function buildHeatData(idx){{if(idx<0||idx>=totalFrames)return[];var f=frames[idx],points=[];for(var i=0;i<nSections;i++){{var intensity=Math.min(f.c[i]/{cs_max:.1f},1.0);if(intensity>0.001)points.push([lats[i],lons[i],intensity])}}return points}}
