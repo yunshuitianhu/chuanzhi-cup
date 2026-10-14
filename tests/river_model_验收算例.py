@@ -17,6 +17,7 @@
     python tests/river_model_验收算例.py [项目根目录]
     默认项目根目录为本仓库根目录（tests/ 的上一级）
 """
+import json
 import os
 import sys
 import warnings
@@ -316,6 +317,37 @@ areas = [cs0.flow_area(float(z)) for z in zs]
 mono = all(areas[i + 1] >= areas[i] - 1e-9 for i in range(len(areas) - 1))
 report("过水面积随水位单调不减", mono,
        f"水位 [{zs[0]:.2f}, {zs[-1]:.2f}] m 内面积由 {areas[0]:.1f} 增至 {areas[-1]:.1f} m²")
+
+# ============================================================
+print()
+print("算例 9  污染事件输出的口径标注")
+print("  性质: 影响范围必须同时给出「相对标准限值」与「相对监测基线」两个")
+print("        口径，并写明各自基准 —— 否则两个数字放在一起会被读成矛盾。")
+print("  背景: 实测（真实样本数据，氨氮基线中位数 4.6 mg/L，已超 V 类限值）")
+print("        同一份输出里出现「超标倍数 2.7」与「显著影响断面数 0」：")
+print("          前者以 GB3838 限值 2.0 为基准，后者以基线 4.6 的 1.5 倍为基准，")
+print("          两者各自都对，但容易被当成前后矛盾。")
+print("-" * 74)
+
+from river_model.tools import tool_river_pollution_event
+from river_model.state import RiverModelState
+
+cfg_t, cs_t = make_case(n_cs=30)
+st_t = RiverModelState()
+st_t.config = cfg_t
+st_t.cross_sections = cs_t
+st_t.model_initialized = True
+st_t.hydro_result = run(cfg_t, cs_t, amp=0.8, duration_h=2.0, dt_s=60.0)
+
+ev = json.loads(tool_river_pollution_event(st_t, 1600.0, "ammonia", 50.0, 30.0, 2.0))
+has_std = isinstance(ev.get("相对标准限值"), dict) and "基准_mgL" in ev["相对标准限值"]
+has_base = isinstance(ev.get("相对监测基线"), dict) and "基准_mgL" in ev["相对监测基线"]
+report("输出含「相对标准限值」口径及基准", has_std,
+       f"基准 {ev.get('相对标准限值', {}).get('基准_mgL')} mg/L")
+report("输出含「相对监测基线」口径及基准", has_base,
+       f"基准 {ev.get('相对监测基线', {}).get('基准_mgL')} mg/L")
+report("提示中说明了两个口径的差异", "未必一致" in (ev.get("提示") or ""),
+       (ev.get("提示") or "")[:60] + "…")
 
 # ============================================================
 print()

@@ -134,7 +134,13 @@ def tool_river_init(
     state.model_initialized = True
     state.engine_type = get_engine_info()
 
-    engine_label = "HEC-RAS" if "HEC-RAS" in state.engine_type else "纯Python Preissmann"
+    # 引擎标签：state.engine_type 来自 get_engine_info()，它描述的是**本机能力**
+    # （HEC-RAS COM 是否可用），而非本次模拟实际会用哪个引擎。
+    # 因为非恒定流（潮汐）工况一律强制走纯 Python 求解器（见 hydro_engine），
+    # 直接给一个 "HEC-RAS" 会让用户以为潮汐模拟也是 HEC-RAS 算的。
+    # 实测过：初始化输出写着 "计算引擎 = HEC-RAS"，随后水动力工具的返回里
+    # 却是 "引擎 = pure_python_preissmann"，前后矛盾。
+    engine_label = state.engine_type
 
     # 参数来源摘要 (自动检测模式)
     extra_info = {}
@@ -314,19 +320,36 @@ def tool_river_pollution_event(
     peak_time_idx = int(np.argmax(np.max(data, axis=1))) if data is not None else 0
     peak_time_h = float(result.t[peak_time_idx])
 
-    # 增量影响范围 (浓度超过基线 1.5x 的断面数)
+    # 影响范围 —— 同时给出两把尺子的结果。
+    #
+    # 这里原来只报"相对监测基线 1.5 倍"的断面数。当监测基线本身已经很高时，
+    # 该指标会给出反直觉的 0，与同一份 JSON 里的"超标倍数"（以 GB3838 限值
+    # 为基准）直接冲突。实测（真实样本数据，氨氮基线中位数 4.6 mg/L）：
+    #   峰值 5.30 mg/L -> 超标倍数 2.7（对 V 类标准 2.0）
+    #                  -> 显著影响断面数 0（对基线 1.5 倍 = 6.9）
+    # 两个数字各自都对，但放在一起会被读成矛盾。故两个口径都输出、并写明基准。
+    n_affected = 0
+    affected_chainage_range = (0, 0)
+    n_exceed_std = 0
+    exceed_std_chainage_range = (0, 0)
     if data is not None:
         baseline = data[0, :]
-        # 找任意时刻浓度超过基线 1.5 倍的断面
+
+        # 口径一：相对监测基线（回答"这次排放改变了什么"）
         affected_mask = np.any(data > baseline * 1.5, axis=0)
         n_affected = int(np.sum(affected_mask))
         affected_chainage_range = (
             float(result.chainage[affected_mask][0]) if n_affected > 0 else 0,
             float(result.chainage[affected_mask][-1]) if n_affected > 0 else 0,
         )
-    else:
-        n_affected = 0
-        affected_chainage_range = (0, 0)
+
+        # 口径二：相对标准限值（回答"水体是否超标"）
+        exceed_mask = np.any(data > std_limit, axis=0)
+        n_exceed_std = int(np.sum(exceed_mask))
+        exceed_std_chainage_range = (
+            float(result.chainage[exceed_mask][0]) if n_exceed_std > 0 else 0,
+            float(result.chainage[exceed_mask][-1]) if n_exceed_std > 0 else 0,
+        )
 
     # 下游到达时间 (峰值到达最后一个断面)
     arrival_h = float(result.t[-1])
@@ -346,15 +369,28 @@ def tool_river_pollution_event(
         "峰值浓度_mgL": round(peak_c, 2),
         "峰值时刻_h": round(peak_time_h, 1),
         "超标倍数": round(peak_c / std_limit, 1) if std_limit > 0 else 0,
-        "显著影响断面数": n_affected,
-        "影响桩号范围_m": list(affected_chainage_range),
+        # 两个口径分别标注基准，避免被读成互相矛盾
+        "相对标准限值": {
+            "基准_mgL": std_limit,
+            "说明": "浓度超过 GB3838 标准限值的断面",
+            "断面数": n_exceed_std,
+            "桩号范围_m": list(exceed_std_chainage_range),
+        },
+        "相对监测基线": {
+            "基准_mgL": round(float(data[0, :].max()), 2) if data is not None else 0.0,
+            "说明": "浓度超过监测基线 1.5 倍的断面（衡量本次排放带来的增量影响）",
+            "断面数": n_affected,
+            "桩号范围_m": list(affected_chainage_range),
+        },
         "下游到达时间_h": round(arrival_h, 1),
         "情景名称": scenario_name,
         "输出文件": ["river_wq_contour.png", "river_wq_profile.png",
                    "river_wq_timeseries.png", "river_dashboard.png",
                    "river_pollution_animation.html"],
-        "提示": f"峰值浓度 {peak_c:.1f} mg/L 为标准({std_limit} mg/L)的 {peak_c/std_limit:.1f} 倍。"
-                f"可调用 get_concentration_profile 查询详细剖面。",
+        "提示": (f"峰值浓度 {peak_c:.1f} mg/L，为标准({std_limit} mg/L)的 {peak_c/std_limit:.1f} 倍；"
+                 f"相对监测基线则放大至 {peak_c / max(float(data[0, :].max()), 1e-9):.2f} 倍"
+                 f"（基线 {float(data[0, :].max()):.1f} mg/L 本身可能已超标，故两者结论未必一致）。"
+                 if data is not None else ""),
     }, ensure_ascii=False)
 
 
