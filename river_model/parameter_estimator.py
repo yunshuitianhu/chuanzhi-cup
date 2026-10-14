@@ -472,15 +472,36 @@ class RiverParameterEstimator:
         # ---- 降级: Amap 逆地理编码 ----
         if not result["name"] and self.amap_key:
             try:
-                from water_quality_mcp.src.water_quality_mcp.geo_tools import reverse_geocode
-                geo_result = reverse_geocode(center_lat, center_lon, self.amap_key)
-                if geo_result:
-                    address = geo_result.get("address", "") or geo_result.get("formatted_address", "")
-                    province = geo_result.get("province", "")
-                    city = geo_result.get("city", "")
-                    district = geo_result.get("district", "")
+                # 跨包导入：项目根目录在 sys.path 上时用带 src 的绝对路径，
+                # 标准 src-layout（src 在 sys.path 上）时用短路径。两种配置都要能跑。
+                try:
+                    from water_quality_mcp.src.water_quality_mcp.geo_tools import reverse_geocode
+                except ImportError:
+                    from water_quality_mcp.geo_tools import reverse_geocode
 
-                    result["location"] = (province + city + (district or ""))[:40]
+                geo_raw = reverse_geocode(center_lat, center_lon, self.amap_key)
+
+                # reverse_geocode 返回的是 JSON 字符串（键为中文），不是 dict。
+                # 此处曾经直接对它调用 .get("address") —— 抛 AttributeError 后被
+                # 下面的裸 except 吞掉，导致"高德逆地理 → 识别河道名称"这条
+                # 降级链从未生效过。解析失败（含"逆地理编码失败/异常"这类纯文本
+                # 返回值）时静默跳过本分支即可。
+                geo_result = None
+                if isinstance(geo_raw, str):
+                    try:
+                        parsed = json.loads(geo_raw)
+                        if isinstance(parsed, dict):
+                            geo_result = parsed
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+
+                if geo_result:
+                    address = geo_result.get("地址", "") or ""
+                    province = geo_result.get("省份", "") or ""
+                    city = geo_result.get("城市", "") or ""
+                    district = geo_result.get("区县", "") or ""
+
+                    result["location"] = (province + city + district)[:40]
 
                     if result["location"]:
                         result["location_source"] = "amap_reverse_geocode"
@@ -530,8 +551,11 @@ class RiverParameterEstimator:
                         result["name_confidence"] = (
                             0.70 if best_priority <= 2 else 0.50
                         )
-            except Exception:
-                pass
+            except Exception as e:
+                # 不阻断流程（本层只是降级选项之一），但要留下痕迹 ——
+                # 原来的裸 pass 正是让上面那个类型错误潜伏至今的原因。
+                logger.warning("高德逆地理识别河道失败（将降级到下一层）: %s: %s",
+                               type(e).__name__, e)
 
         # 如果还是没有位置信息, 从 GPS 坐标推断省份
         if not result["location"]:

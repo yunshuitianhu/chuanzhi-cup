@@ -106,7 +106,13 @@ def search_nearby_pollution_sources(lat, lon, amap_key, radius=500, keywords=Non
 
 
 def reverse_geocode(lat, lon, amap_key):
-    """逆地理编码：经纬度 → 地址/省份/周边POI。"""
+    """逆地理编码：经纬度 → 地址 / 省市区 / 周边POI。
+
+    返回的是 **JSON 字符串**（不是 dict），键为中文：
+    地址 / 省份 / 城市 / 区县 / 周边POI。
+    调用方须先 json.loads 再按上述键取值 —— 曾经有调用方直接对它调用
+    .get()，抛 AttributeError 后被裸 except 吞掉，整条降级链因而静默失效。
+    """
     url = "https://restapi.amap.com/v3/geocode/regeo"
     params = {"location": f"{lon},{lat}", "key": amap_key, "radius": 1000, "extensions": "all"}
     try:
@@ -115,10 +121,21 @@ def reverse_geocode(lat, lon, amap_key):
         if data.get("status") == "1":
             regeo = data["regeocode"]
             address = regeo.get("formatted_address", "")
-            province = regeo.get("addressComponent", {}).get("province", "")
+            # 高德的 addressComponent 里本来就有 city/district, 原先被丢弃;
+            # 保留下来供上游拼装更精确的"省+市+区"位置串。
+            comp = regeo.get("addressComponent") or {}
+            province = comp.get("province", "") or ""
+            city = comp.get("city", "") or ""
+            district = comp.get("district", "") or ""
             pois = [{"名称": p.get("name", ""), "类型": p.get("type", ""), "距离": p.get("distance", "")}
                     for p in (regeo.get("pois") or [])[:10]]
-            return json.dumps({"地址": address, "省份": province, "周边POI": pois}, ensure_ascii=False)
+            return json.dumps({
+                "地址": address,
+                "省份": province,
+                "城市": city,
+                "区县": district,
+                "周边POI": pois,
+            }, ensure_ascii=False)
         return "逆地理编码失败"
     except Exception:
         return "逆地理编码异常"
