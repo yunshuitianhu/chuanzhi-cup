@@ -83,6 +83,26 @@ export const api = {
   timeSeries: () => request('/charts/time-series'),
   traceMap: () => request('/charts/trace-map'),
   crossValidationChart: () => request('/charts/cross-validation'),
+
+  // ---- 国控站点 ----
+  provinces: () => request('/stations/provinces'),
+  queryStations: ({ province = '', keyword = '', live = true } = {}) =>
+    request(`/stations?province=${encodeURIComponent(province)}&keyword=${encodeURIComponent(keyword)}&live=${live}`),
+
+  // ---- 多渠道溯源 ----
+  multiSource: (payload) => request('/trace/multi-source', { method: 'POST', body: payload || {} }),
+  reverseGeocode: (lat, lon) => request(`/trace/reverse-geocode?lat=${lat}&lon=${lon}`),
+
+  // ---- RAG ----
+  ragStatus: () => request('/rag/status'),
+  ragSearch: (query, topK = 5) => request('/rag/search', { method: 'POST', body: { query, top_k: topK } }),
+
+  // ---- 河道模型 ----
+  riverParams: () => request('/river/params'),
+  riverInit: (payload) => request('/river/init', { method: 'POST', body: payload || {} }),
+  riverHydro: (payload) => request('/river/hydro', { method: 'POST', body: payload || {} }),
+  riverPollution: (payload) => request('/river/pollution', { method: 'POST', body: payload || {} }),
+  riverProfile: (timeH, constituent) => request(`/river/profile?time_h=${timeH}&constituent=${constituent}`),
 }
 
 export { ApiError }

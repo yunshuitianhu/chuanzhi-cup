@@ -2,16 +2,20 @@
 /**
  * 技术展示页 —— 对应 app.py 的 tab4。
  *
- * 原版是 6 个 st.expander，每个含说明 + 一键运行按钮 + 结果展示。
- * 这里改为卡片网格，交互逻辑一致：无需对话即可单独体验每项能力。
+ * 原版是 6 个 st.expander，每块含说明 + 一键运行 + 结果展示。
+ * 这里改为卡片流，交互逻辑一致：**无需对话即可单独体验每项能力**。
+ * 这是给评审最快看懂"这个系统能做什么"的一页。
  */
 import { ref } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import StatusBanner from '../components/StatusBanner.vue'
-import BlackSpotResult from '../components/BlackSpotResult.vue'
 import SummaryCards from '../components/SummaryCards.vue'
+import BlackSpotResult from '../components/BlackSpotResult.vue'
+import StationQuery from '../components/StationQuery.vue'
+import MultiSourceTrace from '../components/MultiSourceTrace.vue'
+import RagSearch from '../components/RagSearch.vue'
 
 const store = useSessionStore()
 const running = ref(false)
@@ -36,49 +40,76 @@ async function runBlackSpots() {
     <StatusBanner />
 
     <section class="block">
-      <h3 class="block-title">🔍 多维黑臭点智能检测</h3>
+      <h2 class="bt">📡 国控水质站点实时查询</h2>
       <p class="desc">
-        内梅罗综合指数 × 严重度因子 × 时间持续性 × 空间连续性 —— 四维增强评分，
-        再用 DBSCAN 聚类定位热点区域。孤立单点超标被抑制，持续成片超标被放大。
+        接入生态环境部「国家地表水水质自动监测实时数据发布系统」，覆盖全国
+        <b>1800+</b> 自动监测断面，每小时更新。通过逆向其 AJAX 接口直接取 JSON，
+        无需浏览器或 Playwright；内置 95+ 站点离线坐标库作降级。
+      </p>
+      <p class="hint">💡 无需上传数据即可体验</p>
+      <StationQuery />
+    </section>
+
+    <section class="block">
+      <h2 class="bt">🔍 多维黑臭点智能检测</h2>
+      <p class="desc">
+        <b>4 维增强评分</b>：内梅罗综合指数 × 严重度因子 × 时间持续性 × 空间连续性。
+        孤立单点超标被抑制、持续成片超标被放大，再用 DBSCAN（eps≈33m）
+        聚类识别热点区域，最后按《城市黑臭水体整治工作指南》(2015)
+        与 GB3838-2002 分级。
       </p>
       <button class="run" :disabled="!store.canAnalyze || running" @click="runBlackSpots">
         {{ running ? '检测中…' : '运行黑臭检测' }}
       </button>
-      <p v-if="!store.canAnalyze" class="tip">需先上传走航数据</p>
+      <p v-if="!store.canAnalyze" class="hint">⚠️ 请先在左侧上传走航监测数据并点击「加载数据」</p>
       <BlackSpotResult v-if="summary" :data="summary" />
     </section>
 
     <section class="block">
-      <h3 class="block-title">📊 数据统计概览</h3>
+      <h2 class="bt">🎯 多渠道污染溯源</h2>
+      <p class="desc">
+        整合 <b>3 路真实数据源</b>加权融合去重：高德 POI（工厂/养殖场/排污口）、
+        全国排污许可证管理信息平台、国控水质站点。各源独立查询、独立降级，
+        任一源失败不阻断整体流程。
+      </p>
+      <MultiSourceTrace />
+    </section>
+
+    <section class="block">
+      <h2 class="bt">📚 RAG 知识库智能检索</h2>
+      <p class="desc">
+        <b>29 个真实治理案例</b>（黑臭水体 20 / 氨氮治理 4 / 富营养化 1 / 综合 4），
+        经 text2vec-base-chinese 嵌入（768 维）存入 ChromaDB，按余弦相似度检索。
+        生成溯源报告时也会走同一条链路自动注入参考案例。
+      </p>
+      <p class="hint">💡 无需上传数据即可体验</p>
+      <RagSearch />
+    </section>
+
+    <section class="block">
+      <h2 class="bt">📊 数据统计概览</h2>
+      <p class="desc">当前会话已加载数据的指标均值与极值。</p>
       <SummaryCards />
     </section>
 
-    <section class="block muted">
-      <h3 class="block-title">其余能力（接入中）</h3>
-      <ul class="todo">
-        <li>📡 国控水质站点实时查询 — 等待 <code>/api/stations</code></li>
-        <li>🎯 多渠道污染溯源 — 等待 <code>/api/trace/*</code></li>
-        <li>📚 RAG 知识库检索 — 等待 <code>/api/rag/*</code></li>
-        <li>🌊 河道模型参数检测 — 等待 <code>/api/river/*</code></li>
-      </ul>
+    <section class="block last">
+      <h2 class="bt">🌊 河道模型参数检测</h2>
+      <p class="desc">已移至「河道模型」标签页。</p>
     </section>
   </Panel>
 </template>
 
 <style scoped>
-.block { padding: 18px 0; border-bottom: 1px solid var(--c-border); }
-.block:last-child { border-bottom: none; }
-.block.muted { opacity: .75; }
-.block-title { margin: 0 0 6px; font-size: 14px; }
-.desc { margin: 0 0 12px; font-size: 12px; color: var(--c-sub); line-height: 1.8; max-width: 760px; }
+.block { padding: 20px 0; border-bottom: 1px solid var(--c-border); }
+.block.last { border-bottom: none; opacity: .7; }
+.bt { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.desc { margin: 0 0 10px; font-size: 12px; color: var(--c-sub); line-height: 1.9; max-width: 820px; }
+.desc b { color: var(--c-ink); }
+.hint { margin: 6px 0 10px; font-size: 11px; color: var(--c-sub); }
 
 .run {
   background: var(--c-accent); color: #06121c; border: none;
   padding: 8px 18px; border-radius: 7px; font-weight: 600; font-size: 13px;
 }
 .run:disabled { opacity: .45; cursor: not-allowed; }
-.tip { margin: 8px 0 0; font-size: 12px; color: var(--c-sub); }
-
-.todo { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--c-sub); line-height: 2; }
-code { background: #0d151d; padding: 1px 5px; border-radius: 3px; }
 </style>
