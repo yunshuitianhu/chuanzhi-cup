@@ -19,12 +19,35 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .analysis_config import AnalysisConfig
 
 logger = logging.getLogger(__name__)
+
+# 从 "四川省成都市" / "广东省广州市/深圳市" / "内蒙古自治区…" 里取出省份
+_PROVINCE_RE = re.compile(r"^(.{2,8}?(?:省|自治区|特别行政区|市))")
+
+
+def _infer_province(lat: float, lon: float) -> str | None:
+    """由坐标推断省份。推断不出时返回 None。
+
+    只取到**省一级**：重点排污单位名录是按省发布的，市一级不影响文件查找。
+    注意上游的市级推断并不总是准（实测雅瑶水道 (23.11, 113.14) 被判为
+    "广州市/深圳市"，实际在佛山市南海区），但省级是对的 —— 也只用到省级。
+    """
+    try:
+        from river_model.parameter_estimator import RiverParameterEstimator
+        loc = RiverParameterEstimator._infer_location_from_coords(lat, lon)
+    except Exception as e:
+        logger.info("行政区推断不可用（%s），将跳过按省检索的数据源", e)
+        return None
+    if not loc:
+        return None
+    m = _PROVINCE_RE.match(str(loc))
+    return m.group(1) if m else None
 
 
 def multi_source_trace(
@@ -33,6 +56,8 @@ def multi_source_trace(
     amap_key: str | None = None,
     config: "AnalysisConfig | None" = None,
     state: Any = None,
+    province: str | None = None,
+    city: str | None = None,
 ) -> str:
     """多渠道污染溯源。
 
@@ -49,6 +74,12 @@ def multi_source_trace(
         amap_key: 高德 API Key (可选, 缺少则跳过 POI 搜索)
         config: AnalysisConfig 或 None
         state: WaterQualityState (可选, 用于自动定位聚类中心)
+        province: 省份（可选）。数据源 3 的排污单位名录是**按省发布**的，
+            原先在此写死 "广东省" —— 任何非广东的河流都会拿到广东的名录，
+            把外省企业当成本地污染源。不传则**跳过该数据源**，
+            而不是拿别省的名录冒充本地数据。调用方若已知行政区
+            （例如来自 config.location）应显式传入。
+        city: 城市（可选），进一步筛选
 
     Returns:
         JSON 字符串, 含去重融合后的多源污染源列表
@@ -56,6 +87,11 @@ def multi_source_trace(
     if config is None:
         from .analysis_config import DEFAULT_CONFIG
         config = DEFAULT_CONFIG
+
+    # 未显式给出行政区时，尝试由坐标推断 —— 使任意河流都能用，
+    # 而不是只有广东的河流能拿到名录。推断失败则保持 None（跳过该源）。
+    if not province:
+        province = _infer_province(lat, lon)
 
     results_by_source: dict[str, list[dict]] = {}
     all_sources_flat: list[dict] = []
@@ -91,16 +127,25 @@ def multi_source_trace(
             logger.warning("排污许可证搜索失败: %s", e)
 
     # ---- 数据源 3: 重点排污单位名录 ----
+    # 名录按省发布。原先写死 ("广东省", "佛山市")，任何非广东的河流都会读到
+    # 广东的名录 —— 把外省企业当成本地污染源，是正确性问题而非展示问题。
+    # 未提供行政区时跳过该源：宁可不报，不可拿别省数据冒充本地。
     if "national_station" in config.enabled_sources:
-        try:
-            from .pollution_permit import search_key_pollution_sources
-            key_sources = search_key_pollution_sources("广东省", "佛山市")
-            for s in key_sources:
-                s["置信度权重"] = config.source_weights.get("national_station", 0.25)
-            results_by_source["重点排污单位"] = key_sources
-            all_sources_flat.extend(key_sources)
-        except Exception as e:
-            logger.warning("重点排污单位搜索失败: %s", e)
+        if not province:
+            logger.info(
+                "未提供 province，跳过「重点排污单位」数据源 —— 该源按省读名录，"
+                "用错省份会把外省企业当成本地污染源。调用方应传入已知行政区。"
+            )
+        else:
+            try:
+                from .pollution_permit import search_key_pollution_sources
+                key_sources = search_key_pollution_sources(province, city)
+                for s in key_sources:
+                    s["置信度权重"] = config.source_weights.get("national_station", 0.25)
+                results_by_source["重点排污单位"] = key_sources
+                all_sources_flat.extend(key_sources)
+            except Exception as e:
+                logger.warning("重点排污单位搜索失败: %s", e)
 
     # ---- 数据源 4: 国控站点 (优先走实时数据) ----
     if "national_station" in config.enabled_sources:
