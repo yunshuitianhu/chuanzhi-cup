@@ -35,6 +35,11 @@ class Session:
     # ---- 数据 ----
     df: pd.DataFrame | None = None
     video_frames: list[dict] = field(default_factory=list)
+    # 已加载的文件名。浏览器出于安全不允许回填 <input type=file>，
+    # 刷新后选择框必然为空；若不单独记住，界面会显示成「尚未上传」
+    # 而状态区却显示「1805 条」，自相矛盾。
+    data_filename: str = ""
+    video_filename: str = ""
 
     # ---- 分析结果 ----
     black_spots: pd.DataFrame | None = None
@@ -92,6 +97,8 @@ class Session:
     def clear_all(self) -> None:
         """加载新数据时调用 —— 与原 app.py 的「重置所有分析状态」一致。"""
         self.video_frames = []
+        self.data_filename = ""
+        self.video_filename = ""
         self.reset_analysis()
 
 

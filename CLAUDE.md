@@ -23,7 +23,8 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 ```bash
 pip install -r requirements.txt
 
-uvicorn backend.main:app --reload --port 8000   # FastAPI（接口文档 /docs）
+uvicorn backend.main:app --reload --port 8001   # FastAPI（接口文档 /docs）
+                                                # 端口 8000 在本机有残留套接字问题，见下方坑 3
 streamlit run app.py                            # 原 Streamlit 版（保留，用于快速自检）
 python -m water_quality_mcp.server              # 以 MCP Server 方式运行（stdio）
 python scripts/build_rag_index.py               # 重建 RAG 索引（首次需下 ~400MB 嵌入模型）
@@ -128,10 +129,19 @@ HTTP 是无状态的。前端在请求头带 `X-Session-Id`，**后端必须在�
 
 项目并未真正 pip 安装，全靠 `sys.path` 操作。`.rag_index` 由 `rag_engine.py` 以 `../../../` 相对 `__file__` 解析；多处输出文件（`trace_map.html`、`_uploaded_data.xlsx`、`river_*.png`）是 **CWD 相对**路径。
 
-**3. 本机环境的两个特性（会干扰测试）**
+**3. 本机环境的三个特性（会干扰测试与调试）**
 
 - **Vite 只监听 IPv6 `[::1]:5173`**，用 `127.0.0.1` 访问不到
-- **curl 默认走系统代理**（Clash，`127.0.0.1:7890`），访问本地服务返回 502，测试需加 `--noproxy '*'`
+- **curl / urllib 默认走系统代理**（Clash，`127.0.0.1:7890`），访问本地服务返回 502。
+  命令行加 `--noproxy '*'`；Python 用
+  `urllib.request.build_opener(urllib.request.ProxyHandler({}))`
+- **8000 端口上会堆积无法回收的残留监听套接字**：`netstat` 显示有 PID 在 LISTENING，
+  但该 PID 的进程已不存在，`taskkill` 报"找不到进程"。表现为**改了后端代码却不生效**
+  —— 请求被残留套接字背后的旧实例接走了，且不影响 HTTP 200 的返回，极具迷惑性。
+  排查方法：`Get-NetTCPConnection -LocalPort <port> -State Listen` 后
+  `Get-Process -Id <pid>`，若进程不存在即为残留。**换端口是最快的解法**
+  （`BACKEND_PORT=8001 npm run dev`）。Git Bash 的 `netstat` 在此场景下视图不可靠，
+  以 PowerShell 的 `Get-NetTCPConnection` 为准。
 
 **4. 字段名不匹配是系统性问题，不是孤例**
 

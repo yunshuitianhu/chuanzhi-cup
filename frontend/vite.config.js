@@ -1,15 +1,21 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// 开发期把 /api 代理到 FastAPI（8000），避免跨域配置分散在两处。
+// 开发期把 /api 代理到 FastAPI，避免跨域配置分散在两处。
 // 生产构建由后端/Nginx 直接托管 dist/，前端仍用相对路径 /api。
+//
+// 端口可用环境变量覆盖：本机 8000 端口上堆积了无法回收的残留监听套接字
+// （netstat 显示有 PID，但该 PID 的进程已不存在，taskkill 也找不到），
+// 表现为「改了后端代码却没生效」—— 请求被残留套接字背后的旧实例接走了。
+// 遇到这种情况换端口即可：BACKEND_PORT=8001 npm run dev
+const BACKEND_PORT = process.env.BACKEND_PORT || '8001'
 export default defineConfig({
   plugins: [vue()],
   server: {
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: `http://127.0.0.1:${BACKEND_PORT}`,
         changeOrigin: true,
       },
     },

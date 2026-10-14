@@ -22,6 +22,36 @@ const report = ref('')
 
 const canLoad = computed(() => !!dataFile.value && !store.loading)
 
+/**
+ * 文件选择框的显示文本。
+ *
+ * 浏览器出于安全**不允许回填 `<input type=file>`**，所以刷新页面后选择框
+ * 必然是空的。但后端会话里的数据还在。若只依据本地选择框显示，就会出现
+ * 「选择走航数据」与状态区的「1805 条」并存 —— 自相矛盾，用户会以为
+ * 没上传数据却跑出了检测结果（已由用户实际反馈）。
+ *
+ * 因此：本地区选了文件 → 显示文件名；否则若会话里已有数据 → 显示「已加载」。
+ */
+const dataLabel = computed(() => {
+  if (dataFile.value) return dataFile.value.name
+  const s = store.status
+  if (s.has_data) return `已加载：${s.data_filename || `${s.rows} 条记录`}`
+  return '选择走航数据 (xlsx/xls/csv)'
+})
+
+const videoLabel = computed(() => {
+  if (videoFile.value) return videoFile.value.name
+  const s = store.status
+  if (s.video_frames) return `已加载：${s.video_filename || `${s.video_frames} 帧`}`
+  return '选择样本视频 (可选)'
+})
+
+/** 会话里已加载过数据 → 按钮改为「重新选择并加载」，语义更准确。 */
+const loadLabel = computed(() => {
+  if (store.loading) return '处理中…'
+  return store.status.has_data ? '重新加载数据' : '加载数据'
+})
+
 function onPick(kind, e) {
   const f = e.target.files?.[0] || null
   if (kind === 'data') dataFile.value = f
@@ -53,29 +83,32 @@ async function load() {
   <section class="panel">
     <h3 class="panel-title">数据上传</h3>
 
-    <label class="file-btn" :class="{ filled: dataFile }">
+    <label class="file-btn" :class="{ filled: dataFile || store.status.has_data }">
       <input
         ref="dataInput" type="file" accept=".xlsx,.xls,.csv" hidden
         @change="onPick('data', $event)"
       />
-      <span class="ico">📄</span>
-      <span class="txt">{{ dataFile ? dataFile.name : '选择走航数据 (xlsx/xls/csv)' }}</span>
+      <span class="ico">{{ store.status.has_data && !dataFile ? '✅' : '📄' }}</span>
+      <span class="txt" :title="dataLabel">{{ dataLabel }}</span>
       <button v-if="dataFile" class="clear" @click.prevent="clearPick('data')" title="移除">×</button>
     </label>
 
-    <label class="file-btn" :class="{ filled: videoFile }">
+    <label class="file-btn" :class="{ filled: videoFile || store.status.video_frames }">
       <input
         ref="videoInput" type="file" accept=".mp4,.avi,.mov" hidden
         @change="onPick('video', $event)"
       />
-      <span class="ico">🎥</span>
-      <span class="txt">{{ videoFile ? videoFile.name : '选择样本视频 (可选)' }}</span>
+      <span class="ico">{{ store.status.video_frames && !videoFile ? '✅' : '🎥' }}</span>
+      <span class="txt" :title="videoLabel">{{ videoLabel }}</span>
       <button v-if="videoFile" class="clear" @click.prevent="clearPick('video')" title="移除">×</button>
     </label>
 
-    <button class="load-btn" :disabled="!canLoad" @click="load">
-      {{ store.loading ? '处理中…' : '加载数据' }}
-    </button>
+    <button class="load-btn" :disabled="!canLoad" @click="load">{{ loadLabel }}</button>
+
+    <!-- 已有数据但未选新文件时，说明清楚点按钮不会重置 -->
+    <p v-if="store.status.has_data && !dataFile" class="hint loaded-note">
+      数据已加载。选择新文件后才能重新加载 —— 重新加载会清空全部分析结果。
+    </p>
 
     <p v-if="videoFile" class="hint">
       ⚠ 大视频上传需要时间，请等文件名出现后再点「加载数据」。
@@ -132,6 +165,7 @@ async function load() {
 .load-btn:not(:disabled):hover { opacity: .88; }
 
 .hint { margin: 8px 0 0; font-size: 11px; color: var(--c-sub); line-height: 1.5; }
+.loaded-note { color: var(--c-accent-2); }
 
 .stat { margin-top: 10px; border-top: 1px solid var(--c-border); padding-top: 8px; }
 .stat-row {

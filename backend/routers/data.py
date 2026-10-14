@@ -40,6 +40,7 @@ async def upload_data(file: UploadFile = File(...),
         raise HTTPException(400, report)
 
     session.df = df
+    session.data_filename = file.filename or "data.xlsx"
     return {
         "ok": True,
         "report": report,
@@ -61,6 +62,7 @@ async def upload_video(file: UploadFile = File(...), interval: int = 5,
 
     frames, report = extract_video(base64.b64encode(raw).decode(), interval)
     session.video_frames = frames
+    session.video_filename = file.filename or "video.mp4"
     return {"ok": bool(frames), "report": report, "frames": len(frames)}
 
 
@@ -71,7 +73,9 @@ def status(session: Session = Depends(get_session)) -> dict:
     out: dict = {
         "has_data": df is not None and len(df) > 0,
         "rows": int(len(df)) if df is not None else 0,
+        "data_filename": session.data_filename,
         "video_frames": len(session.video_frames),
+        "video_filename": session.video_filename,
         "has_black_spots": session.black_spots is not None and len(session.black_spots) > 0,
         "black_spot_count": int(len(session.black_spots)) if session.black_spots is not None else 0,
         "has_cross_validation": session.cross_validation is not None,
