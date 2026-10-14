@@ -1,26 +1,40 @@
+import logging
+
 from openai import OpenAI
 
 MODEL_NAME = "deepseek-chat"
 BASE_URL = "https://api.deepseek.com/v1"
 
+logger = logging.getLogger(__name__)
+
 
 def _try_retrieve_treatment_cases(summary: str, top_k: int = 3) -> str:
     """尝试从 RAG 知识库检索相似治理案例。
 
-    如果知识库为空或加载失败，返回空字符串（优雅降级）。
+    失败时返回空字符串并**记录日志**（不抛异常，保证报告生成仍可继续）。
+
+    注: 这里曾经是完全静默的 `except Exception: return ""`。后果是
+    build_query_from_summary 的键名不匹配（引发 TypeError）被长期掩盖,
+    报告表面正常、实际从未注入过任何案例。改为记录 warning,
+    同类问题下次会直接出现在日志里。
     """
     try:
-        from water_quality_mcp.src.water_quality_mcp.rag_engine import (
-            get_rag_engine,
-        )
+        # 用包内相对导入, 而非 water_quality_mcp.src.water_quality_mcp.* 绝对路径。
+        # 后者只在【项目根目录】位于 sys.path 且 src 不在其上时可解析;
+        # 一旦 src 也在 sys.path 上(标准 src-layout 用法), water_quality_mcp
+        # 会解析到内层包, 该绝对路径即失效。相对导入在两种配置下都成立。
+        from .rag_engine import get_rag_engine
+
         engine = get_rag_engine()
         engine._collection = None  # 强制从磁盘刷新
         engine._chroma_client = None  # 也重置客户端，避免 SQLite 文件锁残留
         query = engine.build_query_from_summary(summary)
         results = engine.retrieve(query, top_k=top_k)
         return engine.format_context(results)
-    except Exception:
-        # RAG 未安装依赖或索引未构建 — 静默跳过
+    except Exception as e:
+        # RAG 未安装依赖 / 索引未构建 / 检索失败 — 降级为无案例, 但留下痕迹
+        logger.warning("RAG 案例检索失败, 本次报告将不含参考案例: %s: %s",
+                       type(e).__name__, e)
         return ""
 
 

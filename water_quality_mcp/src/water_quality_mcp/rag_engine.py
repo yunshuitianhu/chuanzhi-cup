@@ -207,27 +207,32 @@ class RAGEngine:
             data = None
 
         if isinstance(data, dict):
+            # 注意: 以下键名必须与 analysis.build_comprehensive_summary 的实际输出一致。
+            # 该函数的产出为中文键名, 且部分字段为 list 而非 str —— 改动前请先用
+            # tests/字段名一致性检查.py 校验, 不要凭印象填写。
+
             # 从黑臭检测中提取关键信息
             black_odors = data.get("黑臭检测", {})
             if isinstance(black_odors, dict):
-                black_count = black_odors.get("黑臭点总数", 0)
-                if black_count:
-                    parts.append(f"黑臭水体 {black_count}个黑臭点")
+                black_count = black_odors.get("黑点总数", 0)
+                if isinstance(black_count, (int, float)) and black_count:
+                    parts.append(f"黑臭水体 {int(black_count)}个黑臭点")
 
                 top5 = black_odors.get("Top5最严重点位", [])
-                if top5 and isinstance(top5, list):
+                if isinstance(top5, list):
                     # 提取主要超标指标
                     pollutants = set()
                     for pt in top5[:3]:
-                        if isinstance(pt, dict):
-                            nh3 = pt.get("氨氮(mg/L)")
-                            do_val = pt.get("溶解氧(mg/L)")
-                            if nh3 is not None and isinstance(nh3, (int, float)) and nh3 > 2:
-                                pollutants.add("氨氮超标")
-                            if do_val is not None and isinstance(do_val, (int, float)) and do_val < 2:
-                                pollutants.add("溶解氧低")
+                        if not isinstance(pt, dict):
+                            continue
+                        nh3 = pt.get("氨氮_mgL")
+                        do_val = pt.get("溶解氧_mgL")
+                        if isinstance(nh3, (int, float)) and nh3 > 2:
+                            pollutants.add("氨氮超标")
+                        if isinstance(do_val, (int, float)) and do_val < 2:
+                            pollutants.add("溶解氧低")
                     if pollutants:
-                        parts.extend(pollutants)
+                        parts.extend(sorted(pollutants))
 
                 severity = black_odors.get("黑臭等级分布", {})
                 if isinstance(severity, dict):
@@ -237,35 +242,42 @@ class RAGEngine:
                         parts.append("轻度黑臭")
 
                 # 提取聚类中的典型污染物
+                # 注意: get_cluster_summary 输出的 "主要触发指标" 是 list[str]
+                # (形如 ["氨氮(52次)", "DO(48次)"]), 不是字符串。
                 clusters = black_odors.get("聚类详情", [])
-                if clusters and isinstance(clusters, list):
+                if isinstance(clusters, list):
                     all_pollutants = set()
                     for c in clusters[:3]:
-                        if isinstance(c, dict):
-                            trigger = c.get("主要触发指标", "")
-                            if trigger:
-                                all_pollutants.add(trigger)
+                        if not isinstance(c, dict):
+                            continue
+                        trigger = c.get("主要触发指标")
+                        if isinstance(trigger, str):
+                            trigger = [trigger]
+                        if isinstance(trigger, list):
+                            for t in trigger:
+                                if isinstance(t, str) and t:
+                                    # 去掉计数后缀: "氨氮(52次)" -> "氨氮"
+                                    all_pollutants.add(t.split("(")[0].strip())
                     if all_pollutants:
-                        parts.append("主要污染物: " + "、".join(all_pollutants))
+                        parts.append("主要污染物: " + "、".join(sorted(all_pollutants)))
 
             # 从空间分析中提取位置
+            # 注: 该字段当前无可用文本信息(中心点只有经纬度, 不适合做语义查询),
+            # 故此处不产出查询词; 保留读取以便后续接入地名。
             spatial = data.get("空间分析", {})
             if isinstance(spatial, dict):
                 center = spatial.get("最密集聚类中心", {})
                 if isinstance(center, dict):
-                    loc = center.get("中心坐标", "")
-                    if loc:
-                        # 经纬度不太适合直接查询，跳过
-                        pass
+                    _ = center.get("经纬度", "")
 
             # 从河道模型中提取
             river = data.get("河道模型", {})
             if isinstance(river, dict):
-                if river.get("已初始化"):
-                    wq = river.get("水质参数", {})
+                if river.get("模型已初始化"):
+                    wq = river.get("水质模拟", {})
                     if isinstance(wq, dict):
-                        pollutant = wq.get("污染物类型", "")
-                        if pollutant:
+                        pollutant = wq.get("污染物", "")
+                        if isinstance(pollutant, str) and pollutant and pollutant != "unknown":
                             parts.append(f"{pollutant}污染扩散")
         else:
             # 纯文本 summary，用关键词匹配

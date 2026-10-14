@@ -189,7 +189,39 @@ if "黑臭检测" in s:
             ok = k in cl[0]
             print(f"       {'✓' if ok else '✗'} {k}")
 
+# ---------- 5. RAG 查询构造 ----------
+# 回归守卫：rag_engine.build_query_from_summary 曾经用一套英文/近义键名读取
+# 中文键名的摘要，其中 "主要触发指标" 实际是 list 却按 str 用（set.add(list)
+# 抛 TypeError），异常又被 report.py 的裸 except 吞掉 —— 导致 RAG 案例注入
+# 长期静默失效。本项确保它不再回退到那种状态。
 print()
 print("=" * 72)
-print("检查完成")
+print("5. rag_engine.build_query_from_summary（RAG 注入的回归守卫）")
+print(f"{'=' * 72}")
+
+from water_quality_mcp.rag_engine import get_rag_engine
+
+engine = get_rag_engine()
+try:
+    query = engine.build_query_from_summary(summary)
+    print(f"   生成查询: {query!r}")
+    raised = False
+except Exception as e:
+    print(f"   ✗ 抛出 {type(e).__name__}: {e}")
+    query = ""
+    raised = True
+
+# 摘要里有 1230 个黑点，查询串里应当体现出"检测到了黑点"这一核心事实；
+# 若键名写错，black_count 会静默取到 0，这些词一个都不会出现。
+hits = [w for w in ("黑点", "黑臭", "氨氮", "溶解氧") if w in query]
+print(f"   查询串中包含的关键信息: {hits}")
+
+ok_rag = (not raised) and len(hits) >= 2
+print()
+print(f"   {'[PASS]' if ok_rag else '[FAIL]'} RAG 查询构造正常"
+      + ("" if ok_rag else "  — 键名可能又被改回不匹配的形态"))
+
+print()
+print("=" * 72)
+print(f"检查完成：{'全部通过' if not miss1 and ok_rag else '存在不一致，见上'}")
 print("=" * 72)

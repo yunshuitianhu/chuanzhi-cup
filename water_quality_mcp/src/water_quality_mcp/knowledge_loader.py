@@ -234,10 +234,10 @@ class KnowledgeBaseManager:
         Returns:
             入库的文档块总数。
         """
-        from water_quality_mcp.src.water_quality_mcp.rag_engine import (
-            RAGEngine,
-            EMBEDDING_MODEL_NAME,
-        )
+        # 包内相对导入 —— 同时兼容"项目根目录在 sys.path"与"src 在 sys.path"
+        # 两种配置。原绝对路径 water_quality_mcp.src.water_quality_mcp.* 在
+        # 后者下会失效（water_quality_mcp 解析到内层包）。
+        from .rag_engine import EMBEDDING_MODEL_NAME, RAGEngine
 
         documents = self.load_documents()
         if not documents:
