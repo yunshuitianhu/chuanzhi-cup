@@ -23,8 +23,9 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 ```bash
 pip install -r requirements.txt
 
-uvicorn backend.main:app --reload --port 8001   # FastAPI（接口文档 /docs）
-                                                # 端口 8000 在本机有残留套接字问题，见下方坑 3
+uvicorn backend.main:app --reload --port 8002   # FastAPI（接口文档 /docs）
+                                                # 8000 与 8001 在本机都已有残留监听套接字，
+                                                # 故改用 8002。详见下方坑 3
 streamlit run app.py                            # 原 Streamlit 版（保留，用于快速自检）
 python -m water_quality_mcp.server              # 以 MCP Server 方式运行（stdio）
 python scripts/build_rag_index.py               # 重建 RAG 索引（首次需下 ~400MB 嵌入模型）
@@ -35,10 +36,14 @@ python scripts/build_rag_index.py               # 重建 RAG 索引（首次需�
 ```bash
 cd frontend
 npm install
-npm run dev        # 开发服务器 :5173，已配 /api 代理到 :8000
+BACKEND_PORT=8002 npm run dev   # 开发服务器 :5173，/api 代理到 BACKEND_PORT
+                                # 端口**必须显式给** —— vite.config.js 的默认值是 8001，而 8001 已废
 npm run build      # 生产构建
 npm run preview
 ```
+
+> 前端只监听 **IPv6 `[::1]:5173`**，请用 `http://localhost:5173/`
+> （`127.0.0.1` 连不上，见坑 3）。
 
 **测试**（全部为**脚本式**，非 pytest；"跑单个测试"即单独运行对应脚本）
 
@@ -74,7 +79,38 @@ backend/                   FastAPI —— 把内核包装成 HTTP 服务
          └─ knowledge_base/ --(build_rag_index)--> .rag_index/  ChromaDB 向量索引
 
 app.py                     原 Streamlit 版（等价能力，保留作对照与快速自检）
+
+data/external/             外部数据源（第三方，公开许可，见该目录 README）
+   └─ terrain/             DEM 地形样本 + 采集脚本
 ```
+
+**`data/external/`** —— 为"泛化到任意河流"补数据的调研与落地。三个数据源里
+**只有地形拿到了**：DEM 走 OpenTopoData 公共 API（SRTM，公有领域，无需密钥），
+判据用**地形起伏**而非经纬度方框。潮汐振幅受阻于凭证申请，断面几何因
+SWORD 亚洲区单文件 948 MB 而放弃。细节与许可见该目录 README。
+**该目录下的数据尚未接入模型** —— 阈值未经独立验证，接入前先问。
+
+> `data/` 顶层另有用途：`pollution_permit._find_key_sources_file` 在此查找各省
+> 重点排污单位名录（xlsx）。该函数**不递归子目录**，与本目录不冲突。
+
+### 另有一个独立分支 `research/hydro-wq-model`（**刻意不并入 main**）
+
+水质-水动力开源方案的调研 + HEC-RAS 实测记录。
+
+⚠️ **它的内容不在 main 上**，当前分支里看不到那个目录。要读需先取回：
+
+```bash
+git fetch origin research/hydro-wq-model
+git show research/hydro-wq-model:research/hydro-wq-model/HEC-RAS实测笔记.md
+# 或   git checkout research/hydro-wq-model
+```
+
+**其中最关键的一份是 `HEC-RAS实测笔记.md`** —— 记录了 HEC-RAS 7.0 非恒定流的
+四处格式错误、实测跑通的潮汐工况与质量守恒数据、以及会阻塞 COM 的两类模态对话框、
+还有可复用的探针与看门狗脚本。**要碰 HEC-RAS 相关代码，先读它。**
+
+> 注意：`git ls-tree` 默认转义非 ASCII 路径（形如 `"research/...\345\256\236..."`），
+> 用 `grep "^research/"` 会漏掉这些文件。加 `-c core.quotepath=false` 再筛。
 
 **`backend/`**
 - `session.py` — 按 session_id 隔离的会话状态，对应原 `st.session_state`
@@ -139,13 +175,20 @@ HTTP 是无状态的。前端在请求头带 `X-Session-Id`，**后端必须在�
 - **curl / urllib 默认走系统代理**（Clash，`127.0.0.1:7890`），访问本地服务返回 502。
   命令行加 `--noproxy '*'`；Python 用
   `urllib.request.build_opener(urllib.request.ProxyHandler({}))`
-- **8000 端口上会堆积无法回收的残留监听套接字**：`netstat` 显示有 PID 在 LISTENING，
-  但该 PID 的进程已不存在，`taskkill` 报"找不到进程"。表现为**改了后端代码却不生效**
-  —— 请求被残留套接字背后的旧实例接走了，且不影响 HTTP 200 的返回，极具迷惑性。
-  排查方法：`Get-NetTCPConnection -LocalPort <port> -State Listen` 后
-  `Get-Process -Id <pid>`，若进程不存在即为残留。**换端口是最快的解法**
-  （`BACKEND_PORT=8001 npm run dev`）。Git Bash 的 `netstat` 在此场景下视图不可靠，
-  以 PowerShell 的 `Get-NetTCPConnection` 为准。
+- **用过的后端端口会堆积无法回收的残留监听套接字**：`netstat` 显示有 PID 在
+  LISTENING，但该 PID 的进程已不存在，`taskkill` 报"找不到进程"。表现为
+  **改了后端代码却不生效** —— 请求被残留套接字背后的旧实例接走了，且不影响
+  HTTP 200 的返回，极具迷惑性。**8000 与 8001 上都已实测复现**（2026-10-14），
+  所以「换到 8001」这个旧建议已失效，**现在用 8002**。
+
+  排查：`Get-NetTCPConnection -LocalPort <port> -State Listen` 后
+  `Get-Process -Id <pid>`，若进程不存在即为残留。Git Bash 的 `netstat`
+  在此场景下视图不可靠，以 PowerShell 的 `Get-NetTCPConnection` 为准。
+  **换端口是最快的解法**，别去纠缠怎么杀掉它。
+
+- **已验证服务跑的是哪版代码，不能靠"应该生效了"**：因为上一条，旧实例会安静地
+  继续应答。比对本机接口的**行为**才算数 —— 例如上传一份别名列名的 CSV，
+  返回 `rows=1` 才说明跑的是含列名兼容修复的版本。
 
 **4. 字段名不匹配是系统性问题，不是孤例 —— 有两个检查器，别只跑一个**
 
@@ -188,7 +231,22 @@ HTTP 是无状态的。前端在请求头带 `X-Session-Id`，**后端必须在�
 
 **7. 不要在作品说明中美化能力**
 
-按**本仓库实际代码**核对过：溯源是 **4 个加权源**（不是文档说的 6 源）；ESA 土地利用与降雨模块在本仓库中**不存在**；视频分析只有整帧 Laplacian + HSV（不是文档说的 5 维 ROI/光流/水色/纹理/漂浮物）；河道模型的水动力部分**不可用于潮汐工况**。
+按**本仓库实际代码**核对过：溯源是 **4 个加权源**（不是文档说的 6 源）；ESA 土地利用与降雨模块在本仓库中**不存在**；视频分析只有整帧 Laplacian + HSV（不是文档说的 5 维 ROI/光流/水色/纹理/漂浮物）。
+
+**河道模型的潮汐工况，准确说法是**（2026-10-14 实测后修订）：
+
+- 潮汐工况目前由**纯 Python 求解器**处理，实测**质量不守恒**（体积守恒残差达蓄水率的 103%）。
+  这**不是"选了 Preissmann 格式"的错** —— HEC-RAS 用的是同一类格式（1D Unsteady
+  Finite Difference），质量守恒误差仅 **0.0116%**。差别在离散写法。
+- **HEC-RAS 的非恒定流其实可用**。`hecras_bridge.py` 注释所称的"7.0 格式不兼容"
+  经实测推翻：真实原因是生成的输入文件有四处格式错误，HEC-RAS 每次都判为恒定流方案
+  并静默调用 `RasSteady.exe`。四处错误与修法见 `research/hydro-wq-model/HEC-RAS实测笔记.md`。
+- 但 `hydro_engine.py:87` **强制**把非恒定流推给纯 Python
+  （`engine = "pure_python" if is_nonconstant(...) else detect_engine()`），
+  所以**修好格式也不会改变任何潮汐输出**。要切换得单独决策 ——
+  代价是改变全部潮汐结果、HEC-RAS 成为必需依赖、以及模态对话框会挂住 FastAPI 请求。
+- **几何是人工规则梯形，不是实测断面**。即便切换引擎，结果也只是"数值上正确"，
+  不是"雅瑶水道的真实模型"。
 
 > 注：`D:\aiRAG`（见坑 2）里**有** `land_use.py` 与 `precipitation.py`，但那是另一份、未纳入本仓库的代码。写说明文档时以本仓库为准。
 
@@ -216,6 +274,25 @@ HEC-RAS 工程用的是人工规则梯形，不是实测断面 —— 这是数�
 只改了 `loaders`，`app.py` 仍是旧的 —— 因为两边是两套代码。
 现已统一走 `loaders.normalize_columns()`。
 **发现同类重复实现时，先合并再改，否则必然漏改一边。**
+
+**10. `.rag_index/chroma.sqlite3` 每查一次 RAG 就会被改动**
+
+该文件（1.8 MB 二进制）已被 git 跟踪，但**每次检索都会写它** ——
+实测同一次查询前后 md5 不同。后果：**任何人查一次 RAG，工作区就变脏**。
+
+处理方式：跑完 RAG 相关测试后，提交前先 `git checkout -- .rag_index/chroma.sqlite3`。
+**若后端正在运行，该文件被占用，回退会报 `unable to unlink ... Invalid argument`**
+—— 必须先停掉后端进程再回退。
+
+> 已向用户提出过这个取舍但**尚未决定**：继续跟踪 = 评委开箱能跑 RAG，代价是工作区
+> 常脏；移出跟踪 + gitignore = 工作区干净，代价是评委需自行跑
+> `scripts/build_rag_index.py`（要下载约 400 MB 嵌入模型）。改动前先问。
+
+**11. 验证"修复是否生效"要用行为，不要用进程状态**
+
+本机同时存在：残留监听套接字（坑 3）、`--reload` 的自动重载、以及多个端口上
+跑着不同版本的实例。**"服务起来了"不等于"跑的是新代码"。**
+要证明新代码生效，必须观察**只有新代码才有的行为**。
 
 ## 与苗圃杯原项目的关系
 
