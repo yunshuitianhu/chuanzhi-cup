@@ -13,7 +13,10 @@
 3. .env 文件（经 load_env() 载入 os.environ 后，对使用者而言与 2 无异）
 """
 
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 # 项目根目录（相对本文件：src/water_quality_mcp/config.py）
 _PROJECT_ROOT = os.path.abspath(
@@ -22,16 +25,30 @@ _PROJECT_ROOT = os.path.abspath(
 DEFAULT_ENV_PATH = os.path.join(_PROJECT_ROOT, ".env")
 
 
-def load_env(path: str | None = None, override: bool = False) -> int:
+def load_env(path: str | None = None, override: bool = True) -> int:
     """把 .env 中的键值对载入 os.environ。
 
     Args:
         path: .env 路径，默认项目根目录下的 .env。
-        override: 是否覆盖已存在的环境变量。默认 False ——
-            真实环境变量优先于文件，便于 CI/容器覆盖本地配置。
+        override: 是否用 .env 的值覆盖已存在的环境变量，默认 **True**。
 
     Returns:
         实际载入的键数量（文件不存在时返回 0）。
+
+    为什么默认让 .env 优先
+    ----------------------
+    本项目的 .env 是文档化的配置入口（.env.example + README 都指向它）。
+    而开发机上常残留其它项目设置的同名环境变量 —— 实测本机就有一个
+    来自旧项目的 DEEPSEEK_API_KEY。若让环境变量优先：
+
+        - 用户改了 .env 却不生效，且**没有任何提示**
+        - 排障时看到的是"配置明明写对了"，很难想到去查系统环境变量
+
+    这与"改了配置没反应"相比，"环境变量被 .env 覆盖"是更容易发现、
+    也更容易理解的行为。需要反向覆盖时显式传 override=False。
+
+    冲突会被**明确告警**（见下方 _conflicts），无论采用哪一侧的值，
+    都不会静默 —— 这是本函数最重要的性质。
 
     实现说明：优先用 python-dotenv（若已安装，边界处理更完善），
     否则退回内置轻量解析，避免为此新增硬依赖。
@@ -42,19 +59,41 @@ def load_env(path: str | None = None, override: bool = False) -> int:
 
     try:
         from dotenv import dotenv_values  # type: ignore
-        items = dotenv_values(env_path).items()
+        items = list(dotenv_values(env_path).items())
     except ImportError:
-        items = _parse_env_file(env_path)
+        items = list(_parse_env_file(env_path))
 
     loaded = 0
     for key, value in items:
         if not key or value is None:
             continue
-        if not override and key in os.environ:
-            continue
+        if key in os.environ:
+            existing = os.environ[key]
+            if existing == value:
+                continue          # 两处一致，无需动作，也不必告警
+            if not override:
+                continue
+            # 值不同 —— 告警。只报键名与差异标识，绝不回显密钥本身
+            logger.warning(
+                "环境变量 %s 与 .env 中的值不一致，采用 .env 的值"
+                "（环境变量侧 %s…，.env 侧 %s…）。"
+                "如需以环境变量为准，请调用 load_env(override=False)。",
+                key, _fingerprint(existing), _fingerprint(value),
+            )
         os.environ[key] = value
         loaded += 1
     return loaded
+
+
+def _fingerprint(value: str) -> str:
+    """给密钥生成一个不可逆的短标识，用于日志里区分不同取值。
+
+    只取前 4 位 —— 足以在排障时区分"新旧两个 key"，又不至于泄漏。
+    """
+    v = (value or "").strip()
+    if not v:
+        return "(空)"
+    return v[:4] + "…"
 
 
 def _parse_env_file(path: str):

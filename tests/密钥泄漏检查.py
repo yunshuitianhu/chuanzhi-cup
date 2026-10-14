@@ -24,6 +24,10 @@ import sys
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(PROJ)
+# 用 app.py 相同的导入方式（项目根在 sys.path，走 water_quality_mcp.src.* 全路径）。
+# 注意：环境里存在指向 D:\aiRAG 的 editable 安装，短路径 water_quality_mcp.X
+# 会解析到那份代码而非本项目，故此处必须用全路径。
+sys.path.insert(0, PROJ)
 
 results = []
 
@@ -125,6 +129,56 @@ if suspects:
     for f, label, masked in suspects:
         print(f"       ? {f}  疑似 {label}: {masked}")
 check("未发现硬编码密钥特征串", not suspects, f"疑似 {len(suspects)} 处，请人工确认")
+
+# ---------- 5. 加载优先级与冲突告警 ----------
+print()
+print("5. .env 与环境变量的优先级（曾出现'改了 .env 不生效'的静默失败）")
+import logging as _logging
+import io as _io
+
+_envpath = os.path.join(PROJ, ".env")
+if os.path.isfile(_envpath):
+    from water_quality_mcp.src.water_quality_mcp import config as _cfgmod
+    load_env, resolve_api_key = _cfgmod.load_env, _cfgmod.resolve_api_key
+
+    # 5a. .env 的值应覆盖已存在的环境变量（默认 override=True）
+    _orig = os.environ.get("DEEPSEEK_API_KEY")
+    os.environ["DEEPSEEK_API_KEY"] = "sk-ENV-SHOULD-BE-OVERRIDDEN"
+    _buf = _io.StringIO()
+    _h = _logging.StreamHandler(_buf)
+    # 必须挂到模块自己的 logger 上：以全路径导入时其 __name__ 是
+    # water_quality_mcp.src.water_quality_mcp.config，不是短名
+    _cfgmod.logger.addHandler(_h)
+    _cfgmod.logger.setLevel(_logging.WARNING)
+    load_env()
+    _cfgmod.logger.removeHandler(_h)
+    _after = resolve_api_key("DEEPSEEK_API_KEY")
+    check(".env 的值覆盖了环境变量", _after != "sk-ENV-SHOULD-BE-OVERRIDDEN" and bool(_after),
+          f"生效值前缀 {(_after or '')[:6]}…")
+
+    # 5b. 冲突必须被告警，不能静默
+    check("冲突产生了告警", "不一致" in _buf.getvalue(),
+          "告警文案已输出" if "不一致" in _buf.getvalue() else "未告警（静默失败风险）")
+
+    # 5c. 告警内容不得回显完整密钥
+    _leak = [v for v in env_vals.values() if v in _buf.getvalue()]
+    check("告警中未回显完整密钥", not _leak, "仅输出前 4 位指纹")
+
+    # 5d. 显式 override=False 时环境变量应胜出
+    os.environ["DEEPSEEK_API_KEY"] = "sk-ENV-WINS-WHEN-EXPLICIT"
+    load_env(override=False)
+    check("override=False 时环境变量胜出",
+          resolve_api_key("DEEPSEEK_API_KEY") == "sk-ENV-WINS-WHEN-EXPLICIT",
+          "显式指定时行为符合预期")
+
+    # 还原
+    if _orig is not None:
+        os.environ["DEEPSEEK_API_KEY"] = _orig
+    else:
+        os.environ.pop("DEEPSEEK_API_KEY", None)
+    load_env()
+else:
+    check(".env 存在（用于优先级测试）", False, "未找到 .env")
 
 # ---------- 汇总 ----------
 print()
