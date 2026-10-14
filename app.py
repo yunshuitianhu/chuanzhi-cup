@@ -658,21 +658,38 @@ def _build_cross_validation_caption():
         return
     parts = ["**交叉印证图** — 上：视频 Laplacian 方差（绿线，越高越清晰）vs 传感器浊度（蓝线，越高越浑浊），预期负相关。"]
     parts.append("下：视频 HSV 亮度（绿线，越低越暗）vs 传感器氨氮（红线），预期负相关（黑臭水体色深氨氮高）。")
-    corr = cv.get("correlation_pairs", cv.get("correlations", {}))
-    if corr:
-        if isinstance(corr, dict):
-            for k, v in corr.items():
-                parts.append(f"{k}: r={v:.3f}" if isinstance(v, (int, float)) else f"{k}: {v}")
-        elif isinstance(corr, list):
-            for item in corr[:4]:
-                if isinstance(item, dict):
-                    parts.append(f"{item.get('pair','?')}: r={item.get('pearson_r','?')}")
-    agree = cv.get("agreement", cv.get("black_odor_agreement", {}))
-    if agree and isinstance(agree, dict):
-        rate = agree.get("agreement_rate", agree.get("一致率", ""))
-        if rate:
-            parts.append(f"黑臭判定一致率: {rate}" if isinstance(rate, str) else f"黑臭判定一致率: {rate:.1%}")
-    st.session_state.chart_captions["cross_validation"] = " ".join(parts)
+
+    # 键名以 analysis.cross_validate_video_with_monitoring 的实际产出为准。
+    # 此处曾经整段读的是英文键名（correlation_pairs / pair / pearson_r /
+    # agreement / agreement_rate），后端一个都没有 —— 说明文字里因此
+    # 从未出现过任何相关系数信息。
+    corr = cv.get("相关系数矩阵", [])
+    if isinstance(corr, list) and corr:
+        # corr 已按 |r| 降序排列, 取前 3 条最强的
+        for item in corr[:3]:
+            if not isinstance(item, dict):
+                continue
+            pair = f"{item.get('视频指标', '?')} × {item.get('传感器指标', '?')}"
+            r = item.get("Pearson_r")
+            sig = item.get("显著性", "")
+            if isinstance(r, (int, float)):
+                parts.append(f"{pair}: r={r:.3f}{'' if sig == '不显著' else ' ' + str(sig)}")
+
+    agree = cv.get("黑臭判定一致性", {})
+    if isinstance(agree, dict):
+        rate = agree.get("一致率_%")
+        if isinstance(rate, (int, float)):
+            parts.append(f"黑臭判定一致率: {rate}%")
+        # 后端已内置一句人话解读, 直接用, 避免自行表述产生偏差
+        interp = agree.get("解读", "")
+        if interp:
+            parts.append(str(interp))
+
+    findings = cv.get("关键发现", [])
+    if isinstance(findings, list):
+        parts.extend(str(f) for f in findings[:2])
+
+    st.session_state.chart_captions["cross_validation"] = "\n\n".join(parts)
 
 def _build_correlation_heatmap_caption():
     """根据交叉印证结果生成相关系数热力图说明"""
@@ -680,16 +697,19 @@ def _build_correlation_heatmap_caption():
     if cv is None:
         st.session_state.chart_captions["correlation_heatmap"] = "相关系数热力图：展示视频视觉指标（Laplacian方差/HSV饱和度/亮度）与传感器指标（浊度/氨氮/DO/COD）的 Pearson 相关系数矩阵。"
         return
-    corr = cv.get("correlation_pairs", cv.get("correlations", {}))
+    # 键名同上, 以 cross_validate_video_with_monitoring 的实际产出为准
+    corr = cv.get("相关系数矩阵", [])
     parts = ["**相关系数热力图** — 视频视觉指标 × 传感器指标的 Pearson r 矩阵。"]
-    if isinstance(corr, dict):
-        best = max(corr.items(), key=lambda x: abs(x[1]) if isinstance(x[1], (int, float)) else 0) if corr else None
+    if isinstance(corr, list) and corr:
+        sig_items = [c for c in corr if isinstance(c, dict) and c.get("显著性") != "不显著"]
+        best = sig_items[0] if sig_items else None
         if best:
-            parts.append(f"最强相关: {best[0]} (r={best[1]:.3f})。")
-    elif isinstance(corr, list) and corr:
-        best = max(corr, key=lambda x: abs(x.get('pearson_r', 0)) if isinstance(x, dict) else 0)
-        if isinstance(best, dict):
-            parts.append(f"最强相关: {best.get('pair','?')} (r={best.get('pearson_r','?')})。")
+            parts.append(
+                f"最强显著相关: {best.get('视频指标', '?')} × {best.get('传感器指标', '?')} "
+                f"(r={best.get('Pearson_r', '?')}, {best.get('显著性', '')})。"
+            )
+        else:
+            parts.append("未发现显著相关项。")
     parts.append("红色=正相关，蓝色=负相关，颜色越深相关性越强。")
     st.session_state.chart_captions["correlation_heatmap"] = " ".join(parts)
 
@@ -1630,15 +1650,18 @@ def _display_black_spot_result(result_str):
         st.dataframe(top5, use_container_width=True, hide_index=True)
 
     # 聚类详情
+    # 键名以 analysis.get_cluster_summary 的实际产出为准:
+    # cluster_id / count / 内梅罗等级 (曾误写为 聚类ID / 点位数量 / 严重程度,
+    # .get() 取不到时静默返回空串, 面板上三个值恒为空白)
     clusters_info = data.get("聚类详情", [])
     if clusters_info:
         with st.expander("聚类详情"):
             for ci in clusters_info:
-                st.markdown(f"**聚类 {ci.get('聚类ID', '')}** — "
-                           f"严重程度: {ci.get('严重程度', '')}, "
+                st.markdown(f"**聚类 {ci.get('cluster_id', '')}** — "
+                           f"污染等级: {ci.get('内梅罗等级', '')}, "
                            f"黑臭等级: {ci.get('黑臭等级', '')}, "
                            f"趋势: {ci.get('趋势', '')}")
-                st.caption(f"点位: {ci.get('点位数量', '')} 个 | "
+                st.caption(f"点位: {ci.get('count', '')} 个 | "
                           f"空间跨度: {ci.get('空间跨度_m', '')}m | "
                           f"持续时长: {ci.get('持续超标时长_min', '')}min")
 
@@ -2011,12 +2034,21 @@ with tab4:
             except Exception:
                 cv_data = {}
             # 显示关键相关系数
-            if "pearson" in cv_data:
-                pearson = cv_data["pearson"]
-                cols_cv = st.columns(min(len(pearson), 4))
-                for i, (k, v) in enumerate(pearson.items()):
+            # 键名以 cross_validate_video_with_monitoring 的实际产出为准。
+            # 此处原读 cv_data["pearson"] —— 后端从未产出过该键,
+            # 因此指标区一直不渲染。后端实际给出的是 "相关系数矩阵" (list),
+            # 每项含 视频指标 / 传感器指标 / Pearson_r / 显著性 / 样本数。
+            corr_list = cv_data.get("相关系数矩阵", [])
+            if isinstance(corr_list, list) and corr_list:
+                top = [c for c in corr_list if isinstance(c, dict)][:4]
+                cols_cv = st.columns(min(len(top), 4))
+                for i, c in enumerate(top):
                     with cols_cv[i % 4]:
-                        st.metric(k, f"{v:.3f}")
+                        label = f"{c.get('视频指标', '?')} × {c.get('传感器指标', '?')}"
+                        r = c.get("Pearson_r")
+                        delta = c.get("显著性") if c.get("显著性") != "不显著" else None
+                        st.metric(label, f"{r:.3f}" if isinstance(r, (int, float)) else "—",
+                                  delta=delta)
             if os.path.exists("cross_validation.png"):
                 st.image("cross_validation.png")
                 captions = st.session_state.chart_captions

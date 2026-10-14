@@ -37,11 +37,24 @@ def keys_read_in(func_name, next_func_marker):
     """抽取 app.py 中某个函数体里读取的字段名。"""
     start = APP_SRC.index(f"def {func_name}(")
     end = APP_SRC.index(next_func_marker, start) if next_func_marker else len(APP_SRC)
-    body = APP_SRC[start:end]
+    body = strip_comments(APP_SRC[start:end])
     found = set()
     for m in re.finditer(r'\.get\(\s*["\']([^"\']+)["\']', body):
         found.add(m.group(1))
     return found, body
+
+
+def strip_comments(code: str) -> str:
+    """去掉行尾注释再匹配。
+
+    否则"修复说明"里提到的旧键名（例如注释中写 cv_data["pearson"] 说明它已
+    被替换）会被正则当成仍在使用的键，测试在代码修好后反而报失败 ——
+    这类假阳性会让整个检查失去可信度。
+
+    局限: 用最简启发式（行内首个 # 之后截断），不处理字符串里含 # 的情况。
+    本仓库的 app.py 无此情形。
+    """
+    return "\n".join(line.split("#", 1)[0] for line in code.splitlines())
 
 
 def flat_keys(obj, prefix=""):
@@ -106,8 +119,25 @@ df = pd.DataFrame({
 })
 
 # ---------- 1. 黑臭检测 ----------
+# 注意: find_black_spots 有【两种输出形态】—— 检出黑点与未检出黑点走不同分支,
+# 键名并不相同(例如 "提示" 只出现在未检出分支)。只跑一种形态会把另一种的
+# 键误判为"不存在"。这里两种都跑, 取键的并集。
 result_json, black = find_black_spots(df, DEFAULT_CONFIG)
 produced = flat_keys(json.loads(result_json))
+
+clean = df.copy()
+clean["ammonia_nitrogen"] = 1.0     # 远低于 8.0 阈值
+clean["dissolved_oxygen"] = 6.0     # 远高于 2.0 阈值
+clean_json, _ = find_black_spots(clean, DEFAULT_CONFIG)
+clean_obj = json.loads(clean_json)
+dirty_keys = flat_keys(json.loads(result_json))
+if clean_obj.get("黑点总数") == 0:
+    extra = sorted(flat_keys(clean_obj) - dirty_keys)
+    produced |= flat_keys(clean_obj)
+    print(f"（已合并[未检出黑点]分支的键：{extra}）")
+else:
+    print("（注意：干净数据仍检出黑点，[未检出]分支未被覆盖）")
+
 read_names, _ = keys_read_in("_display_black_spot_result", "def _display_trace_result")
 miss1 = compare("1. find_black_spots  →  _display_black_spot_result（tab4 第2区）",
                 produced, read_names)
@@ -152,10 +182,12 @@ else:
 
 # ---------- 3. tab4 交叉印证区的读取 ----------
 start = APP_SRC.index("第 4 区：视频-传感器交叉印证")
-seg = APP_SRC[start:start + 6000]
+seg = strip_comments(APP_SRC[start:start + 6000])
+# 动态抽取该区域读取的键名。不要在此硬编码具体键 ——
+# 硬编码会让脚本在代码已修好后仍报旧结论，失去可信度。
 read3 = set(re.findall(r'cv_data\.get\(\s*["\']([^"\']+)["\']', seg)) | \
-        set(re.findall(r'\[["\'](pearson)["\']\]', seg)) | \
-        set(re.findall(r'if\s+["\']([a-z_]+)["\']\s+in\s+cv_data', seg))
+        set(re.findall(r'cv_data\[["\']([^"\']+)["\']\]', seg)) | \
+        set(re.findall(r'["\']([A-Za-z_]+)["\']\s+in\s+cv_data', seg))
 if miss2 or read3:
     produced3 = flat_keys(cv_obj) if "error" not in cv_obj else set()
     print(f"\n{'=' * 72}")
@@ -184,10 +216,18 @@ if "黑臭检测" in s:
     if cl:
         print("   聚类详情[0] 的键:", list(cl[0].keys()))
         print()
-        print("   >>> app.py L1637-1643 读取的聚类字段 vs 实际:")
-        for k in ["聚类ID", "严重程度", "黑臭等级", "趋势", "点位数量", "空间跨度_m", "持续超标时长_min"]:
+        # 动态抽取"聚类详情"展示块里 ci.get(...) 读的键 —— 同样不硬编码
+        block_start = APP_SRC.index('with st.expander("聚类详情")')
+        block = strip_comments(APP_SRC[block_start:block_start + 900])
+        read_cluster = sorted(set(re.findall(r'ci\.get\(\s*["\']([^"\']+)["\']', block)))
+        print(f"   >>> 聚类详情面板读取的字段 ({len(read_cluster)} 个) vs 实际:")
+        bad_cluster = []
+        for k in read_cluster:
             ok = k in cl[0]
+            if not ok:
+                bad_cluster.append(k)
             print(f"       {'✓' if ok else '✗'} {k}")
+        miss1 = miss1 + [f"聚类详情.{k}" for k in bad_cluster]
 
 # ---------- 5. RAG 查询构造 ----------
 # 回归守卫：rag_engine.build_query_from_summary 曾经用一套英文/近义键名读取
