@@ -4,11 +4,36 @@
 建立 chainage ↔ (latitude, longitude) 的双向插值映射。
 """
 
+import logging
+
 import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter1d
 from scipy.interpolate import interp1d
 from typing import Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_time_column(series: pd.Series) -> pd.Series:
+    """两遍解析时间列，兼容带秒与不带秒两种写法。
+
+    ⚠️ 不能用裸的 `pd.to_datetime(series, errors='coerce')`：
+    pandas 会**从首个非空值推断格式**并套用到整列。本项目的样本数据首个
+    时间值是 "2025-08-01 10:33"（无秒），于是所有形如
+    "2025-08-01 10:33:05"（带秒）的值全部解析失败变 NaT，
+    再被 dropna 静默丢弃 —— 实测 1805 行只剩 151 行。
+
+    必须显式指定格式、分两遍处理（loaders.py 用的是同样的写法）。
+    """
+    s = series.astype(str).str.strip()
+    dt = pd.to_datetime(s, format='%Y-%m-%d %H:%M:%S', errors='coerce')
+    mask = dt.isna()
+    if mask.any():
+        # 截到分钟再按 "%Y-%m-%d %H:%M" 解析
+        dt[mask] = pd.to_datetime(s[mask].str.slice(0, 16),
+                                  format='%Y-%m-%d %H:%M', errors='coerce')
+    return dt
 
 
 def _haversine(lon1: np.ndarray, lat1: np.ndarray,
@@ -59,9 +84,11 @@ def build_chainage_gps_mapping(excel_path: str,
     df.rename(columns={k: v for k, v in col_map.items() if k in df.columns},
               inplace=True)
 
+    n_before = len(df)
+
     # 如果有时序列, 按时序排列; 否则按数据顺序
     if '时间' in df.columns:
-        df['time'] = pd.to_datetime(df['时间'].astype(str).str.strip(), errors='coerce')
+        df['time'] = _parse_time_column(df['时间'])
         df.dropna(subset=['time'], inplace=True)
         df.sort_values('time', inplace=True)
     if 'datetime' in df.columns:
@@ -69,6 +96,19 @@ def build_chainage_gps_mapping(excel_path: str,
         df.sort_values('datetime', inplace=True)
 
     df.reset_index(drop=True, inplace=True)
+
+    # 丢点必须出声。此前这里是静默的 —— 实测样本数据 1805 行只剩 151 行，
+    # 桩号映射与河道长度全部基于这 8% 算出来，而没有任何提示。
+    if len(df) < n_before:
+        logger.warning(
+            "GPS 映射：时间解析后从 %d 行减少到 %d 行（丢弃 %.1f%%）。"
+            "若非预期，检查时间列的格式。",
+            n_before, len(df), (1 - len(df) / max(n_before, 1)) * 100,
+        )
+    if len(df) < 2:
+        raise ValueError(
+            f"有效 GPS 点不足（{len(df)} 个）。时间列格式可能无法识别。"
+        )
 
     # 2. 提取坐标
     lats = df['lat'].values.astype(float)

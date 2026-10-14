@@ -18,11 +18,17 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+# 项目根目录（相对本文件：src/water_quality_mcp/pollution_permit.py）
+_PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
 
 # 排污许可证公开查询 API 端点
 _PERMIT_API_BASE = "https://permit.mee.gov.cn/permitExt/outside/query"
@@ -103,33 +109,88 @@ def search_key_pollution_sources(
 
     Returns:
         [{企业名称, 排口类型, 主要污染物, 所属行政区}]
+        名录文件不存在时返回空列表（由调用方跳过该数据源）
+
+    ⚠️ 关于此前的硬编码数据
+    -----------------------
+    本函数曾内置三条**占位条目**（"佛山市南海区某印染厂"等），并被打上
+    `数据源: "重点排污单位名录"` 混入溯源结果、在输出里描述为
+    "地方生态环境局年度公开名录 — 官方监管数据"。那是编造的数据被当作
+    官方数据展示，已在本次修改中**全部删除**。
+
+    现在只读真实名录文件；读不到就返回空，由 trace_engine 按既有的
+    降级策略跳过该源 —— **宁可不报，不可编造**。
+
+    名录文件来源：广东省生态环境厅「重点排污单位名录」专栏公开附件
+    （2023 年起更名为「环境监管重点单位名录」，发布权下放至地市）。
     """
+    path = _find_key_sources_file(province)
+    if path is None:
+        logger.info("未找到 %s 的重点排污单位名录文件，跳过该数据源", province)
+        return []
+
+    try:
+        import pandas as pd
+        # 省厅公开的 Excel 通常前两行是标题与表头
+        raw = pd.read_excel(path, header=None)
+        header_row = 1 if len(raw) > 1 else 0
+        df = pd.read_excel(path, header=header_row)
+    except Exception as e:                        # noqa: BLE001
+        logger.warning("读取重点排污单位名录失败 (%s): %s", path, e)
+        return []
+
+    # 列名在不同年份的公开文件里并不统一，按关键词匹配
+    def pick(row, *keywords):
+        for col in df.columns:
+            name = str(col)
+            if any(k in name for k in keywords):
+                v = row.get(col)
+                if v is not None and str(v) != "nan":
+                    return str(v).strip()
+        return ""
+
     results: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        name = pick(row, "单位名称", "企业名称", "排污单位")
+        if not name:
+            continue
+        area = pick(row, "行政区", "区域")
+        if city and city not in area and city not in name:
+            continue
+        results.append({
+            "数据源": "重点排污单位名录",
+            "企业名称": name,
+            "排口类型": pick(row, "排口类型", "类别") or "废水",
+            "主要污染物": pick(row, "主要污染物", "污染物") or "详见名录",
+            "所属行政区": area,
+            "来源文件": os.path.basename(path),
+        })
 
-    # 各地市生态环境局公开名录通常以 PDF/Excel 形式发布,
-    # 此处提供结构化接口框架, 当前返回基于内置数据的关键污染源。
-    # 未来可通过 Web 爬虫或数据订阅服务补充实时数据。
-
-    # 内置广东省重点排污单位参考数据 (典型水环境相关)
-    _GUANGDONG_KEY_SOURCES = {
-        "佛山市": [
-            {"企业名称": "佛山市南海区某印染厂", "排口类型": "废水", "主要污染物": "COD、氨氮、色度", "所属行政区": "南海区"},
-            {"企业名称": "佛山市某电镀工业园", "排口类型": "废水", "主要污染物": "重金属、氰化物", "所属行政区": "南海区"},
-            {"企业名称": "佛山市某食品加工企业", "排口类型": "废水", "主要污染物": "COD、氨氮、总磷", "所属行政区": "南海区"},
-        ],
-    }
-
-    if province == "广东省" and city and city in _GUANGDONG_KEY_SOURCES:
-        for src in _GUANGDONG_KEY_SOURCES[city]:
-            src["数据源"] = "重点排污单位名录"
-            results.append(src)
-    elif province == "广东省":
-        for city_srcs in _GUANGDONG_KEY_SOURCES.values():
-            for src in city_srcs:
-                src["数据源"] = "重点排污单位名录"
-                results.append(src)
-
+    logger.info("重点排污单位名录：从 %s 读取 %d 条", os.path.basename(path), len(results))
     return results
+
+
+def _find_key_sources_file(province: str) -> str | None:
+    """查找该省的重点排污单位名录文件。
+
+    查找顺序：项目 data/ 目录 → 项目根目录。文件名按省份匹配。
+    文件不在仓库里（311KB 且来源为省厅公开附件），需使用者自行下载，
+    获取方式见 `data_acquisition_guide.md`。
+    """
+    roots = [
+        os.path.join(_PROJECT_ROOT, "data"),
+        _PROJECT_ROOT,
+    ]
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for fn in sorted(os.listdir(root)):
+            if not fn.lower().endswith((".xlsx", ".xls")):
+                continue
+            # 广东的名录文件名习惯写作 guangdong_key_sources.xlsx
+            if "key_source" in fn.lower() or "排污单位" in fn or "重点单位" in fn:
+                return os.path.join(root, fn)
+    return None
 
 
 def get_pollution_source_summary(results: list[dict[str, Any]]) -> str:
