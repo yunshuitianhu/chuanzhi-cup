@@ -129,31 +129,23 @@ def _parse_time_column(raw: "pd.Series") -> "pd.Series":
     return dt
 
 
-def load_data(file_bytes: str, filename: str):
-    """加载并清洗 CSV/Excel 走航数据。返回 (df, report_string)。"""
-    raw = base64.b64decode(file_bytes)
-    buf = io.BytesIO(raw)
-    fn = filename.lower()
-    try:
-        if fn.endswith('.csv'):
-            try:
-                df = pd.read_csv(buf, encoding='utf-8')
-            except UnicodeDecodeError:
-                buf.seek(0)
-                df = pd.read_csv(buf, encoding='gbk')
-        elif fn.endswith(('.xls', '.xlsx')):
-            df = pd.read_excel(buf)
-        else:
-            return None, "不支持的文件格式，请上传 .csv / .xls / .xlsx"
-    except Exception as e:
-        return None, f"读取失败: {e}"
+def normalize_columns(df: "pd.DataFrame"):
+    """按别名表重命名列，并解析出 datetime 列（原地修改 df）。
 
+    **列名识别与时间解析的统一入口。** app.py 与 backend 都走这里。
+
+    为什么单独抽出来：这两处的列映射此前各写了一份，修复时只改了一边就会
+    留下死角（实际发生过 —— 新前端的列名兼容修好了，app.py 的同名函数还是旧的）。
+
+    Returns:
+        (df, error)；成功时 error 为 None，失败时 error 为可读说明。
+    """
     if len(df) == 0:
-        return None, "文件为空：没有读到任何数据行（请检查工作表是否为空或表头行是否正确）"
+        return df, "文件为空：没有读到任何数据行（请检查工作表是否为空或表头行是否正确）"
 
     col_map, time_cols = _resolve_columns(df)
     if time_cols is None:
-        return None, (
+        return df, (
             "未找到时间列，无法解析。可接受的列名：" + "、".join(sorted(_TS_FULL_ALIASES))
             + "；或同时给出日期列与时刻列（如「采样日期」+「采样时刻」）。"
             + f"当前文件的列为：{list(df.columns)}"
@@ -177,12 +169,37 @@ def load_data(file_bytes: str, filename: str):
     n_raw = len(df)
     df.dropna(subset=["datetime"], inplace=True)
     if len(df) == 0:
-        return None, (
+        return df, (
             f"{n_raw} 行数据的时间列全部无法解析。支持的格式示例："
             "2025-08-01 10:33:00 / 2025-08-01 10:33 / 2025-08-01 / 2025/08/01 10:33"
         )
     df.sort_values("datetime", inplace=True)
     df.reset_index(drop=True, inplace=True)
+    return df, None
+
+
+def load_data(file_bytes: str, filename: str):
+    """加载并清洗 CSV/Excel 走航数据。返回 (df, report_string)。"""
+    raw = base64.b64decode(file_bytes)
+    buf = io.BytesIO(raw)
+    fn = filename.lower()
+    try:
+        if fn.endswith('.csv'):
+            try:
+                df = pd.read_csv(buf, encoding='utf-8')
+            except UnicodeDecodeError:
+                buf.seek(0)
+                df = pd.read_csv(buf, encoding='gbk')
+        elif fn.endswith(('.xls', '.xlsx')):
+            df = pd.read_excel(buf)
+        else:
+            return None, "不支持的文件格式，请上传 .csv / .xls / .xlsx"
+    except Exception as e:
+        return None, f"读取失败: {e}"
+
+    df, err = normalize_columns(df)
+    if err:
+        return None, err
 
     numeric_cols = ['ammonia_nitrogen', 'dissolved_oxygen', 'water_temperature', 'cod', 'turbidity', 'ph']
     for col in numeric_cols:
