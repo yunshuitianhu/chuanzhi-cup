@@ -1,0 +1,42 @@
+/* 全局样式。配色取自项目既有图表用色，保持与水环境主题一致。 */
+:root {
+  --c-bg:        #0f1720;
+  --c-surface:   #17212b;
+  --c-surface-2: #1e2a36;
+  --c-border:    #2a3947;
+  --c-ink:       #e8eef5;
+  --c-sub:       #94a7b8;
+  --c-accent:    #2ea3f2;
+  --c-accent-2:  #00c9a7;
+
+  /* 与 analysis.py 的 GB3838 内梅罗分级色一致 */
+  --sev-normal:   #2E8B57;
+  --sev-mild:     #FFA500;
+  --sev-moderate: #FF4500;
+  --sev-severe:   #DC143C;
+  --sev-critical: #8B0000;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Microsoft YaHei', 'PingFang SC', -apple-system, system-ui, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+code, pre { font-family: Consolas, 'Courier New', monospace; }
+
+/* 通用滚动条（暗色主题下默认样式很突兀） */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #33475a; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }

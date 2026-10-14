@@ -1,0 +1,88 @@
+/**
+ * 后端 API 客户端。
+ *
+ * 会话：后端按 X-Session-Id 区分会话（对应原 Streamlit 的 session_state）。
+ * 首次请求不带该头，后端会新建并返回 session_id，之后每个请求都带上。
+ */
+const BASE = '/api'
+
+let sessionId = localStorage.getItem('wq_session_id') || ''
+
+export function getSessionId() {
+  return sessionId
+}
+
+export function clearSession() {
+  sessionId = ''
+  localStorage.removeItem('wq_session_id')
+}
+
+class ApiError extends Error {
+  constructor(message, status, payload) {
+    super(message)
+    this.status = status
+    this.payload = payload
+  }
+}
+
+async function request(path, { method = 'GET', body, isForm = false } = {}) {
+  const headers = {}
+  if (sessionId) headers['X-Session-Id'] = sessionId
+  if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json'
+
+  const res = await fetch(BASE + path, {
+    method,
+    headers,
+    body: isForm ? body : (body !== undefined ? JSON.stringify(body) : undefined),
+  })
+
+  // 后端在每次响应里回传当前会话 id
+  const sid = res.headers.get('X-Session-Id')
+  if (sid && sid !== sessionId) {
+    sessionId = sid
+    localStorage.setItem('wq_session_id', sid)
+  }
+
+  let payload = null
+  const text = await res.text()
+  if (text) {
+    try { payload = JSON.parse(text) } catch { payload = text }
+  }
+
+  if (!res.ok) {
+    // FastAPI 的错误体是 {detail: ...}，尽量把可读信息透出去
+    const msg = (payload && payload.detail) || (typeof payload === 'string' ? payload : `HTTP ${res.status}`)
+    throw new ApiError(String(msg), res.status, payload)
+  }
+  return payload
+}
+
+export const api = {
+  health: () => request('/health'),
+  config: () => request('/config'),
+  setTargetClass: (val) => request('/config/target-class', { method: 'POST', body: { target_water_class: val } }),
+
+  status: () => request('/data/status'),
+  preview: (limit = 50) => request(`/data/preview?limit=${limit}`),
+  uploadData: (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return request('/data/upload', { method: 'POST', body: fd, isForm: true })
+  },
+  uploadVideo: (file, interval = 5) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return request(`/data/video?interval=${interval}`, { method: 'POST', body: fd, isForm: true })
+  },
+
+  summary: () => request('/analysis/summary'),
+  blackSpots: () => request('/analysis/black-spots', { method: 'POST' }),
+  crossValidate: (payload) => request('/analysis/cross-validate', { method: 'POST', body: payload || {} }),
+  comprehensive: () => request('/analysis/comprehensive'),
+
+  timeSeries: () => request('/charts/time-series'),
+  traceMap: () => request('/charts/trace-map'),
+  crossValidationChart: () => request('/charts/cross-validation'),
+}
+
+export { ApiError }

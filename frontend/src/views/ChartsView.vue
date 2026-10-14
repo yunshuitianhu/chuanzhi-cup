@@ -1,0 +1,178 @@
+<script setup>
+/**
+ * 分析图表页 —— 对应 app.py 的 tab2。
+ *
+ * 与原版的本质区别：原版是把 matplotlib 生成的 PNG 贴上来，
+ * 这里全部由 ECharts 在前端渲染 —— 可缩放、可悬浮读数、可切换图例。
+ */
+import { computed, onMounted, ref, watch } from 'vue'
+import { api } from '../api/client'
+import { useSessionStore } from '../stores/session'
+import EChart from '../components/EChart.vue'
+import Panel from '../components/Panel.vue'
+import TraceMap from '../components/TraceMap.vue'
+import CrossValidation from '../components/CrossValidation.vue'
+import { toastErr } from '../composables/useToast'
+
+const store = useSessionStore()
+const ts = ref(null)          // time-series 数据
+const loading = ref(false)
+
+async function loadTimeSeries() {
+  if (!store.status.has_data) return
+  loading.value = true
+  try {
+    ts.value = await api.timeSeries()
+  } catch (e) {
+    toastErr(`图表数据加载失败：${e.message}`)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadTimeSeries)
+// 数据或黑点变化后重新取图（黑点散点依赖检测结果）
+watch(() => [store.status.rows, store.status.black_spot_count], loadTimeSeries)
+
+/** 把某一面板的数据 + 黑点散点拼成 ECharts option。 */
+function panelOption(key) {
+  const p = ts.value?.panels?.find((x) => x.key === key)
+  if (!p) return { series: [] }
+
+  const spots = (ts.value?.black_spots || [])
+    .map((s) => [s.t, s[key === 'ammonia_nitrogen' ? 'ammonia'
+      : key === 'dissolved_oxygen' ? 'do'
+      : key === 'turbidity' ? 'turbidity' : 'ph'], s.severity_label, s.color])
+    .filter((r) => r[1] !== null && r[1] !== undefined)
+
+  // 按严重等级分组，图例才能分开勾选
+  const groups = {}
+  for (const [t, v, label, color] of spots) {
+    const g = groups[label] || (groups[label] = { color, data: [] })
+    g.data.push([t, v])
+  }
+
+  const series = [{
+    name: p.label,
+    type: 'line',
+    showSymbol: false,
+    lineStyle: { width: 1, color: p.color },
+    itemStyle: { color: p.color },
+    data: ts.value.time.map((t, i) => [t, p.values[i]]),
+    // 数据量大，采样能显著提速；lttb 保留极值形态
+    sampling: 'lttb',
+    large: true,
+  }]
+
+  if (p.limit !== null && p.limit !== undefined) {
+    series.push({
+      name: `V类限值 ${p.limit}`,
+      type: 'line',
+      markLine: {
+        silent: true, symbol: 'none',
+        lineStyle: { color: '#ff4d6d', type: 'dashed', width: 1 },
+        data: [{ yAxis: p.limit }],
+        label: { formatter: `限值 ${p.limit}`, color: '#ff8fa3', fontSize: 10 },
+      },
+      data: [],
+    })
+  }
+
+  for (const [label, g] of Object.entries(groups)) {
+    series.push({
+      name: label,
+      type: 'scatter',
+      symbolSize: 5,
+      itemStyle: { color: g.color },
+      data: g.data,
+    })
+  }
+
+  return {
+    grid: { left: 52, right: 20, top: 30, bottom: 34 },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'cross', lineStyle: { color: '#3a5163' } },
+      backgroundColor: 'rgba(20,30,40,.95)',
+      borderColor: '#2a3947', textStyle: { color: '#e8eef5', fontSize: 12 },
+      valueFormatter: (v) => (v === null || v === undefined ? '—' : Number(v).toFixed(2)),
+    },
+    legend: {
+      top: 0, right: 0, itemWidth: 12, itemHeight: 8,
+      textStyle: { color: '#94a7b8', fontSize: 11 },
+    },
+    xAxis: {
+      type: 'time',
+      axisLine: { lineStyle: { color: '#2a3947' } },
+      axisLabel: { color: '#94a7b8', fontSize: 10, hideOverlap: true },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      name: p.unit || '',
+      nameTextStyle: { color: '#94a7b8', fontSize: 10 },
+      axisLabel: { color: '#94a7b8', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#1e2a36' } },
+      scale: true,
+    },
+    series,
+  }
+}
+
+const PANEL_KEYS = ['ammonia_nitrogen', 'dissolved_oxygen', 'turbidity', 'ph']
+const caption = computed(() => store.status.has_data
+  ? `监测时段 ${store.status.time_range?.[0]?.slice(5, 16) || ''} ~ ${store.status.time_range?.[1]?.slice(11, 16) || ''}，`
+    + `共 ${store.status.rows} 条记录。散点为检出黑臭的点位，按等级着色。`
+  : '')
+</script>
+
+<template>
+  <div v-if="!store.status.has_data" class="empty">
+    <div class="empty-ico">📊</div>
+    <p>请先在左侧上传并加载走航数据</p>
+  </div>
+
+  <template v-else>
+    <Panel title="时间序列趋势" subtitle="氨氮 / 溶解氧 / 浑浊度 / pH，黑点按严重等级着色">
+      <template #actions>
+        <button class="mini" :disabled="loading" @click="loadTimeSeries">刷新</button>
+      </template>
+      <p v-if="caption" class="caption">{{ caption }}</p>
+
+      <div class="grid-2">
+        <EChart
+          v-for="k in PANEL_KEYS"
+          :key="k"
+          :option="panelOption(k)"
+          :loading="loading"
+          :height="260"
+        />
+      </div>
+    </Panel>
+
+    <Panel title="交互式溯源地图" subtitle="轨迹 · 聚类范围 · Top-5 严重点位 · 污染源 POI">
+      <TraceMap />
+    </Panel>
+
+    <Panel title="视频-传感器交叉印证" subtitle="需要先上传巡航视频">
+      <CrossValidation />
+    </Panel>
+  </template>
+</template>
+
+<style scoped>
+.empty { text-align: center; padding: 80px 20px; color: var(--c-sub); }
+.empty-ico { font-size: 40px; margin-bottom: 12px; }
+
+.caption { margin: 0 0 12px; font-size: 12px; color: var(--c-sub); }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 1200px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.mini {
+  background: transparent; border: 1px solid var(--c-border); color: var(--c-sub);
+  padding: 4px 12px; border-radius: 6px; font-size: 12px;
+}
+.mini:hover:not(:disabled) { border-color: var(--c-accent); color: var(--c-ink); }
+.mini:disabled { opacity: .5; }
+</style>
