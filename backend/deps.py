@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
-from fastapi import Header
+from fastapi import Request
 
 from .session import Session, STORE
 
 
-def get_session(x_session_id: str | None = Header(default=None)) -> Session:
-    """按 X-Session-Id 请求头取会话；不存在则新建。
+def get_session(request: Request) -> Session:
+    """取当前请求的会话。
 
-    前端在首次响应里拿到 session id，之后每个请求带上即可。
+    会话 id 由 main.py 的 session_middleware 从请求头解析并写入
+    `request.state.session_id` —— 那个中间件同时负责把它回写到响应头，
+    前端才能把它记住并在后续请求带上。
+
+    **不要在这里直接读请求头并 STORE.get()**：那样当中间件因故未生效时，
+    每个请求都会静默新建一个会话，表现为"上传成功但状态永远是空的"。
     """
-    return STORE.get(x_session_id)
+    sid = getattr(request.state, "session_id", None)
+    if sid is None:
+        # 兜底：中间件未生效（例如单独构造 Request 的单元测试）
+        sid = request.headers.get("X-Session-Id")
+    return STORE.get(sid)
