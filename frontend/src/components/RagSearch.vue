@@ -17,6 +17,17 @@ const data = ref(null)
 
 const QUICK = ['黑臭水体治理', '氨氮工业废水处理', '富营养化湖泊修复', '城市河道综合治理']
 
+/**
+ * 输入为空时使用的兜底查询。
+ *
+ * ⚠️ 这里**不能**把按钮设成 disabled。原 app.py 的行为是
+ * `query = tech_rag_query or "黑臭水体治理"` —— 空着也能点，走默认查询。
+ * 之前本组件写成「空输入即禁用」，结果是：按钮看着是亮的、点下去没反应，
+ * 用户完全不知道该怎么继续（已由用户实际反馈）。
+ * 一个看不出原因的死按钮，比一个用默认值兜底的按钮差得多。
+ */
+const DEFAULT_QUERY = '黑臭水体治理'
+
 onMounted(loadStatus)
 
 async function loadStatus() {
@@ -28,8 +39,8 @@ async function loadStatus() {
 }
 
 async function run(q) {
-  const text = (q || query.value).trim()
-  if (!text) return
+  // 空输入走默认查询，而不是直接 return —— 后者会让用户以为按钮坏了
+  const text = (q || query.value).trim() || DEFAULT_QUERY
   query.value = text
   loading.value = true
   try {
@@ -78,7 +89,11 @@ function simColor(s) {
         <input v-model.number="topK" type="number" min="1" max="10" :disabled="loading" />
         个
       </label>
-      <button :disabled="!query.trim() || loading" @click="run()">
+      <button
+        :disabled="loading || !status?.available"
+        :title="status?.available ? '' : '知识库不可用'"
+        @click="run()"
+      >
         {{ loading ? '检索中…' : '检索相似案例' }}
       </button>
     </div>

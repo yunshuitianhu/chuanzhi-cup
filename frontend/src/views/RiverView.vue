@@ -229,10 +229,17 @@ const pollutionCompare = computed(() => {
           <button class="mini" :disabled="busy === 'init'" @click="runInit">
             {{ busy === 'init' ? '初始化中…' : '初始化模型' }}
           </button>
-          <button class="mini primary" :disabled="busy === 'hydro' || !initResult" @click="runHydro">
+          <button
+            class="mini primary"
+            :disabled="busy === 'hydro' || !initResult"
+            :title="initResult ? '' : '请先点左侧「初始化模型」'"
+            @click="runHydro"
+          >
             {{ busy === 'hydro' ? '计算中…' : '运行水动力' }}
           </button>
         </div>
+        <!-- 按顺序禁用的按钮必须说明原因，否则就是一个看不出所以然的死按钮 -->
+        <p v-if="!initResult" class="seq-hint">「运行水动力」需先点「初始化模型」生成断面序列。</p>
 
         <div v-if="initResult" class="result">
           <span>断面数 <b>{{ initResult['断面数'] }}</b></span>
@@ -263,9 +270,15 @@ const pollutionCompare = computed(() => {
           <label>排放量 kg<input v-model.number="form.load_kg" type="number" step="10" /></label>
           <label>污染源桩号 m<input v-model.number="form.chainage_m" type="number" step="100" /></label>
         </div>
-        <button class="mini primary" :disabled="busy === 'pollution' || !hydroResult" @click="runPollution">
+        <button
+          class="mini primary"
+          :disabled="busy === 'pollution' || !hydroResult"
+          :title="hydroResult ? '' : '请先运行水动力模拟'"
+          @click="runPollution"
+        >
           {{ busy === 'pollution' ? '模拟中…' : '模拟污染事件' }}
         </button>
+        <p v-if="!hydroResult" class="seq-hint">「模拟污染事件」需先运行水动力 —— 它提供流速场。</p>
 
         <template v-if="pollutionResult">
           <div class="result">
@@ -342,4 +355,9 @@ const pollutionCompare = computed(() => {
 .result b { color: var(--c-ink); font-size: 14px; margin-left: 3px; }
 .cred { margin: 8px 0 0; font-size: 11px; color: #e8c98a; line-height: 1.7; }
 .hint { margin: 6px 0 0; font-size: 11px; color: var(--c-sub); }
+.seq-hint {
+  margin: 8px 0 0; font-size: 11px; color: #e8c98a;
+  padding: 6px 11px; background: #2a1e10; border-radius: 6px;
+  border-left: 2px solid #6b4a10; display: inline-block;
+}
 </style>
