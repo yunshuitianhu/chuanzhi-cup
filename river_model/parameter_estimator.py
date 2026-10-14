@@ -621,7 +621,21 @@ class RiverParameterEstimator:
 
     @staticmethod
     def _get_coords(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
-        """从 DataFrame 中提取经纬度数组。"""
+        """从 DataFrame 中提取经纬度数组（含缺失值的行整行剔除）。
+
+        **必须用同一个掩码同时过滤经纬度**，不能各自 dropna()：
+        若纬度列第 3 行缺失、经度列第 7 行缺失，两次独立 dropna 会得到
+        长度不同、且行与行不再对应的两个数组。后果分两种：
+
+          - 长度不同：后续 Haversine 广播失败抛 ValueError，被
+            tools.tool_river_init 的 except 捕获，用户看到"自动检测失败"，
+            全部参数静默退回默认值
+          - 长度恰好相同（更危险）：不报错，但河长、中心点、OSM 轨迹匹配
+            全部基于错位的点对，结果失真且无从察觉
+
+        geo_mapping.build_chainage_gps_mapping 用的是联合掩码的正确写法，
+        此处此前是不一致的另一套。
+        """
         col_map = {
             "经度": "lon", "纬度": "lat",
             "longitude": "lon", "latitude": "lat",
@@ -632,9 +646,11 @@ class RiverParameterEstimator:
         if "lat" not in df_tmp.columns or "lon" not in df_tmp.columns:
             return np.array([]), np.array([])
 
-        lats = pd.to_numeric(df_tmp["lat"], errors="coerce").dropna().values.astype(float)
-        lons = pd.to_numeric(df_tmp["lon"], errors="coerce").dropna().values.astype(float)
-        return lats, lons
+        lat_v = pd.to_numeric(df_tmp["lat"], errors="coerce")
+        lon_v = pd.to_numeric(df_tmp["lon"], errors="coerce")
+        valid = lat_v.notna() & lon_v.notna()
+        return (lat_v[valid].to_numpy(dtype=float),
+                lon_v[valid].to_numpy(dtype=float))
 
     @staticmethod
     def _is_near_coast(lat: float, lon: float, threshold_km: float = 50.0) -> bool:
