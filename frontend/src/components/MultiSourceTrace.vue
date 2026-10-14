@@ -5,7 +5,7 @@
  * 整合高德 POI、排污许可证、国控站点三路真实数据源，加权融合去重。
  * 未给坐标时自动取黑点最密集的聚类中心（已排除 DBSCAN 噪声簇 -1）。
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
@@ -37,6 +37,21 @@ async function run() {
 const SRC_COLOR = {
   高德POI: '#2ea3f2', 排污许可证: '#00c9a7', 国控站点: '#a78bfa', 重点排污单位: '#f59e0b',
 }
+
+/**
+ * 搜索中心的展示文本。
+ *
+ * 后端历史上对同一字段返回过两种形态：数组 [lat, lon] 与字符串
+ * "lat, lon"（内核原样透传时是字符串）。直接对字符串取 [0] 会得到单个
+ * 字符，再调 .toFixed() 就抛 TypeError、整块渲染失败。
+ * 这里两种形态都兼容，避免前端因数据形态差异而崩。
+ */
+const centerText = computed(() => {
+  const c = data.value?.['搜索中心']
+  if (Array.isArray(c)) return `${Number(c[0]).toFixed(5)}, ${Number(c[1]).toFixed(5)}`
+  if (typeof c === 'string') return c
+  return data.value?.['搜索中心文本'] || '—'
+})
 </script>
 
 <template>
@@ -58,7 +73,7 @@ const SRC_COLOR = {
 
     <template v-if="data">
       <div class="meta">
-        <span class="chip">搜索中心 {{ data['搜索中心']?.[0]?.toFixed(5) }}, {{ data['搜索中心']?.[1]?.toFixed(5) }}</span>
+        <span class="chip">搜索中心 {{ centerText }}</span>
         <span class="chip">半径 {{ data['搜索半径_m'] }} m</span>
         <span v-for="(n, src) in data['各数据源贡献']" :key="src" class="chip">
           <i :style="{ background: SRC_COLOR[src] || '#56687a' }"></i>{{ src }} {{ n }}

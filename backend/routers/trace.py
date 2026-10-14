@@ -68,7 +68,17 @@ def multi_source(payload: dict | None = None,
 
     raw = multi_source_trace(lat, lon, resolve_api_key("AMAP_KEY"), cfg)
     data = json.loads(raw) if isinstance(raw, str) else raw
-    return {"搜索中心": [lat, lon], "坐标系说明": COORD_NOTE, **data}
+
+    # ⚠️ 展开必须放在前面。内核返回的 "搜索中心" 是**字符串**
+    # ("23.175316, 113.122026")，若放在后面展开会覆盖掉这里的数组形式，
+    # 前端按数组取值时会崩（实测：`"2".toFixed is not a function`，
+    # 整个结果表格渲染失败）。
+    return {
+        **data,
+        "搜索中心": [lat, lon],           # 数组形式，覆盖内核的字符串版本
+        "搜索中心文本": data.get("搜索中心", ""),   # 内核原值仍保留
+        "坐标系说明": COORD_NOTE,
+    }
 
 
 @router.get("/reverse-geocode")
