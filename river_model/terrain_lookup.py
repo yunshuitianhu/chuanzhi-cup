@@ -60,10 +60,17 @@ _CACHE_FILE = os.path.join(
     "data", "external", "terrain", "terrain_cache.json",
 )
 
-# 离线开关。设 RIVER_TERRAIN_OFFLINE=1 则完全不联网，只走缓存/回落。
-# 用途：测试与离线复现不应依赖网络；也便于对比"开/关地形"两种行为。
-_OFFLINE = os.environ.get("RIVER_TERRAIN_OFFLINE", "").strip().lower() \
-    in ("1", "true", "yes", "on")
+def _offline() -> bool:
+    """是否处于离线模式。
+
+    **每次调用时读取环境变量**，不在 import 时求值 —— 否则在 import 之后
+    再设 `RIVER_TERRAIN_OFFLINE` 不会生效，测试里想切换就只能重开进程。
+
+    语义：离线 = **不发起网络请求**；**缓存仍然可用**（缓存不是网络）。
+    想完全绕开地形（含缓存）请用 `classify_region(..., use_terrain=False)`。
+    """
+    return os.environ.get("RIVER_TERRAIN_OFFLINE", "").strip().lower() \
+        in ("1", "true", "yes", "on")
 
 _lock = threading.Lock()
 _mem_cache: dict[str, dict] = {}
@@ -81,9 +88,18 @@ def _load_disk():
     _disk_loaded = True
     try:
         with open(_CACHE_FILE, encoding="utf-8") as f:
-            _mem_cache.update(json.load(f).get("entries", {}))
-    except (OSError, ValueError):
-        pass
+            data = json.load(f)
+        # 必须确认是 dict —— 缓存文件是**合法 JSON 但不是对象**时
+        # （例如内容是 `[]`），`.get` 会抛 AttributeError，
+        # 而它并不在上面那两个 except 的类型里，会一路泄漏给调用方。
+        entries = data.get("entries", {}) if isinstance(data, dict) else {}
+        if isinstance(entries, dict):
+            _mem_cache.update(entries)
+        else:
+            logger.warning("地形缓存格式异常（entries 不是对象），已忽略: %s",
+                           _CACHE_FILE)
+    except (OSError, ValueError) as e:
+        logger.debug("地形缓存不可用（忽略）: %s: %s", type(e).__name__, e)
 
 
 def _save_disk():
@@ -137,12 +153,25 @@ def _fetch(lat: float, lon: float):
     }
 
 
-def lookup_relief(lat: float, lon: float, allow_network: bool = True):
+# 失败过的网格点 -> 记录时刻。**负缓存**。
+#
+# 为什么需要：OpenTopoData 超时或限流时，`_fetch` 每次都要付满 `_TIMEOUT`(12 s)。
+# 而 `lookup_relief` 处在**参数推导请求路径**上（`parameter_estimator` 会调），
+# 没有负缓存就意味着网络不通时每个请求都卡 12 秒。
+# 记录失败并在一段时间内直接返回，把"每个请求 12 秒"变成"一次 12 秒"。
+_FAILED: dict[str, float] = {}
+_FAIL_TTL_S = 300.0
+
+
+def lookup_relief(lat: float, lon: float):
     """查地形起伏。
 
     Returns:
         (mean_m, relief_m, source)；失败时 mean/relief 为 None，
         source 说明原因（供日志与 UI 标注）。
+
+    降级链：进程内缓存 -> 磁盘缓存 -> OpenTopoData -> 返回 None。
+    离线（`RIVER_TERRAIN_OFFLINE=1`）时**只跳过网络那一级**，缓存照用。
     """
     try:
         lat = float(lat)
@@ -155,18 +184,25 @@ def lookup_relief(lat: float, lon: float, allow_network: bool = True):
     with _lock:
         _load_disk()
         hit = _mem_cache.get(key)
+        failed_at = _FAILED.get(key)
     if hit:
         return hit["mean_m"], hit["relief_m"], "terrain_cache"
 
-    if not allow_network or _OFFLINE:
-        return None, None, "未联网且无缓存（离线模式）"
+    if failed_at is not None and (time.time() - failed_at) < _FAIL_TTL_S:
+        return None, None, "高程查询此前失败（负缓存内，不再重试）"
+
+    if _offline():
+        return None, None, "离线模式且无缓存"
 
     val = _fetch(lat, lon)
     if val is None:
+        with _lock:
+            _FAILED[key] = time.time()
         return None, None, "高程查询失败"
 
     with _lock:
         _mem_cache[key] = val
+        _FAILED.pop(key, None)
         _save_disk()
     return val["mean_m"], val["relief_m"], "terrain_srtm"
 

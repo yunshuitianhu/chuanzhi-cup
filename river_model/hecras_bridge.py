@@ -28,7 +28,12 @@ from .state import HydroResult
 # 原先这三处各自硬编码字面量，改名时极易漏改其中一处。
 _RIVER_NAME = "Yayao"
 _REACH_NAME = "Main"
-_PROJECT_STEM = "Yayao"   # 文件名前缀（.prj/.g01/.u01/.p01/.f01）
+_PROJECT_STEM = "Yayao"   # 文件名前缀（.prj/.g01/.u01/.p01/.f01/.p01.hdf）
+
+# `QuitRas()` 之后留给对话框守护的宽限期（秒）。
+# 见 `run_hecras_simulation` 里该处的注释：保存询问常常在 QuitRas 返回之后才弹，
+# 立刻退出守护就会漏掉它。
+_QUIT_GRACE_SEC = 3.0
 
 
 def _rmtree_with_retry(path: str, attempts: int = 5, delay: float = 1.0) -> bool:
@@ -152,9 +157,9 @@ GIS Export Profiles= 0
 """
 
 
-def _build_project_file(work_dir: str, title: str = "Yayao",
+def _build_project_file(work_dir: str, title: str = _PROJECT_STEM,
                         include_flow_plan: bool = False) -> str:
-    path = os.path.join(work_dir, "Yayao.prj")
+    path = os.path.join(work_dir, f"{_PROJECT_STEM}.prj")
     tmpl = _PRJ_FULL if include_flow_plan else _PRJ_GEOM_ONLY
     with open(path, "w", encoding="utf-8") as f:
         f.write(tmpl.format(title=title))
@@ -241,7 +246,7 @@ def _build_geometry_file(work_dir: str, config: YayaoConfig,
     lines.append("")
 
     # 文件名必须是 <ProjectName>.g01 以匹配 PRJ 中的 Geom File=g01
-    path = os.path.join(work_dir, "Yayao.g01")
+    path = os.path.join(work_dir, f"{_PROJECT_STEM}.g01")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     return path
@@ -344,7 +349,7 @@ def _build_plan_file(work_dir: str, duration_h: float, dt_s: float,
         "Mixed Flow Regime=0",
         "Unsteady Flow Computational Scheme=1",
     ]
-    path = os.path.join(work_dir, "Yayao.p01")
+    path = os.path.join(work_dir, f"{_PROJECT_STEM}.p01")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     return path
@@ -370,7 +375,7 @@ def _build_f01_file(work_dir: str, config: YayaoConfig,
     content += f"DSS Import EndDate=\nDSS Import EndTime=\n"
     content += f"DSS Import GetInterval= 0 \nDSS Import Interval=\n"
     content += f"DSS Import GetPeak= 0 \nDSS Import FillOption= 0 \n"
-    path = os.path.join(work_dir, "Yayao.f01")
+    path = os.path.join(work_dir, f"{_PROJECT_STEM}.f01")
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
     return path
@@ -588,6 +593,15 @@ def run_hecras_simulation(
 
             ras.QuitRas()
 
+            # ⚠️ 退出宽限期 —— **必须在 with 内**。
+            # `QuitRas()` 会弹"是否保存工程"的模态询问，而**该调用本身正常返回**，
+            # 询问可能在返回之后才出现。守护线程的轮询周期是 1 s，若立刻退出
+            # with，`__exit__` 会把 `_stop` 置位、线程随即结束，那个询问就永远
+            # 没人关 —— Ras.exe 成为孤儿进程并占住工程目录，
+            # 连带 `_rmtree_with_retry` 重试 5 次后失败，目录也残留。
+            # 即"每跑一次多一个目录/进程"的老症状会在最需要守护的时候复现。
+            time.sleep(_QUIT_GRACE_SEC)
+
         if guard.captured:
             logger.warning(
                 "本次 HEC-RAS 运行期间捕获并关闭了 %d 个对话框 —— "
@@ -595,7 +609,7 @@ def run_hecras_simulation(
                 len(guard.captured))
 
         # 4. 检查计算结果 — 如果是纯稳态流, 使用此结果; 如果非恒定流已跑, 提取时间序列
-        hdf_path = os.path.join(work_dir, "Yayao.p01.hdf")
+        hdf_path = os.path.join(work_dir, f"{_PROJECT_STEM}.p01.hdf")
         if not os.path.exists(hdf_path):
             raise RuntimeError("HEC-RAS 未生成输出 HDF5 文件")
 

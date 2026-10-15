@@ -192,8 +192,17 @@ _PROVINCE_PINYIN: dict[str, str] = {
 def _province_key(province: str) -> tuple[str, str]:
     """从省份全称里取出中文简称与拼音。
 
-    兼容 "广东省" / "广西壮族自治区" / "内蒙古自治区" / "北京市" 等写法：
-    取 _PROVINCE_PINYIN 中**最长**的匹配键，避免短键误配。
+    兼容 "广东省" / "广西壮族自治区" / "内蒙古自治区" / "北京市" 等写法。
+
+    选取规则（两级，都要，缺一不可）：
+      1. **优先取在字符串里出现位置最靠前的**键
+      2. 位置相同时取**最长**的键（避免 "河北" 被 "河" 之类的短键抢先）
+
+    为什么位置优先：调用方可能传入多省串，例如
+    `_RIVER_REGION_HINTS` 里的 "重庆市/河北省"。
+    只按长度取键会得到 "河北"（与字典顺序相关，等于随机），
+    而按位置取才能拿到字符串里真正写在最前面的那个省。
+    实测：`_province_key("重庆市/河北省")` 曾返回 ("河北","hebei")。
 
     Returns:
         (中文简称, 拼音)，无法识别时返回 ("", "")
@@ -201,9 +210,13 @@ def _province_key(province: str) -> tuple[str, str]:
     if not province:
         return "", ""
     key = ""
+    best_pos = len(province) + 1
     for k in _PROVINCE_PINYIN:
-        if k in province and len(k) > len(key):
-            key = k
+        pos = province.find(k)
+        if pos < 0:
+            continue
+        if pos < best_pos or (pos == best_pos and len(k) > len(key)):
+            key, best_pos = k, pos
     if not key:
         return "", ""
     return key, _PROVINCE_PINYIN[key]

@@ -16,7 +16,11 @@
 
 from typing import Optional
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from .config import YayaoConfig
 from .state import HydroResult, WQResult
@@ -36,18 +40,43 @@ def _owens_gibbs_ka(u_ms: np.ndarray, H_m: np.ndarray) -> np.ndarray:
     return 5.32 * u_safe ** 0.67 / H_safe ** 1.85
 
 
+# Fischer 公式的截断上下限 (m²/s)。
+#
+# 这两条是**安全网**，不是物理规律。此前上下限是 (0.5, 500)，且因为 K 被写死
+# 成常数 5.0 而**从未生效过**；改成按河道属性计算后**首次变得可达** ——
+# 宽河道必然撞上限：B=200m 时公式给 ~740、B=500m 时给 ~4300，全被压成 500，
+# 污染带被系统性低估约 8 倍，而且没有任何提示。
+#
+# 上限从 500 提到 5000：区域默认值里 lowland 段就有 400~500 m 宽的河道，
+# 5000 足以容纳现实中的大河而不放行明显异常的输入。
+# 下界保持 0.5。**触及任一边界都会记日志** —— 静默截断比截断本身更糟。
+_K_CLIP_LO = 0.5
+_K_CLIP_HI = 5000.0
+
+
 def _fischer_dispersion(u_ms: np.ndarray, B_m: np.ndarray,
                          H_m: np.ndarray, u_star: np.ndarray) -> np.ndarray:
     """Fischer 纵向离散系数 (m²/s)。
 
     K = 0.011 * u² * B² / (H * u*)
+
+    结果按 `_K_CLIP_LO/_K_CLIP_HI` 截断；**发生截断时记 warning**，
+    否则使用者无法察觉扩散被压低了。
     """
     u_safe = np.maximum(u_ms, 0.001)
     B_safe = np.maximum(B_m, 1.0)
     H_safe = np.maximum(H_m, 0.1)
     u_star_safe = np.maximum(u_star, 0.001)
     K = 0.011 * u_safe ** 2 * B_safe ** 2 / (H_safe * u_star_safe)
-    return np.clip(K, 0.5, 500.0)
+    n_hi = int(np.sum(K > _K_CLIP_HI))
+    n_lo = int(np.sum(K < _K_CLIP_LO))
+    if n_hi or n_lo:
+        logger.warning(
+            "离散系数触及截断边界（上限 %g / 下限 %g）：%d 个断面撞上限、"
+            "%d 个撞下限。原始值范围 %.1f~%.1f。截断会压低扩散 —— "
+            "若上游河道参数（河宽/流速）无误，应上调 _K_CLIP_HI 而不是接受这个结果。",
+            _K_CLIP_HI, _K_CLIP_LO, n_hi, n_lo, float(np.min(K)), float(np.max(K)))
+    return np.clip(K, _K_CLIP_LO, _K_CLIP_HI)
 
 
 # ---- 算子分裂 ----
