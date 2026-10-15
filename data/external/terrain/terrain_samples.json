@@ -46,7 +46,7 @@
       "min_m": 5.0,
       "max_m": 190.0,
       "relief_m": 185.0,
-      "classified": "lowland",
+      "classified": "foothill",
       "rough_prior": "foothill"
     },
     "西江肇庆段": {
@@ -178,7 +178,7 @@
       "min_m": 551.0,
       "max_m": 1017.0,
       "relief_m": 466.0,
-      "classified": "foothill",
+      "classified": "mountain",
       "rough_prior": "mountain"
     },
     "松花江哈尔滨段": {
@@ -266,7 +266,7 @@
       "min_m": 19.0,
       "max_m": 63.0,
       "relief_m": 44.0,
-      "classified": "delta_plain",
+      "classified": "lowland",
       "rough_prior": "lowland"
     },
     "嘉陵江重庆段": {
@@ -288,7 +288,7 @@
       "min_m": 242.0,
       "max_m": 418.0,
       "relief_m": 176.0,
-      "classified": "lowland",
+      "classified": "foothill",
       "rough_prior": "foothill"
     },
     "怒江六库段": {
@@ -332,7 +332,7 @@
       "min_m": 16.0,
       "max_m": 50.0,
       "relief_m": 34.0,
-      "classified": "delta_plain",
+      "classified": "lowland",
       "rough_prior": "lowland"
     }
   }

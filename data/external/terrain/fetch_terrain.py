@@ -201,9 +201,12 @@ def main():
         json.dump(out, f, ensure_ascii=False, indent=2)
     print()
     print(f"已写出 {OUT}  ({os.path.getsize(OUT)} 字节, {len(rivers)} 条河)")
-    mism = [n for n, v in rivers.items() if v["classified"] != v["expected"]]
+    # 注意字段名是 rough_prior 不是 expected —— 重命名时这里曾漏改，
+    # 导致脚本联网跑完全程、文件也写成功了，却在最后一行 KeyError 崩掉。
+    mism = [n for n, v in rivers.items()
+            if v["classified"] != v.get("rough_prior")]
     if mism:
-        print(f"与预期不符 {len(mism)} 条: {mism}")
+        print(f"与粗略先验不同的有 {len(mism)} 条（先验本身不作断言）: {mism}")
     return 0
 
 

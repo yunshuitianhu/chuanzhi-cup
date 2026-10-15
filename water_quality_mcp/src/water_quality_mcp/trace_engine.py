@@ -31,23 +31,66 @@ logger = logging.getLogger(__name__)
 _PROVINCE_RE = re.compile(r"^(.{2,8}?(?:省|自治区|特别行政区|市))")
 
 
-def _infer_province(lat: float, lon: float) -> str | None:
-    """由坐标推断省份。推断不出时返回 None。
+def _unique_province_by_bbox(lat: float, lon: float) -> str | None:
+    """用省界经纬度盒子推断省份 —— **只在唯一命中时采信**。
 
-    只取到**省一级**：重点排污单位名录是按省发布的，市一级不影响文件查找。
-    注意上游的市级推断并不总是准（实测雅瑶水道 (23.11, 113.14) 被判为
-    "广州市/深圳市"，实际在佛山市南海区），但省级是对的 —— 也只用到省级。
+    ⚠️ 为什么必须要求"唯一"：`parameter_estimator._PROVINCE_COORDS` 那张表
+    的盒子**过大且大量重叠，且先匹配者胜**。实测（2026-10-15）：
+
+        石家庄(38.04,114.51) -> 山东省   （被"山东省"那个 34.5~39.0,114~122.5
+                                          的大盒子覆盖，河北排在其后）
+        郴州  (25.77,113.03) -> 江西省   （江西盒子排在湖南前面且重叠）
+        芜湖  (31.35,118.43) -> 江苏省
+        九江  (29.71,116.00) -> 安徽省
+
+    直接取首个命中会**大面积判错**。而按省读名录这件事上，
+    **用错省份比不用更糟**（会把外省企业当本地污染源）。
+    所以这里改成：多个省盒子都覆盖时视为"判不准"，返回 None。
+
+    实测效果（同一组样本）：正确 2 / 判不准而跳过 8 / **判错 0**。
     """
     try:
-        from river_model.parameter_estimator import RiverParameterEstimator
-        loc = RiverParameterEstimator._infer_location_from_coords(lat, lon)
+        from river_model.parameter_estimator import PROVINCE_COORDS
     except Exception as e:
-        logger.info("行政区推断不可用（%s），将跳过按省检索的数据源", e)
+        logger.info("省界盒子表不可用: %s: %s", type(e).__name__, e)
         return None
-    if not loc:
-        return None
-    m = _PROVINCE_RE.match(str(loc))
-    return m.group(1) if m else None
+
+    hits = {prov for a, b, c, d, prov, _cities in PROVINCE_COORDS
+            if a <= lat <= b and c <= lon <= d}
+    return hits.pop() if len(hits) == 1 else None
+
+
+def _infer_province(lat: float, lon: float,
+                    amap_key: str | None = None) -> str | None:
+    """由坐标推断省份。**推断不出时返回 None**（调用方据此跳过该数据源）。
+
+    两级，优先可靠来源：
+
+      ① **高德逆地理**（`amap_key` 可用时）—— 直接给出「省份」字段，实测可靠。
+         注意它的**市级**不一定准（雅瑶水道会被判成"广州市/深圳市"，实际在佛山），
+         所以只取省一级。名录本就是按省发布的，只用到省。
+      ② **省界盒子**（无 Key 或调用失败时）—— 只在唯一命中时采信，见
+         `_unique_province_by_bbox` 的说明。
+
+    两级都判不出就返回 None。**宁可不报，不可用错省份。**
+    """
+    # ---- ① 高德逆地理 ----
+    if amap_key:
+        try:
+            from .geo_tools import reverse_geocode
+            raw = reverse_geocode(lat, lon, amap_key)
+            # reverse_geocode 返回的是 JSON 字符串；失败时返回中文提示串，
+            # 因此必须先确认是 JSON 再解析（历史上曾有调用方直接 .get() 崩掉）。
+            if isinstance(raw, str) and raw.lstrip().startswith("{"):
+                prov = (json.loads(raw).get("省份") or "").strip()
+                if prov:
+                    return prov
+        except Exception as e:
+            logger.info("高德逆地理推断省份失败，回落到省界盒子: %s: %s",
+                        type(e).__name__, e)
+
+    # ---- ② 省界盒子（保守） ----
+    return _unique_province_by_bbox(lat, lon)
 
 
 def multi_source_trace(
@@ -88,10 +131,11 @@ def multi_source_trace(
         from .analysis_config import DEFAULT_CONFIG
         config = DEFAULT_CONFIG
 
-    # 未显式给出行政区时，尝试由坐标推断 —— 使任意河流都能用，
-    # 而不是只有广东的河流能拿到名录。推断失败则保持 None（跳过该源）。
+    # 未显式给出行政区时尝试推断。传 amap_key —— 高德逆地理给出的省份可靠，
+    # 是首选来源；无 Key 时才回落到"省界盒子唯一命中"这条保守路径。
+    # 两级都判不出则保持 None（跳过该源），**不用错省份**。
     if not province:
-        province = _infer_province(lat, lon)
+        province = _infer_province(lat, lon, amap_key)
 
     results_by_source: dict[str, list[dict]] = {}
     all_sources_flat: list[dict] = []

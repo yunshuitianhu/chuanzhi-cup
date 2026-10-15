@@ -188,15 +188,36 @@ class MCPClient:
 
 # ---------- 数据加载（已修复 pH 0 值问题 + 自动清除旧图表）----------
 def load_data(uploaded_file):
-    if uploaded_file is None: return "请先上传Excel或CSV文件"
+    """加载并清洗走航数据。
+
+    Returns:
+        **(msg, ok)** —— ok 为 False 时 msg 是**错误说明**，调用方必须用
+        `st.error` 而不是 `st.success` 展示。
+
+        原先只返回一个字符串，调用方一律 `st.success(msg)`，于是"未找到
+        时间列"这类错误被显示在**绿色的成功框**里。又因为解析失败时
+        已清空分析状态却没清 df，界面会出现"✅ 数据 1805 条"配着全空的
+        分析结果 —— 自相矛盾。现已把副作用全部挪到**解析成功之后**，
+        并把成败显式返回给调用方。
+    """
+    if uploaded_file is None: return "请先上传Excel或CSV文件", False
     try:
         fn = uploaded_file.name.lower()
         if fn.endswith('.csv'):
             try: df = pd.read_csv(uploaded_file, encoding='utf-8')
             except: df = pd.read_csv(uploaded_file, encoding='gbk')
         elif fn.endswith(('.xls','.xlsx')): df = pd.read_excel(uploaded_file)
-        else: return "不支持的文件格式"
-    except Exception as e: return f"读取失败: {e}"
+        else: return "不支持的文件格式", False
+    except Exception as e: return f"读取失败: {e}", False
+
+    # ---- 列名识别与时间解析：走 loaders 的统一实现 ----
+    # 这里原先有一份**独立的**列映射与时间解析，与 loaders.load_data 里的
+    # 那份是两套代码。后果：修列名兼容时只改了 loaders，app.py 仍是旧的
+    # （只认一种列命名、时间格式也只认两种）。改为共用，避免再次漏改一边。
+    from water_quality_mcp.src.water_quality_mcp.loaders import normalize_columns
+    df, _norm_err = normalize_columns(df)
+    if _norm_err:
+        return _norm_err, False
 
     # ---- 重置所有分析状态 ----
     st.session_state.black_spots = None
@@ -231,14 +252,6 @@ def load_data(uploaded_file):
         df.to_excel("_uploaded_data.xlsx", index=False)
     except Exception:
         pass
-    # ---- 列名识别与时间解析：走 loaders 的统一实现 ----
-    # 这里原先有一份**独立的**列映射与时间解析，与 loaders.load_data 里的
-    # 那份是两套代码。后果：修列名兼容时只改了 loaders，app.py 仍是旧的
-    # （只认一种列命名、时间格式也只认两种）。改为共用，避免再次漏改一边。
-    from water_quality_mcp.src.water_quality_mcp.loaders import normalize_columns
-    df, _norm_err = normalize_columns(df)
-    if _norm_err:
-        return _norm_err
 
     # 数值清洗
     numeric_cols = ['ammonia_nitrogen','dissolved_oxygen','water_temperature','cod','turbidity','ph']
@@ -268,11 +281,16 @@ def load_data(uploaded_file):
     for col in ['ammonia_nitrogen','dissolved_oxygen','turbidity','ph']:
         valid = df[col].dropna()
         report.append(f"   {col}: 有效值={len(valid)}, 均值={valid.mean():.2f}, 最小={valid.min():.2f}, 最大={valid.max():.2f}")
-    return "\n".join(report)
+    return "\n".join(report), True
 
 def extract_video(video_file, interval=5):
+    """抽帧。返回 (msg, ok)；ok=False 时 msg 是错误说明。
+
+    与 load_data 同一约定 —— 调用方曾一律用 st.success，把错误
+    显示成绿色成功框。
+    """
     import cv2
-    if video_file is None: st.session_state.video_frames = []; return "未上传视频文件"
+    if video_file is None: st.session_state.video_frames = []; return "未上传视频文件", False
     # 分块写入临时文件，避免大视频 OOM
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
         vpath = tmp.name
@@ -285,13 +303,13 @@ def extract_video(video_file, interval=5):
     file_size_mb = os.path.getsize(vpath) / (1024 * 1024)
     if file_size_mb < 0.01:
         os.unlink(vpath)
-        return "视频文件为空，请检查上传是否完整"
+        return "视频文件为空，请检查上传是否完整", False
     # 抑制 FFmpeg H.264 解码警告输出（模块级别已设置，此处兜底）
     os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")
     cap = cv2.VideoCapture(vpath, cv2.CAP_FFMPEG)
     if not cap.isOpened():
         os.unlink(vpath)
-        return f"无法解码视频（{file_size_mb:.0f}MB），请检查编码格式是否为 H.264/H.265"
+        return f"无法解码视频（{file_size_mb:.0f}MB），请检查编码格式是否为 H.264/H.265", False
     fps = cap.get(cv2.CAP_PROP_FPS) or 25
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     interval_frame = max(1, int(fps * interval))
@@ -317,7 +335,7 @@ def extract_video(video_file, interval=5):
         frame_idx += 1
     cap.release(); os.unlink(vpath)
     st.session_state.video_frames = frames
-    return f"视频抽帧完成，共 {len(frames)} 帧（总 {total_frames} 帧，间隔 {interval}s，跳过 {skipped} 个暗帧/损坏帧）"
+    return f"视频抽帧完成，共 {len(frames)} 帧（总 {total_frames} 帧，间隔 {interval}s，跳过 {skipped} 个暗帧/损坏帧）", True
 
 # ---------- 工具函数 ----------
 def tool_data_summary():
@@ -1116,9 +1134,14 @@ with st.sidebar:
     if uploaded_video is not None:
         st.caption("⚠ 大视频文件上传需要时间，请等待文件名出现后再点击「加载数据」")
     if uploaded_file and st.button("加载数据"):
-        with st.spinner("加载数据..."): msg = load_data(uploaded_file); st.success(msg)
+        with st.spinner("加载数据..."):
+            msg, ok = load_data(uploaded_file)
+        # 失败时用 st.error —— 曾把"未找到时间列"这类错误显示在绿色成功框里
+        (st.success if ok else st.error)(msg)
         if uploaded_video:
-            with st.spinner("提取视频帧..."): msg = extract_video(uploaded_video, interval=5); st.success(msg)
+            with st.spinner("提取视频帧..."):
+                msg, ok = extract_video(uploaded_video, interval=5)
+            (st.success if ok else st.error)(msg)
     if st.session_state.df is not None:
         st.write(f"✅ 数据：{len(st.session_state.df)} 条"); st.write(f"🎥 视频帧：{len(st.session_state.video_frames)} 帧")
         if len(st.session_state.video_frames) > 0:

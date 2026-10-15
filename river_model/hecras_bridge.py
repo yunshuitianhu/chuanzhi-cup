@@ -262,24 +262,40 @@ def _build_unsteady_flow_file(work_dir: str, config: YayaoConfig,
       - 边界桩号取自 config.length_m，不再写死 3200
     """
     T_tide = tidal_period_h * 3600.0
-    dt_min = dt_s / 60.0
-    total_minutes = int(duration_h * 60)
-    n_steps = int(total_minutes / dt_min) + 1
 
-    if dt_min < 60:
-        interval_tok = f"{int(dt_min)}MIN"
+    # HEC-RAS 的 Interval 令牌只支持**整分钟及以上**（1MIN/5MIN/1HOUR…），没有秒级令牌。
+    # 因此过程线步长必须取整分钟 —— 这里把请求步长四舍五入到整分钟，
+    # 并**按取整后的实际步长重新生成数值**。
+    #
+    # 为什么不能只改标签：`int(dt_min)` 截断曾导致
+    #   dt_s=30 -> 令牌 "0MIN"（非法）
+    #   dt_s=90 -> 令牌 "1MIN" 但表里有 81 个值（按 1min 读只有 81 分钟，
+    #              而 .p01 写的是 2 小时结束）—— 数值个数与时间跨度对不上。
+    dt_min_eff = max(1, int(round(dt_s / 60.0)))
+    dt_eff_s = dt_min_eff * 60.0
+
+    total_minutes = int(duration_h * 60)
+    n_steps = int(total_minutes / dt_min_eff) + 1
+
+    if dt_min_eff < 60:
+        interval_tok = f"{dt_min_eff}MIN"
     else:
-        interval_tok = f"{int(dt_min // 60)}HOUR"
+        interval_tok = f"{dt_min_eff // 60}HOUR"
 
     # 边界桩号必须落在几何文件实际生成的断面上：
     # 首断面桩号 = length_m（上游），末断面桩号 = 0（下游）
     rm_up = int(config.length_m)
     rm_dn = 0
 
-    flows = [upstream_flow_m3s * (1.0 + 0.05 * np.sin(2 * np.pi * m * dt_s / T_tide))
+    flows = [upstream_flow_m3s * (1.0 + 0.05 * np.sin(2 * np.pi * m * dt_eff_s / T_tide))
              for m in range(n_steps)]
-    stages = [downstream_stage_m + tidal_amplitude_m * np.sin(2 * np.pi * m * dt_s / T_tide)
+    stages = [downstream_stage_m + tidal_amplitude_m * np.sin(2 * np.pi * m * dt_eff_s / T_tide)
               for m in range(n_steps)]
+
+    if dt_min_eff != dt_s / 60.0:
+        logger.info("过程线步长由 %ss 取整为 %d 分钟 —— HEC-RAS 的 Interval "
+                    "令牌不支持秒级/非整分钟（数值已按取整后的步长重新生成）",
+                    dt_s, dt_min_eff)
 
     lines = [
         f"Flow Title={_RIVER_NAME}",
