@@ -5,12 +5,18 @@ HEC-RAS 7.0 安装于 D:\my_HEC-RAS。COM 需管理员运行注册脚本后可�
 几何文件格式精确匹配 HEC-RAS 7.0 原生输出。
 """
 
+import gc
+import logging
 import os
-import time
+import shutil
 import tempfile
+import threading
+import time
 from typing import List, Optional
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from .config import YayaoConfig
 from .cross_sections import CrossSection
@@ -23,6 +29,30 @@ from .state import HydroResult
 _RIVER_NAME = "Yayao"
 _REACH_NAME = "Main"
 _PROJECT_STEM = "Yayao"   # 文件名前缀（.prj/.g01/.u01/.p01/.f01）
+
+
+def _rmtree_with_retry(path: str, attempts: int = 5, delay: float = 1.0) -> bool:
+    """删除目录，失败则重试。返回是否成功。
+
+    **为什么要重试**：`ras.QuitRas()` 返回时 HEC-RAS 进程可能尚未完全退出，
+    文件句柄仍被占用，此时 `shutil.rmtree` 会失败。
+
+    实测教训：第一版直接写 `shutil.rmtree(path, ignore_errors=True)`，
+    结果**目录照样残留** —— `ignore_errors=True` 把"文件被占用"这个失败
+    静默吞掉了，看起来像修好了，实际没有。所以这里失败必须留痕。
+    """
+    for i in range(attempts):
+        try:
+            shutil.rmtree(path)
+            return True
+        except OSError as e:
+            if i == attempts - 1:
+                # 不抛出 —— 清理失败不该掩盖真正的业务错误；
+                # 但也绝不静默 —— 否则就成了上面那个教训的重演。
+                logger.warning("临时目录清理失败（将残留）: %s: %s", path, e)
+                return False
+            time.sleep(delay)
+    return False
 
 
 def _flow_table(values, fmt: str = "{:8.2f}") -> str:
@@ -342,17 +372,27 @@ def run_hecras_simulation(
     duration_h: float = 24.0,
     dt_s: float = 60.0,
     output_interval_min: float = 30.0,
+    keep_work_dir: bool = False,
 ) -> HydroResult:
     """通过 HEC-RAS COM 运行水动力模拟。
 
     当前 HEC-RAS 7.0 非恒定流 plan 格式未完全兼容 — 只跑稳态流初始化。
     非恒定流结果由 hydro_engine.run_hydrodynamic() 降级到纯 Python 求解。
     此函数返回稳态流结果，或抛出异常由上层捕获后降级。
+
+    Args:
+        keep_work_dir: 是否保留临时工作目录。**默认 False（跑完即删）**。
+            置 True 可留下生成的 .prj/.g01/.u01/.p01/.f01 与输出 HDF，
+            用于排查 HEC-RAS 的输入问题。
+
+    ⚠️ 临时目录清理是**修过的缺陷**：此前 `mkdtemp` 无对应 `rmtree`，
+    每调用一次就永久留下一个完整工程目录（实测在系统 temp 下累积了 5 个）。
     """
     if not is_hecras_available():
         raise RuntimeError("HEC-RAS 不可用: Ras.exe 未找到")
 
     work_dir = tempfile.mkdtemp(prefix="hecras_yayao_")
+    ras = None          # 在 try 外声明：finally 里要用它来释放 COM
 
     try:
         # 1. 生成所有输入文件
@@ -406,10 +446,34 @@ def run_hecras_simulation(
                                           downstream_stage_m, tidal_amplitude_m,
                                           tidal_period_h, duration_h, dt_s, work_dir)
 
+        # 结果里带着 work_dir 路径；若即将在 finally 里删掉它，
+        # 必须把这个字段改掉 —— 否则返回的是一个指向不存在目录的路径，
+        # 比留空更有误导性。
+        if not keep_work_dir and isinstance(result.params, dict):
+            result.params["work_dir"] = None
+            result.params["work_dir_cleaned"] = True
+
         return result
 
     except Exception as e:
-        raise RuntimeError(f"HEC-RAS 模拟失败: {e}. 工作目录: {work_dir}")
+        hint = (f"工作目录: {work_dir}" if keep_work_dir else
+                "临时工作目录已清理（如需保留以排查输入文件问题，"
+                "传 keep_work_dir=True）")
+        raise RuntimeError(f"HEC-RAS 模拟失败: {e}. {hint}")
+
+    finally:
+        # 无论成功、失败还是抛异常，都要清掉临时目录。
+        if not keep_work_dir:
+            # ⚠️ 必须**先释放 COM 引用再删目录**。
+            # `ras` 是局部变量，若不在 finally 里显式置 None，它会一直存活到
+            # 函数返回 —— 而 HEC-RAS 以工程目录作为自己的工作目录，
+            # COM 对象未释放时该目录句柄仍被占用。
+            # 实测症状很隐蔽：文件都能删掉，只有**目录本身**删不掉，
+            # 于是每跑一次残留一个空目录。首版用 ignore_errors=True
+            # 把这个失败静默吞了，看起来像修好了，实际没有。
+            ras = None
+            gc.collect()
+            _rmtree_with_retry(work_dir)
 
 
 def _extract_hecras_results(hdf_path: str, config: YayaoConfig,
