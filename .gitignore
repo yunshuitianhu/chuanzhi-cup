@@ -51,6 +51,12 @@ final_trace_report.txt
 river_model_export.json
 river_model_export.csv
 
+# ---------- 运行产物 ----------
+# 地形查询缓存：每查到一个新位置就写入，属运行产物。删掉会自动重建。
+# 不跟踪的理由与 .rag_index/chroma.sqlite3 的教训一致 —— 跟踪它会让工作区
+# 在每次运行后变脏（那个文件已经造成过这个麻烦，见 CLAUDE.md 坑 10）。
+data/external/terrain/terrain_cache.json
+
 # ---------- 临时文件 ----------
 ~$*
 *.tmp

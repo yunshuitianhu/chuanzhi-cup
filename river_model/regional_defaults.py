@@ -11,9 +11,12 @@
   - 流量: 珠江三角洲水文年鉴 + 集水面积回归
 """
 
+import logging
 from typing import Dict, Optional, Tuple
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # ======================================================================
 # Manning's n 糙率查表
@@ -239,11 +242,46 @@ def lookup_default_width(waterway_type: str) -> float:
     return DEFAULT_WIDTH_TABLE.get(waterway_type, 30.0)
 
 
-def classify_region(lat: float, lon: float) -> str:
-    """根据经纬度分类区域类型。
+# ======================================================================
+# 地形起伏判据（阈值取自 15 条实测样本的自然断点）
+# ======================================================================
+# 15 条河按起伏排序后，最大的两个间隔出现在：
+#     65 m (长江南京) -> 176 m (嘉陵江重庆)   间隔 111 m
+#   324 m (西江肇庆) -> 466 m (澜沧江云南)   间隔 142 m
+# 阈值即落在这两处，不是先定类别再凑数字。
+RELIEF_HILL_MIN = 100.0       # 起伏 >= 100 m 视为丘陵/台地
+RELIEF_MOUNTAIN_MIN = 400.0   # 起伏 >= 400 m 视为山地
+DELTA_MEAN_MAX = 20.0         # 低平地中高程均值 <= 20 m 归入三角洲平原
 
-    Returns:
-        "delta_plain" | "lowland" | "foothill" | "mountain" | "coastal"
+
+def classify_by_relief(mean_m: float, relief_m: float) -> str:
+    """按地形起伏与高程均值判定区域类型。
+
+    **判据以起伏为主、高程为辅** —— 塔里木河高程均值 916 m 但起伏仅 5 m
+    （高原上的平缓河谷），只看高程会把它误判成山区。
+
+    验证状态（2026-10-15，见 data/external/terrain/）：
+      用 HydroRIVERS 河道中心线 + SRTM/ETOPO1 沿程高程反算纵坡做独立验证。
+      13 条河的两个高程源全部同量级；其中 5 条 R²≥0.8 可信，落在给定值的
+      0.19~1.33 倍内 —— **数量级成立**。
+      ⚠️ 但测量的是"采样点往下游 180 km 的平均纵坡"，**不是该点的局部坡降**
+      （岷江都江堰、黄河兰州恰好是河流冲出山区的位置，下游大部分在平原），
+      因此**不足以据此重新标定 SLOPE_TABLE 的数值**，故本表数值保持不变。
+    """
+    if relief_m >= RELIEF_MOUNTAIN_MIN:
+        return "mountain"
+    if relief_m >= RELIEF_HILL_MIN:
+        return "foothill"
+    return "delta_plain" if mean_m <= DELTA_MEAN_MAX else "lowland"
+
+
+def _classify_by_coords(lat: float, lon: float) -> str:
+    """经纬度方框启发式 —— **现仅作为地形数据不可用时的回落**。
+
+    ⚠️ 这条例路本身覆盖极差：穷举中国全境网格，**99.3% 会返回 lowland**，
+    `foothill` / `mountain` / `coastal` 一次都不返回 —— 山区河道据此会拿到
+    平原坡降（错 20~33 倍）。保留它只是为了"网络不可用时至少还能出结果"，
+    **不要把它当作正确实现**。
     """
     # 珠江三角洲范围: 21.5-23.5°N, 112.5-114.5°E
     if 21.5 <= lat <= 23.5 and 112.5 <= lon <= 114.5:
@@ -251,15 +289,52 @@ def classify_region(lat: float, lon: float) -> str:
     # 长江三角洲: 30.0-32.5°N, 119.5-122.0°E
     if 30.0 <= lat <= 32.5 and 119.5 <= lon <= 122.0:
         return "delta_plain"
-    # 华北平原: 35.0-40.0°N, 114.0-120.0°E, elevation < 200m
+    # 华北平原
     if 35.0 <= lat <= 40.0 and 114.0 <= lon <= 120.0:
         return "lowland"
-    # 近海 (距海岸线粗略判断): 如果靠近已知海岸线
-    # 简化为: 东部沿海省份为低地
+    # 东部沿海省份粗略视为低地
     if lon > 118.0 and lat < 35.0:
         return "lowland"
-    # 默认
     return "lowland"
+
+
+def classify_region(lat: float, lon: float, use_terrain: bool = True) -> str:
+    """判定河道所在区域的类型。
+
+    优先使用**真实地形起伏**（SRTM，经 terrain_lookup 查询并缓存）；
+    查询不可用时**回落到经纬度启发式**，保证参数推导链不会因网络问题中断。
+
+    降级链：进程内缓存 → 磁盘缓存 → OpenTopoData → 经纬度启发式
+
+    Args:
+        use_terrain: 置 False 可强制走旧逻辑（测试/离线复现用）
+
+    Returns:
+        "delta_plain" | "lowland" | "foothill" | "mountain"
+        （旧逻辑理论上还可能返回 "coastal"，但那条分支从未实现）
+    """
+    # 坐标先转成 float —— 经纬度方框比较对非数值会直接 TypeError。
+    # 这是**原有行为**（改动前同样会崩），但既然是"给出一个可用的区域类型"
+    # 的兜底函数，崩掉没有意义。这里记为 warning 而不是静默吞掉：
+    # 传入非法坐标本身是调用方的 bug，不应被掩盖。
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (TypeError, ValueError):
+        logger.warning("classify_region 收到非法坐标 (%r, %r)，按 lowland 处理",
+                       lat, lon)
+        return "lowland"
+
+    if use_terrain:
+        try:
+            from .terrain_lookup import lookup_relief
+            mean_m, relief_m, _src = lookup_relief(lat, lon)
+            if relief_m is not None:
+                return classify_by_relief(mean_m, relief_m)
+        except Exception as e:      # 任何异常都降级，绝不向上抛
+            logger.info("地形查询不可用，回落到经纬度启发式: %s: %s",
+                        type(e).__name__, e)
+    return _classify_by_coords(lat, lon)
 
 
 def estimate_depth_from_width(width_m: float, waterway_type: str = "river") -> float:

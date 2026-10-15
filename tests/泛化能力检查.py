@@ -229,6 +229,76 @@ check("6.溯源不写死行政区", not hard_admin,
 
 
 # ======================================================================
+section("7. 区域分类：地形起伏判据与降级链")
+# ======================================================================
+# 为什么这样测：classify_region 原先只用经纬度方框，穷举中国全境网格
+# 99.3% 判为 lowland，山地/丘陵一次都不返回 → 山区河道坡降错 20~33 倍。
+# 现改用真实地形起伏（SRTM）。本节守住两件事：
+#   ① 起伏→类别 的映射符合实测样本
+#   ② 地形不可用时**必须**回落到旧逻辑，不能抛异常、更不能返回垃圾
+# 全部用纯函数与离线模式检验，**不依赖网络**。
+
+os.environ["RIVER_TERRAIN_OFFLINE"] = "1"   # 本节一律离线
+
+from river_model.regional_defaults import (  # noqa: E402
+    classify_region, classify_by_relief, _classify_by_coords, lookup_slope,
+)
+
+# ① 起伏 → 类别（阈值取自 15 条实测样本的自然断点）
+relief_cases = [
+    ("塔里木河(高原平谷)",   915.7,    5.0, "lowland"),
+    ("雅瑶水道(三角洲)",       6.6,   27.0, "delta_plain"),
+    ("淮河蚌埠段",           28.7,   34.0, "lowland"),
+    ("松花江哈尔滨段",       125.4,   43.0, "lowland"),
+    ("长江南京段",           19.9,   65.0, "delta_plain"),
+    ("嘉陵江重庆段",         291.1,  176.0, "foothill"),
+    ("北江清远段",            51.1,  185.0, "foothill"),
+    ("澜沧江云南段",         708.8,  466.0, "mountain"),
+    ("黄河兰州段",          1774.6,  536.0, "mountain"),
+    ("金沙江虎跳峡",        3131.6, 2640.0, "mountain"),
+]
+wrong = [f"{n}(期望{e},实得{classify_by_relief(m, r)})"
+         for n, m, r, e in relief_cases if classify_by_relief(m, r) != e]
+check("7.起伏→区域类别映射符合实测样本", not wrong,
+      "；".join(wrong) if wrong else f"{len(relief_cases)} 条样本全部正确")
+
+# ② 关键兼容性：样本河道必须判为 delta_plain（否则会打乱既有演示结果）
+check("7.样本河道仍判为 delta_plain（演示结果不受影响）",
+      classify_by_relief(6.6, 27.0) == "delta_plain"
+      and lookup_slope(classify_by_relief(6.6, 27.0), "river") == 0.00010,
+      f"坡降 {lookup_slope(classify_by_relief(6.6, 27.0), 'river'):.5f}")
+
+# ③ 离线时仍须给出合法类别。注意 lookup_relief 的顺序是
+#    **先查缓存、再判离线** —— 所以离线+有缓存时仍会用真实地形，
+#    离线+无缓存才回落到旧逻辑。两种结果都合法，此处只断言不抛异常、
+#    不返回非法值；把"山区必须拿到山地坡降"交给 ① 的纯函数断言去保证，
+#    否则这个检查会随缓存是否存在而时灵时不灵。
+legal = ("delta_plain", "lowland", "foothill", "mountain")
+got = classify_region(31.00, 103.60)
+check("7.地形不可用时仍返回合法类别（缓存或回落均可）", got in legal,
+      f"实得 {got}（{'命中缓存' if got == 'mountain' else '已回落到旧逻辑'}）")
+
+# ④ 降级必须彻底：非法坐标、查询异常都不能把异常抛给调用方
+bad_inputs = [("abc", None), (None, None), ("", ""), (float("nan"), 113.0)]
+leaked = []
+for a, b in bad_inputs:
+    try:
+        classify_region(a, b)
+    except Exception as e:
+        leaked.append(f"{a!r}:{type(e).__name__}")
+check("7.非法坐标不抛异常", not leaked, "；".join(leaked) if leaked else "4 组非法输入均已兜住")
+
+# ⑤ 旧逻辑确实只覆盖极少数区域（记录这个事实，防止有人误以为它是正确实现）
+import random  # noqa: E402
+random.seed(0)
+seen = set()
+for _ in range(3000):
+    seen.add(_classify_by_coords(random.uniform(18, 54), random.uniform(74, 136)))
+check("7.旧经纬度逻辑的覆盖缺陷被记录在案", len(seen) <= 2,
+      f"随机 3000 点只返回 {sorted(seen)} —— 与审计结论一致（占位实现，非正确实现）")
+
+
+# ======================================================================
 print()
 print("=" * 74)
 n_bad = sum(1 for _, ok in results if not ok)
