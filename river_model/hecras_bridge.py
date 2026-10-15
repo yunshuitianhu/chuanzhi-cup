@@ -360,6 +360,139 @@ def _build_f01_file(work_dir: str, config: YayaoConfig,
     return path
 
 
+# ---- HEC-RAS 模态对话框守护 ----
+
+def _pid_is_ras(pid: int):
+    """判断某 PID 是不是 HEC-RAS 进程。返回 (bool|None, 说明)。
+
+    pywin32 的模块在此处惰性导入 —— 本模块需能在非 Windows 环境下被 import
+    （只是 HEC-RAS 相关功能不可用而已）。
+    """
+    try:
+        import win32api
+        import win32process
+    except ImportError:
+        return None, "未安装 pywin32"
+    h = None
+    try:
+        # QUERY_INFORMATION(0x0400) 取模块路径需要 VM_READ(0x0010)
+        h = win32api.OpenProcess(0x0400 | 0x0010, False, pid)
+        exe = win32process.GetModuleFileNameEx(h, 0)
+        return os.path.basename(exe).lower().startswith("ras"), exe
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+    finally:
+        if h:
+            try:
+                win32api.CloseHandle(h)
+            except Exception:
+                pass
+
+
+class _HecRasDialogGuard:
+    """HEC-RAS 模态对话框守护（上下文管理器）。
+
+    为什么必须要有
+    --------------
+    HEC-RAS 在两类情况下会弹**模态**对话框，而 COM 调用会一直阻塞在那里：
+
+      ① 输入不合法（实测：日期格式错误 → "must be before ending time"）
+      ② **退出时询问是否保存工程**（`QuitRas()` 触发）
+
+    第 ② 类尤其阴险：`QuitRas()` 调用**本身会正常返回**，看起来一切正常，
+    但 Ras.exe 会停在保存询问上不退 —— 表现为"脚本跑完了，但每跑一次多一个
+    Ras.exe 进程"。在命令行里实测卡死过两次。
+
+    在 Web 服务里这意味着**一个请求永久挂起**，所以必须处理。
+
+    它做什么
+    --------
+    后台守护线程轮询顶层窗口，只认 **Ras.exe 拥有的 `#32770`（Win32 对话框类）**，
+    抓到就把标题与全部子控件文字记进日志（**错误信息不能丢**），再发 WM_CLOSE。
+
+    降级
+    ----
+    非 Windows 或缺 pywin32 时自动不启用，不影响其余逻辑。
+    """
+
+    def __init__(self, interval: float = 1.0):
+        self._interval = interval
+        self._stop = threading.Event()
+        self._thread = None
+        self.captured = []          # [(pid, title, [texts])]，供调用方与测试查证
+
+    def __enter__(self):
+        try:
+            import win32gui  # noqa: F401
+        except ImportError:
+            logger.info("未安装 pywin32，不启用 HEC-RAS 对话框守护")
+            return self
+        self._thread = threading.Thread(target=self._run,
+                                        name="hecras-dialog-guard", daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=3)
+        return False                # 不吞异常
+
+    def _run(self):
+        while not self._stop.wait(self._interval):
+            try:
+                self._sweep()
+            except Exception:
+                # 窗口枚举在窗口销毁过程中会失败，属正常现象，忽略继续
+                pass
+
+    def _sweep(self):
+        import win32con
+        import win32gui
+        import win32process
+
+        pids = {}
+
+        def is_ras(pid):
+            if pid not in pids:
+                pids[pid] = bool(_pid_is_ras(pid)[0])
+            return pids[pid]
+
+        targets = []
+
+        def cb(hwnd, _):
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            if win32gui.GetClassName(hwnd) != "#32770":   # Win32 对话框
+                return True
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            if is_ras(pid):
+                targets.append((hwnd, pid))
+            return True
+
+        win32gui.EnumWindows(cb, None)
+
+        for hwnd, pid in targets:
+            title = win32gui.GetWindowText(hwnd)
+            texts = []
+
+            def ccb(h, _):
+                t = win32gui.GetWindowText(h)
+                if t and t.strip():
+                    texts.append(t.strip())
+                return True
+
+            win32gui.EnumChildWindows(hwnd, ccb, None)
+            self.captured.append((pid, title, texts))
+            logger.warning(
+                "捕获 HEC-RAS 对话框并关闭 —— pid=%s 标题=%r 内容=%s "
+                "（若不处理，COM 调用会在此永久阻塞）", pid, title, texts)
+            try:
+                win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+            except Exception as e:
+                logger.warning("关闭 HEC-RAS 对话框失败: %s: %s", type(e).__name__, e)
+
+
 # ---- COM 驱动的水动力模拟 ----
 
 def run_hecras_simulation(
@@ -405,37 +538,45 @@ def run_hecras_simulation(
         _build_plan_file(work_dir, duration_h, dt_s, output_interval_min)
         _build_f01_file(work_dir, config, upstream_flow_m3s, downstream_stage_m)
 
-        # 2. COM 打开项目
-        ras = _get_hecras_com()
-        ras.Project_Open(prj_path)
-        time.sleep(1.0)
-
-        n_xs = ras.Schematic_XSCount()
-        if n_xs == 0:
-            raise RuntimeError(
-                f"HEC-RAS 无法解析几何文件 (Schematic_XSCount=0)。"
-                f"工作目录: {work_dir}"
-            )
-
-        # 3. 运行计算
-        ras.Compute_HideComputationWindow()
-        plan_names = ras.Plan_Names()
-        if not plan_names or plan_names[0] == 0:
-            raise RuntimeError("HEC-RAS 项目中没有找到计算方案")
-
-        ras.Plan_SetCurrent(plan_names[1][0])
-        ras.Compute_CurrentPlan()
-
-        timeout = 300
-        for i in range(timeout):
+        # 2~3. COM 打开项目并计算。
+        # 整段包在对话框守护里 —— HEC-RAS 在输入不合法时会弹模态框，
+        # 而 QuitRas() 本身也会弹"是否保存工程"的询问（且该调用会正常返回，
+        # 极其隐蔽）。不处理的话 COM 会永久阻塞，Web 服务里就是一个请求挂死。
+        with _HecRasDialogGuard() as guard:
+            ras = _get_hecras_com()
+            ras.Project_Open(prj_path)
             time.sleep(1.0)
-            if ras.Compute_Complete():
-                break
-        else:
-            ras.Compute_Cancel()
-            raise RuntimeError(f"HEC-RAS 计算超时 ({timeout}s)")
 
-        ras.QuitRas()
+            n_xs = ras.Schematic_XSCount()
+            if n_xs == 0:
+                raise RuntimeError(
+                    "HEC-RAS 无法解析几何文件 (Schematic_XSCount=0)"
+                )
+
+            ras.Compute_HideComputationWindow()
+            plan_names = ras.Plan_Names()
+            if not plan_names or plan_names[0] == 0:
+                raise RuntimeError("HEC-RAS 项目中没有找到计算方案")
+
+            ras.Plan_SetCurrent(plan_names[1][0])
+            ras.Compute_CurrentPlan()
+
+            timeout = 300
+            for i in range(timeout):
+                time.sleep(1.0)
+                if ras.Compute_Complete():
+                    break
+            else:
+                ras.Compute_Cancel()
+                raise RuntimeError(f"HEC-RAS 计算超时 ({timeout}s)")
+
+            ras.QuitRas()
+
+        if guard.captured:
+            logger.warning(
+                "本次 HEC-RAS 运行期间捕获并关闭了 %d 个对话框 —— "
+                "说明输入或退出流程存在问题，请查上方日志确认被关闭的是什么",
+                len(guard.captured))
 
         # 4. 检查计算结果 — 如果是纯稳态流, 使用此结果; 如果非恒定流已跑, 提取时间序列
         hdf_path = os.path.join(work_dir, "Yayao.p01.hdf")
