@@ -216,15 +216,70 @@ for title, component, payloads, ignore in scenarios:
         continue
     misses += compare(title, component, produced, ignore)
 
+# ======================================================================
+# 附：会话头契约检查
+# ======================================================================
+# 为什么单列一节：这与字段名是**同一类**缺陷 —— 接口返回 200，契约却被违反，
+# 界面表现自相矛盾且不报错。
+#
+# 实际发生过：ChatView.vue 直接用 fetch 发 SSE 请求，只设了 Content-Type，
+# 没带 X-Session-Id。后端于是**新建一个空会话**，Agent 的所有工具都报
+# "数据未加载"，而侧栏/顶栏（走 client.js 的 request() 包装器，带了头）
+# 却正常显示"1805 条"。用户看到的是"我明明上传了数据，它说没有"。
+#
+# 规则：frontend/src 下**任何**直接调用 fetch 的地方都必须带会话头
+# （字面量 'X-Session-Id'，或 client.js 导出的 sseHeaders()）。
+
 print()
 print("=" * 72)
-n_bad = len(misses)
+print("附：会话头契约（直接 fetch 必须带 X-Session-Id）")
+print("=" * 72)
+
+SRC = os.path.join(PROJ, "frontend", "src")
+offenders = []
+for root, _dirs, files in os.walk(SRC):
+    for fn in files:
+        if not fn.endswith((".vue", ".js")):
+            continue
+        path = os.path.join(root, fn)
+        rel = os.path.relpath(path, PROJ).replace("\\", "/")
+        if rel.endswith("api/client.js"):
+            continue                      # 包装器本身，正确实现就在这里
+        raw = open(path, encoding="utf-8").read()
+        # 剥掉注释，避免把说明文字当成代码（这个坑本仓库踩过一次）
+        raw = re.sub(r"/\*.*?\*/", "", raw, flags=re.S)
+        raw = "\n".join(li.split("//")[0] for li in raw.splitlines())
+        for m in re.finditer(r"fetch\((.{0,300}?)\)", raw, flags=re.S):
+            call = m.group(1)
+            if "/api/" not in call:
+                continue
+            if "X-Session-Id" in call or "sseHeaders" in call:
+                continue
+            line_no = raw[:m.start()].count("\n") + 1
+            offenders.append(f"{rel}:{line_no}")
+
+if offenders:
+    print(f"  [FAIL] {len(offenders)} 处直接 fetch 未带会话头：")
+    for o in offenders:
+        print(f"        x {o}")
+    print()
+    print("  后果：后端会为这些请求新建空会话 —— Agent 看不到已上传的数据，")
+    print("        而其它走 client.js 的请求正常，界面自相矛盾且接口全返回 200。")
+else:
+    print("  [PASS] 所有直接 fetch 均带会话头")
+
+print()
+print("=" * 72)
+n_bad = len(misses) + len(offenders)
 if n_bad == 0:
     print("结果: 全部通过")
 else:
-    print(f"结果: {n_bad} 个键不匹配")
-    print()
-    print("这些键在前端永远取不到值，界面会静默显示空白/兜底值，")
-    print("而接口返回 200、数据完全正常 —— 必须修。")
+    if misses:
+        print(f"结果: {len(misses)} 个键不匹配 + {len(offenders)} 处缺会话头")
+        print()
+        print("这些缺陷共同的特征是：**接口返回 200、数据完全正常，")
+        print("界面却显示空白或自相矛盾 —— 必须修。**")
+    else:
+        print(f"结果: {len(offenders)} 处直接 fetch 缺会话头")
 print("=" * 72)
 sys.exit(0 if n_bad == 0 else 1)

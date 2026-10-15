@@ -17,6 +17,36 @@ export function clearSession() {
   localStorage.removeItem('wq_session_id')
 }
 
+/**
+ * SSE 请求（Agent 对话）用的请求头。
+ *
+ * ⚠️ **必须带上 `X-Session-Id`**。SSE 无法用下面的 `request()` 包装器
+ * （它要读流式 body），只能自己发 fetch —— 但会话头不能省。
+ *
+ * 少了它后端会**新建一个空会话**：Agent 的工具全部报"数据未加载"，
+ * 而侧栏/顶栏（走 `request()`，带了头）却正常显示"1805 条"。
+ * **界面自相矛盾，且接口全部返回 200，极难发现。** 这个坑实际发生过。
+ */
+export function sseHeaders() {
+  const headers = { 'Content-Type': 'application/json' }
+  if (sessionId) headers['X-Session-Id'] = sessionId
+  return headers
+}
+
+/**
+ * 从 SSE 响应里回收后端回传的会话 id。
+ *
+ * 首次请求没带 id 时后端会新建，并把新 id 放在响应头里 —— 必须接住，
+ * 否则后续请求仍会各自新建会话。`request()` 里也有同样一段逻辑。
+ */
+export function adoptSessionFrom(res) {
+  const sid = res.headers.get('X-Session-Id')
+  if (sid && sid !== sessionId) {
+    sessionId = sid
+    localStorage.setItem('wq_session_id', sid)
+  }
+}
+
 class ApiError extends Error {
   constructor(message, status, payload) {
     super(message)

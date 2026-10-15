@@ -7,7 +7,7 @@
  */
 import { nextTick, ref, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
-import { api } from '../api/client'
+import { api, sseHeaders, adoptSessionFrom } from '../api/client'
 import { toastErr } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import ChatBubble from '../components/ChatBubble.vue'
@@ -31,10 +31,11 @@ async function autoAnalyze() {
   try {
     const res = await fetch('/api/agent/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sseHeaders(),        // 含 X-Session-Id，否则后端会新建空会话
       body: JSON.stringify({ message: '请开始自动分析。', auto: true }),
     })
     if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
+    adoptSessionFrom(res)
     await consume(res)
   } catch (e) {
     toastErr(`分析失败：${e.message}`)
@@ -53,10 +54,11 @@ async function send() {
   try {
     const res = await fetch('/api/agent/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sseHeaders(),        // 含 X-Session-Id，否则后端会新建空会话
       body: JSON.stringify({ message: text }),
     })
     if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
+    adoptSessionFrom(res)
     await consume(res)
   } catch (e) {
     toastErr(`对话失败：${e.message}`)
