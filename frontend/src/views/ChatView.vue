@@ -5,17 +5,17 @@
  * 「开始自动分析」会让后端 Agent 自主编排整条工具链（12+6 步 SOP），
  * 与自由对话共用同一套 Function Calling 循环。
  */
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useSessionStore } from '../stores/session'
-import { api, sseHeaders, adoptSessionFrom } from '../api/client'
+import { sseHeaders, adoptSessionFrom } from '../api/client'
 import { toastErr } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import ChatBubble from '../components/ChatBubble.vue'
 
 const store = useSessionStore()
 const input = ref('')
-const running = ref(false)
-const messages = ref([])
+const { chatRunning: running, chatMessages: messages } = storeToRefs(store)
 const scroller = ref(null)
 
 async function scrollDown() {
@@ -91,13 +91,21 @@ async function consume(res) {
       if (ev === 'tool') {
         messages.value.push({ role: 'tool', content: payload?.name || '工具调用' })
         scrollDown()
+      } else if (ev === 'tool_done') {
+        messages.value.push({ role: payload?.ok ? 'tool' : 'error',
+          content: `${payload?.name || '工具'}：${payload?.ok ? '完成' : '失败，请查看分析结论中的缺失说明'}` })
+        current = null
+        scrollDown()
       } else if (ev === 'delta') {
-        if (!current) { current = { role: 'assistant', content: '' }; messages.value.push(current) }
+        if (!current) {
+          messages.value.push({ role: 'assistant', content: '' })
+          current = messages.value[messages.value.length - 1]
+        }
         current.content += payload?.text || ''
         scrollDown()
       } else if (ev === 'done') {
         current = null
-        store.refreshStatus()
+        await store.refreshStatus()
       } else if (ev === 'error') {
         messages.value.push({ role: 'error', content: payload?.message || '未知错误' })
         scrollDown()
@@ -106,13 +114,12 @@ async function consume(res) {
   }
 }
 
-watch(() => store.status.rows, (n) => { if (!n) messages.value = [] })
 </script>
 
 <template>
   <Panel title="智能对话" subtitle="DeepSeek Agent 自主编排分析工具链">
     <template #actions>
-      <button class="primary" :disabled="!store.canAnalyze || running" @click="autoAnalyze">
+      <button class="primary" :disabled="!store.canAnalyze || !store.ready || store.loading || running" @click="autoAnalyze">
         {{ running ? '分析中…' : '🚀 开始自动分析' }}
       </button>
     </template>
@@ -130,7 +137,7 @@ watch(() => store.status.rows, (n) => { if (!n) messages.value = [] })
     <form class="composer" @submit.prevent="send">
       <input
         v-model="input"
-        :disabled="!store.status.has_data || running"
+        :disabled="!store.status.has_data || !store.ready || store.loading || running"
         placeholder="请输入问题…"
       />
       <button type="submit" :disabled="!input.trim() || running">发送</button>

@@ -69,13 +69,12 @@ function panelOption(key) {
     series.push({
       name: `${ts.value.target_water_class}类${p.limit_direction === 'minimum' ? '下限' : '上限'} ${p.limit}`,
       type: 'line',
-      markLine: {
-        silent: true, symbol: 'none',
-        lineStyle: { color: '#ff4d6d', type: 'dashed', width: 1 },
-        data: [{ yAxis: p.limit }],
-        label: { formatter: `${ts.value.target_water_class}类${p.limit_direction === 'minimum' ? '下限' : '上限'} ${p.limit}`, color: '#ff8fa3', fontSize: 10 },
-      },
-      data: [],
+      showSymbol: false,
+      lineStyle: { color: '#ff4d6d', type: 'dashed', width: 1 },
+      itemStyle: { color: '#ff4d6d' },
+      // 参考线参与坐标轴范围计算，避免所有实测值超标时限值线落在画布外。
+      data: ts.value.time.length
+        ? [[ts.value.time[0], p.limit], [ts.value.time.at(-1), p.limit]] : [],
     })
   }
 

@@ -6,14 +6,14 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from ..agent.loop import run_agent
-from ..deps import get_session
+from ..deps import get_session, get_exclusive_session
 from ..session import Session
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 
 @router.post("/chat")
-def chat(payload: dict, session: Session = Depends(get_session)):
+def chat(payload: dict, session: Session = Depends(get_exclusive_session)):
     """与 Agent 对话，SSE 流式返回。
 
     Body:
@@ -35,3 +35,8 @@ def chat(payload: dict, session: Session = Depends(get_session)):
             "X-Session-Id": session.id,
         },
     )
+
+
+@router.get('/history')
+def history(session: Session = Depends(get_session)) -> dict:
+    return {'messages': session.messages, 'analysis_revision': session.analysis_revision}

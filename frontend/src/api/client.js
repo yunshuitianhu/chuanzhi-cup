@@ -89,6 +89,7 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
 
 export const api = {
   health: () => request('/health'),
+  chatHistory: () => request('/agent/history'),
   config: () => request('/config'),
   setTargetClass: (val) => request('/config/target-class', { method: 'POST', body: { target_water_class: val } }),
 

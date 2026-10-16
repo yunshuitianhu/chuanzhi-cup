@@ -57,7 +57,7 @@ const keySummary = computed(() => {
             :key="c"
             class="class-btn"
             :class="{ active: store.config.target_water_class === c }"
-            :disabled="store.loading"
+            :disabled="store.loading || store.chatRunning"
             @click="store.setTargetClass(c)"
           >{{ c }}</button>
         </div>

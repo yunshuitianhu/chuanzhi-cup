@@ -954,6 +954,8 @@ def tool_generate_report(api_key, summary):
     return resp.choices[0].message.content
 
 # ---------- 工具注册 ----------
+from river_model.tool_specs import RIVER_TOOL_SPECS
+
 tools = [
     {"type":"function","function":{"name":"get_data_summary","description":"获取水质数据统计","parameters":{"type":"object","properties":{}}}},
     {"type":"function","function":{"name":"find_black_spots","description":"基于《城市黑臭水体整治工作指南》(2015)和GB3838-2002发现水质黑点并DBSCAN聚类，返回黑臭等级分布(轻度/重度)和聚类详情","parameters":{"type":"object","properties":{}}}},
@@ -969,12 +971,7 @@ tools = [
     {"type":"function","function":{"name":"search_nearby_pollution_sources","description":"搜索附近污染源（按距离排序）","parameters":{"type":"object","properties":{"lat":{"type":"number"},"lon":{"type":"number"},"radius":{"type":"number"}},"required":["lat","lon"]}}},
     {"type":"function","function":{"name":"get_national_station_data","description":"获取国控站点实时数据 (v2.0 HTTP API 直连, 无需 Playwright)。返回站名/pH/溶解氧/氨氮/总磷/总氮等实时监测值。数据每小时更新。","parameters":{"type":"object","properties":{"province":{"type":"string","description":"省份(如'广东省')"},"keyword":{"type":"string","description":"站名或流域关键词"},"live":{"type":"boolean","description":"是否获取实时数据(默认true,直接HTTP API)"}}}}},
     {"type":"function","function":{"name":"get_satellite_image","description":"获取卫星影像","parameters":{"type":"object","properties":{"lat":{"type":"number"},"lon":{"type":"number"},"zoom":{"type":"integer","default":16}},"required":["lat","lon"]}}},
-    {"type":"function","function":{"name":"init_river_model","description":"初始化一维水动力-水质模型。支持自动检测模式(auto_detect=True),从已上传的走航数据推断河道参数(长度/宽度/糙率等)。传统模式使用雅瑶水道默认值。","parameters":{"type":"object","properties":{"n_cross_sections":{"type":"integer","description":"断面数量(30-100,默认50)"},"mannings_n":{"type":"number","description":"曼宁糙率系数(0.025-0.035,默认0.028)"},"auto_detect":{"type":"boolean","description":"是否从已加载监测数据自动推断河道参数(默认false)"}}}}},
-    {"type":"function","function":{"name":"run_hydrodynamic_simulation","description":"运行雅瑶水道一维水动力模拟(Saint-Venant方程)。返回各断面水位、流速、流量统计。必须先调用init_river_model。","parameters":{"type":"object","properties":{"upstream_flow_m3s":{"type":"number","description":"上游平均流量m³/s(默认6.9)"},"downstream_stage_m":{"type":"number","description":"下游平均潮位m(默认0.83)"},"tidal_amplitude_m":{"type":"number","description":"潮汐振幅m(默认0.8,半潮差)"},"tidal_period_h":{"type":"number","description":"潮汐周期h(默认12.42,M2分潮)"},"duration_h":{"type":"number","description":"模拟时长h(默认24)"},"dt_s":{"type":"number","description":"计算时间步长s(默认60)"}}}}},
-    {"type":"function","function":{"name":"simulate_pollution_event","description":"在雅瑶水道指定桩号模拟污染事件,运行ADR(对流-扩散-反应)水质模型。模拟污染物输移扩散和生化反应。返回峰值浓度、影响范围、达标时间。必须先运行水动力模拟。","parameters":{"type":"object","properties":{"chainage_m":{"type":"number","description":"污染源桩号m,从上游起算(0-3200,默认1600)"},"pollutant_type":{"type":"string","description":"污染物类型:ammonia(氨氮)/cbod(碳BOD)/cod(化学需氧量)/conservative(保守示踪剂)"},"load_kg":{"type":"number","description":"污染物总质量kg(默认50)"},"duration_min":{"type":"number","description":"排放持续时间min(默认30)"},"simulation_hours":{"type":"number","description":"模拟总时长h(默认24)"}}}}},
-    {"type":"function","function":{"name":"get_concentration_profile","description":"查询指定时刻的沿程浓度剖面。返回各断面浓度、超标断面位置、最大浓度位置。","parameters":{"type":"object","properties":{"time_h":{"type":"number","description":"查询时刻h(默认6)"},"constituent":{"type":"string","description":"查询组分:ammonia/cbod/do(默认ammonia)"}}}}},
-    {"type":"function","function":{"name":"compare_scenarios","description":"对比两个已保存的模拟情景。返回对比表格(峰值浓度/影响范围/达标时间差异)。","parameters":{"type":"object","properties":{"scenario1_name":{"type":"string","description":"情景1名称(留空则自动选择最新)"},"scenario2_name":{"type":"string","description":"情景2名称(留空则自动选择次新)"}}}}},
-    {"type":"function","function":{"name":"export_river_model_data","description":"导出模拟结果数据为JSON或CSV文件。","parameters":{"type":"object","properties":{"format":{"type":"string","description":"导出格式:json或csv(默认json)"},"scenario_name":{"type":"string","description":"情景名称(默认latest)"}}}}},
+    *RIVER_TOOL_SPECS,
 ]
 
 MODEL_NAME = "deepseek-chat"
@@ -1016,7 +1013,12 @@ def execute_tool(name, args, api_key, amap_key, cloud_token=None):
             tool_river_concentration_profile, tool_river_compare_scenarios, tool_river_export_data,
         )
         if name == "init_river_model": return tool_river_init(st.session_state.river_state, **args)
-        elif name == "run_hydrodynamic_simulation": return tool_river_hydro_simulation(st.session_state.river_state, **args)
+        elif name == "run_hydrodynamic_simulation":
+            args = dict(args)
+            args.setdefault("tidal_amplitude_m", 0.0)
+            if args["tidal_amplitude_m"] != 0:
+                return json.dumps({"error": "潮汐模型未通过质量守恒验收，Agent 仅支持恒定流模拟"}, ensure_ascii=False)
+            return tool_river_hydro_simulation(st.session_state.river_state, **args)
         elif name == "simulate_pollution_event": return tool_river_pollution_event(st.session_state.river_state, **args)
         elif name == "get_concentration_profile": return tool_river_concentration_profile(st.session_state.river_state, **args)
         elif name == "compare_scenarios": return tool_river_compare_scenarios(st.session_state.river_state, **args)

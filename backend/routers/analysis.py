@@ -16,7 +16,7 @@ from water_quality_mcp.src.water_quality_mcp.analysis import (
     find_black_spots,
 )
 
-from ..deps import get_session
+from ..deps import get_session, get_exclusive_session
 from ..session import Session
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
@@ -31,7 +31,7 @@ def summary(session: Session = Depends(get_session)) -> dict:
 
 
 @router.post("/black-spots")
-def black_spots(session: Session = Depends(get_session)) -> dict:
+def black_spots(session: Session = Depends(get_exclusive_session)) -> dict:
     """黑臭检测 + DBSCAN 聚类。
 
     返回两部分：
@@ -59,7 +59,7 @@ def black_spots(session: Session = Depends(get_session)) -> dict:
 
 @router.post("/cross-validate")
 def cross_validate(payload: dict | None = None,
-                   session: Session = Depends(get_session)) -> dict:
+                   session: Session = Depends(get_exclusive_session)) -> dict:
     """视频-传感器交叉印证。
 
     Args:
@@ -86,7 +86,7 @@ def cross_validate(payload: dict | None = None,
 
 
 @router.get("/comprehensive")
-def comprehensive(session: Session = Depends(get_session)) -> dict:
+def comprehensive(session: Session = Depends(get_exclusive_session)) -> dict:
     """综合摘要 —— Agent 与报告生成的数据源，供技术展示页核对。"""
     if session.df is None or len(session.df) == 0:
         raise HTTPException(400, "数据未加载")

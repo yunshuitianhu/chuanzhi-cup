@@ -20,7 +20,7 @@ const dataInput = ref(null)
 const videoInput = ref(null)
 const report = ref('')
 
-const canLoad = computed(() => !!dataFile.value && !store.loading)
+const canLoad = computed(() => !!dataFile.value && !store.loading && !store.chatRunning)
 
 /**
  * 文件选择框的显示文本。
@@ -104,6 +104,7 @@ async function load() {
     </label>
 
     <button class="load-btn" :disabled="!canLoad" @click="load">{{ loadLabel }}</button>
+    <p v-if="store.chatRunning" class="hint">AI 分析进行中，完成后可重新加载数据。</p>
 
     <!-- 已有数据但未选新文件时，说明清楚点按钮不会重置 -->
     <p v-if="store.status.has_data && !dataFile" class="hint loaded-note">

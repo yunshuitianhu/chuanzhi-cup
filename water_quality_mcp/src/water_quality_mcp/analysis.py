@@ -937,12 +937,16 @@ def build_comprehensive_summary(state, river_state=None, config=None):
     if river_state is not None:
         try:
             river = {}
+            hydro_usable = not (river_state.has_hydro() and
+                                river_state.hydro_result.params.get('tidal_amplitude_m', 0))
+            if not hydro_usable:
+                river['结论限制'] = '潮汐模型未通过质量守恒验收，已排除其水动力和水质模拟数值，不得用于结论。'
             if river_state.model_initialized:
                 river["模型已初始化"] = True
                 river["断面数"] = len(river_state.cross_sections)
                 river["河道长度_m"] = river_state.config.length_m
                 river["平均宽度_m"] = river_state.config.width_avg_m
-            if river_state.has_hydro():
+            if river_state.has_hydro() and hydro_usable:
                 h = river_state.hydro_result
                 river["水动力模拟"] = {
                     "模拟时长_h": h.t[-1],
@@ -952,7 +956,7 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                     "平均流速_ms": round(float(np.nanmean(np.abs(h.velocity))), 3),
                     "参数": h.params,
                 }
-            if hasattr(river_state, 'has_wq') and river_state.has_wq():
+            if hydro_usable and hasattr(river_state, 'has_wq') and river_state.has_wq():
                 w = river_state.wq_result
                 ammonia = w.ammonia if w.ammonia is not None else np.zeros((1, 1))
                 river["水质模拟"] = {

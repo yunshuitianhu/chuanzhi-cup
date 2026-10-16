@@ -12,6 +12,8 @@ export const useSessionStore = defineStore('session', {
     ready: false,            // 后端连通性
     loading: false,
     error: '',
+    chatMessages: [],
+    chatRunning: false,
 
     config: { keys: {}, target_water_class: 'V', valid_classes: [] },
     status: {
@@ -36,7 +38,9 @@ export const useSessionStore = defineStore('session', {
       try {
         await api.health()
         this.config = await api.config()
-        this.status = await api.status()
+        await this.refreshStatus()
+        const history = await api.chatHistory()
+        this.chatMessages = history.messages
         this.ready = true
         if (this.status.has_data) await this.refreshPreview()
       } catch (e) {
@@ -59,7 +63,14 @@ export const useSessionStore = defineStore('session', {
     },
 
     async refreshStatus() {
-      this.status = await api.status()
+      const status = await api.status()
+      if (status.analysis_revision !== this.status.analysis_revision) {
+        this.chatMessages = []
+        this.blackSpots = null
+        this.crossValidation = null
+        this.comprehensive = null
+      }
+      this.status = status
     },
 
     async refreshPreview(limit = 50) {

@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
 
-from ..deps import get_session
+from ..deps import get_session, get_exclusive_session
 from ..session import Session
 
 router = APIRouter(prefix="/river", tags=["river"])
@@ -71,7 +71,7 @@ def detect_params(session: Session = Depends(get_session)) -> dict:
 
 @router.post("/init")
 def init_model(payload: dict | None = None,
-               session: Session = Depends(get_session)) -> dict:
+               session: Session = Depends(get_exclusive_session)) -> dict:
     """初始化模型（生成断面序列）。auto_detect=true 时从数据推断参数。"""
     payload = payload or {}
     from river_model.tools import tool_river_init
@@ -94,7 +94,7 @@ def init_model(payload: dict | None = None,
 
 @router.post("/hydro")
 def hydro(payload: dict | None = None,
-          session: Session = Depends(get_session)) -> dict:
+          session: Session = Depends(get_exclusive_session)) -> dict:
     """运行水动力模拟。
 
     默认 `tidal_amplitude_m=0`（恒定流，结果可信）。若要跑潮汐工况，
@@ -126,7 +126,7 @@ def hydro(payload: dict | None = None,
 
 @router.post("/pollution")
 def pollution(payload: dict | None = None,
-              session: Session = Depends(get_session)) -> dict:
+              session: Session = Depends(get_exclusive_session)) -> dict:
     """模拟污染事件（ADR 对流-扩散-反应模型）。"""
     payload = payload or {}
     from river_model.tools import tool_river_pollution_event

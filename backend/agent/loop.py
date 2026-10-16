@@ -60,8 +60,9 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
 
     msgs = list(session.full_messages)
     system_prompt = SYSTEM_PROMPT_AUTO if auto else SYSTEM_PROMPT_CHAT
-    if not msgs or (isinstance(msgs[0], dict) and msgs[0].get("role") != "system"):
-        msgs.insert(0, {"role": "system", "content": system_prompt})
+    # 每次请求按模式重建 system 消息，避免继承上一轮的自动分析 SOP。
+    msgs = [m for m in msgs if not (isinstance(m, dict) and m.get('role') == 'system')]
+    msgs.insert(0, {"role": "system", "content": system_prompt})
     msgs.append({"role": "user", "content": user_text})
 
     session.messages.append({"role": "user", "content": user_text})
@@ -70,6 +71,7 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
     turn = 0
 
     try:
+        tool_errors = 0
         while turn < MAX_TURNS:
             turn += 1
             yield _sse("turn", {"turn": turn})
@@ -132,11 +134,12 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
                 try:
                     args = json.loads(call["function"]["arguments"] or "{}")
                 except json.JSONDecodeError:
-                    args = {}
+                    args = None
                 # 工具参数可能很大（如 summary），事件里只带键名
-                yield _sse("tool", {"name": name, "args": list(args.keys())})
+                yield _sse("tool", {"name": name, "args": list(args) if isinstance(args, dict) else []})
 
                 result, is_err = execute_tool(name, args, session, api_key)
+                tool_errors += int(is_err)
                 yield _sse("tool_done", {"name": name, "ok": not is_err,
                                          "chars": len(result)})
 
@@ -157,14 +160,15 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
                 if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                     final_text += chunk.choices[0].delta.content
                     yield _sse("delta", {"text": chunk.choices[0].delta.content})
+            msgs.append({'role': 'assistant', 'content': final_text})
 
         session.full_messages = msgs
         if final_text:
             session.messages.append({"role": "assistant", "content": final_text})
         if auto:
-            session.analysis_done = True
+            session.analysis_done = bool(final_text) and tool_errors == 0
 
-        yield _sse("done", {"turns": turn})
+        yield _sse("done", {"turns": turn, "tool_errors": tool_errors})
 
     except Exception as e:                       # noqa: BLE001
         logger.exception("Agent 运行失败")
@@ -174,3 +178,5 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
         elif "timeout" in msg.lower() or "connect" in msg.lower():
             msg = "无法连接 DeepSeek API，请检查网络"
         yield _sse("error", {"message": msg[:300]})
+    finally:
+        client.close()
