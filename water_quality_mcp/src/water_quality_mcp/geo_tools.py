@@ -53,10 +53,15 @@ def gcj02_to_wgs84(lat, lon):
     """GCJ-02 → WGS-84 反向转换（迭代法，精度 < 0.5m）。"""
     if _out_of_china(lat, lon):
         return lat, lon
-    glat, glon = wgs84_to_gcj02(lat, lon)
-    dlat = glat - lat
-    dlon = glon - lon
-    return lat - dlat, lon - dlon
+    wlat, wlon = lat, lon
+    for _ in range(10):
+        glat, glon = wgs84_to_gcj02(wlat, wlon)
+        dlat, dlon = glat - lat, glon - lon
+        wlat -= dlat
+        wlon -= dlon
+        if max(abs(dlat), abs(dlon)) < 1e-7:
+            break
+    return wlat, wlon
 
 
 # ---------------------------------------------------------------------------
@@ -76,20 +81,28 @@ def search_nearby_pollution_sources(lat, lon, amap_key, radius=500, keywords=Non
     if keywords is None:
         keywords = ["工厂", "养殖场", "排污口", "化工厂", "污水处理厂", "工业园区"]
     all_pois = []
+    gcj_lat, gcj_lon = wgs84_to_gcj02(lat, lon)
     for kw in keywords:
         url = "https://restapi.amap.com/v3/place/around"
-        params = {"location": f"{lon},{lat}", "keywords": kw, "radius": radius, "key": amap_key, "offset": 15}
+        params = {"location": f"{gcj_lon:.6f},{gcj_lat:.6f}", "keywords": kw, "radius": radius, "key": amap_key, "offset": 15}
         try:
             resp = requests.get(url, params=params, timeout=8)
             data = resp.json()
             if data.get("status") == "1":
                 for p in data.get("pois", []):
                     loc = p.get("location", "").split(",")
+                    try:
+                        plon, plat = map(float, loc)
+                        if not (math.isfinite(plat) and math.isfinite(plon)
+                                and -90 <= plat <= 90 and -180 <= plon <= 180):
+                            continue
+                        plat, plon = gcj02_to_wgs84(plat, plon)
+                    except (ValueError, TypeError):
+                        continue  # 坐标缺失时不把搜索中心伪装成企业点位。
                     all_pois.append({
                         "name": p.get("name", ""), "type": p.get("type", ""),
                         "address": p.get("address", ""), "distance": p.get("distance", ""),
-                        "lat": float(loc[1]) if len(loc) == 2 else lat,
-                        "lon": float(loc[0]) if len(loc) == 2 else lon
+                        "lat": plat, "lon": plon, "coordinate_system": "WGS-84"
                     })
         except Exception:
             continue
@@ -114,7 +127,8 @@ def reverse_geocode(lat, lon, amap_key):
     .get()，抛 AttributeError 后被裸 except 吞掉，整条降级链因而静默失效。
     """
     url = "https://restapi.amap.com/v3/geocode/regeo"
-    params = {"location": f"{lon},{lat}", "key": amap_key, "radius": 1000, "extensions": "all"}
+    gcj_lat, gcj_lon = wgs84_to_gcj02(lat, lon)
+    params = {"location": f"{gcj_lon:.6f},{gcj_lat:.6f}", "key": amap_key, "radius": 1000, "extensions": "all"}
     try:
         resp = requests.get(url, params=params, timeout=10)
         data = resp.json()

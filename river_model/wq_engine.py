@@ -331,7 +331,7 @@ def solve_water_quality(
 
         # ---- 算子分裂 ----
         # 子步长可能需要更小以满足 CFL (u*dt/dx < 1)
-        n_sub = max(1, int(np.max(u_now) * dt_s / dx) + 1)
+        n_sub = max(1, int(np.max(np.abs(u_now)) * dt_s / dx) + 1)
         dt_sub = dt_s / n_sub
 
         for _ in range(n_sub):
