@@ -53,7 +53,7 @@ try:
     ready('http://127.0.0.1:18373/')
     checks = []
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(args=[f'--log-file={work / "chromium-debug.log"}'])
         page = browser.new_page(viewport={'width': 1440, 'height': 1000})
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))

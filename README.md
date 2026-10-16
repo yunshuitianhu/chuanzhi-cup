@@ -5,6 +5,30 @@
 
 ---
 
+## 项目介绍
+
+面向河道走航监测，将上传的 CSV/Excel 数据转为水质趋势、异常聚类和地图线索，
+由 Agent 调用分析工具、检索治理案例，辅助形成现场排查与复测建议。
+候选企业和地图 POI 仅作为排查线索，来源权重不代表污染责任概率。
+视频目前只提供清晰度和颜色等视觉线索；潮汐模型尚未通过质量守恒验收，
+其数值已从综合摘要中排除，不能用于正式分析结论。
+
+## 技术架构
+
+```text
+Vue 3 / Pinia / ECharts / Leaflet
+           │ REST + SSE（X-Session-Id 会话）
+           ▼
+FastAPI：上传、分析、Agent、地图数据、河道模型接口
+           │
+           ├─ 水质分析内核：规则判定、DBSCAN、外部线索查询
+           ├─ DeepSeek Function Calling + 治理案例 RAG
+           └─ 河道数值模型（恒定流情景；潮汐实验功能）
+```
+
+会话与历史保存在单个后端进程的内存中；重启会清空，不支持多 worker 共享。
+本轮改动和验证范围见 [首轮改进记录](docs/首轮改进记录.md)。
+
 ## 关于本仓库的代码来源（重要声明）
 
 本仓库的 **Python 分析内核**（`water_quality_mcp/`、`river_model/`、`knowledge_base/`、
@@ -60,7 +84,7 @@
 | 项 | 版本 |
 |---|---|
 | Python | 3.10+（本项目在 3.14 上验证通过） |
-| Node.js | 18+（前端，规划中） |
+| Node.js | 18+（前端已实现，本轮使用 Node.js 24 验证） |
 | 网络 | 需可访问 `api.deepseek.com` |
 
 ## 安装
@@ -70,11 +94,45 @@ pip install -r requirements.txt
 pip install -e water_quality_mcp/
 ```
 
+## 启动 Web 应用
+
+在项目根目录启动后端：
+
+```powershell
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8002
+```
+
+在另一个终端启动前端：
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+浏览器打开终端显示的本地地址，默认是 `http://localhost:5173/`。
+前端代理默认连接后端 8002 端口；如果后端改用其他端口，先执行
+`$env:BACKEND_PORT='实际端口'` 再启动前端。
+
+只做数据检测与图表查看无需 LLM 密钥；Agent 和报告生成需要配置 DeepSeek。
+
 ## 运行验收测试
 
 ```bash
 python tests/river_model_验收算例.py
+python -m unittest discover -s tests -p "test_*regressions.py" -v
+python test_smoke.py "你的监测样本.xlsx"
 ```
+
+浏览器回归额外需要 Playwright 及 Chromium：
+
+```powershell
+python -m pip install playwright
+python -m playwright install chromium
+python tests/browser_session_regression.py
+```
+
+浏览器回归使用独立端口、合成监测数据和模拟 SSE，不请求真实 LLM。
 
 ## 配置 API Key
 

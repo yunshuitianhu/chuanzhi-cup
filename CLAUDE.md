@@ -1,5 +1,10 @@
 # CLAUDE.md
 
+> 状态更新（2026-10-17）：Web 改进与实测结果见 `docs/首轮改进记录.md`。
+> 前端默认代理已改为 8002；smoke 路径与静默跳过问题已修复；高德坐标转换和
+> 反向流 CFL 已接通；六个河道工具定义共用 `river_model/tool_specs.py`。
+> 下文关于这些事项的旧描述仅保留作历史背景，以当前代码和改进记录为准。
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目性质
