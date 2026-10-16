@@ -9,7 +9,19 @@
  *   3. **option 更新要走 setOption 而不是重建实例** —— 重建会丢动画与交互状态。
  */
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { BarChart, LineChart, ScatterChart, HeatmapChart } from 'echarts/charts'
+import {
+  GridComponent, TooltipComponent, LegendComponent, MarkLineComponent,
+  VisualMapComponent, DataZoomComponent,
+} from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([
+  BarChart, LineChart, ScatterChart, HeatmapChart,
+  GridComponent, TooltipComponent, LegendComponent, MarkLineComponent,
+  VisualMapComponent, DataZoomComponent, CanvasRenderer,
+])
 
 const props = defineProps({
   option: { type: Object, required: true },
