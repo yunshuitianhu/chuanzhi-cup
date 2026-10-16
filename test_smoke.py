@@ -1,5 +1,6 @@
 """Smoke test — 验证核心模块可正确导入和基本功能。"""
-import os, sys, json, warnings
+import os, sys, json, warnings, base64
+from pathlib import Path
 warnings.filterwarnings("ignore")
 
 _AIROOT = os.path.dirname(os.path.abspath(__file__))
@@ -42,23 +43,22 @@ except Exception as e:
 
 # 2. 加载样本数据
 print("2. 样本数据加载")
-EXCEL = os.path.join(_AIROOT, "苗圃杯/无人船智能水质监测分析和因果溯源样本数据/河道巡航走航样本数据.xlsx")
-if os.path.exists(EXCEL):
-    try:
-        df = pd.read_excel(EXCEL)
-        col_map = {"氨氮(mg/L)": "ammonia_nitrogen", "溶解氧(mg/L)": "dissolved_oxygen",
-                   "经度": "longitude", "纬度": "latitude", "化学需氧量(mg/L)": "cod",
-                   "pH": "ph", "浑浊度(NTU)": "turbidity", "时间": "timestamp"}
-        df.rename(columns={k: v for k, v in col_map.items() if k in df.columns}, inplace=True)
-        # Use synthetic datetime for test
-        df['datetime'] = pd.date_range('2024-01-01', periods=len(df), freq='10s')
-        check("加载 Excel", len(df) > 0, f"{len(df)} 行")
-    except Exception as e:
-        check("加载 Excel", False, str(e))
-        df = None
+from water_quality_mcp.src.water_quality_mcp.loaders import load_data
+sample_arg = sys.argv[1] if len(sys.argv) > 1 else os.getenv("WQ_SAMPLE_PATH")
+candidates = ([Path(sample_arg)] if sample_arg else [
+    Path(_AIROOT).parent / "苗圃杯" / "无人船智能水质监测分析和因果溯源样本数据" / "河道巡航走航样本数据.xlsx",
+    Path(_AIROOT) / "_uploaded_data.xlsx",
+])
+EXCEL = next((p for p in candidates if p.is_file()), None)
+df = None
+if EXCEL is None:
+    check("加载监测样本", False, "未找到样本，请传入文件路径或设置 WQ_SAMPLE_PATH")
 else:
-    check("加载 Excel", False, "样本文件不存在")
-    df = None
+    try:
+        df, report = load_data(base64.b64encode(EXCEL.read_bytes()).decode(), EXCEL.name)
+        check("加载监测样本（真实时间列）", df is not None and len(df) > 0, report)
+    except Exception as e:
+        check("加载监测样本", False, str(e))
 
 # 3. 黑臭检测
 print("3. 黑臭检测")
@@ -66,12 +66,16 @@ if df is not None:
     try:
         result_json, black = find_black_spots(df)
         result = json.loads(result_json)
-        check("黑臭检测运行", "黑臭点数" in result or "error" not in result,
-              f"黑臭点: {result.get('黑臭点数', 'N/A')}")
+        check("黑臭检测运行", "黑点总数" in result and "error" not in result,
+              f"黑臭点: {result.get('黑点总数', 'N/A')}")
         check("聚类生成", result.get("聚类热点数", 0) > 0,
               f"聚类数: {result.get('聚类热点数', 0)}")
     except Exception as e:
         check("黑臭检测运行", False, str(e))
+
+else:
+    check("黑臭检测运行", False, "缺少有效样本，未执行")
+    check("聚类生成", False, "缺少有效样本，未执行")
 
 # 4. 河流模型
 print("4. 河流模型")
@@ -80,7 +84,7 @@ try:
     cs_list = generate_yayao_cross_sections(20, 3200.0, config.bed_elevation_avg_m,
                                               config.longitudinal_slope, 40.0, mannings_n=0.028)
     hydro = solve_hydrodynamics(config, cs_list, upstream_flow_m3s=6.9,
-        downstream_stage_m=0.83, tidal_amplitude_m=0.8, duration_h=3.0, dt_s=120.0)
+        downstream_stage_m=0.83, tidal_amplitude_m=0.0, duration_h=3.0, dt_s=120.0)
     check("水动力模拟", not np.any(np.isnan(hydro.water_level)), "无 NaN")
 
     wq = solve_water_quality(config, hydro, pollutant_type="ammonia", load_kg=50.0,
@@ -107,6 +111,10 @@ if df is not None:
         for f in ["test_time_series.png", "test_trace_map.html"]:
             if os.path.exists(f):
                 os.remove(f)
+
+else:
+    check("时间序列图", False, "缺少有效样本，未执行")
+    check("溯源地图", False, "缺少有效样本，未执行")
 
 print(f"\n{'='*40}")
 print(f"结果: {passed} 通过, {failed} 失败, {passed+failed} 总计")

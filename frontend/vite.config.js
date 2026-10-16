@@ -7,8 +7,8 @@ import vue from '@vitejs/plugin-vue'
 // 端口可用环境变量覆盖：本机 8000 端口上堆积了无法回收的残留监听套接字
 // （netstat 显示有 PID，但该 PID 的进程已不存在，taskkill 也找不到），
 // 表现为「改了后端代码却没生效」—— 请求被残留套接字背后的旧实例接走了。
-// 遇到这种情况换端口即可：BACKEND_PORT=8001 npm run dev
-const BACKEND_PORT = process.env.BACKEND_PORT || '8001'
+// PowerShell 覆盖示例：$env:BACKEND_PORT='8003'; npm run dev
+const BACKEND_PORT = process.env.BACKEND_PORT || '8002'
 export default defineConfig({
   plugins: [vue()],
   server: {
