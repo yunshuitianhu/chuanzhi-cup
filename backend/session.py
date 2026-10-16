@@ -49,6 +49,7 @@ class Session:
 
     # ---- 图表说明（数据驱动生成的文字，供前端展示）----
     captions: dict[str, str] = field(default_factory=dict)
+    tool_evidence: dict[str, str] = field(default_factory=dict)
 
     # ---- 配置 ----
     target_water_class: str = "V"
@@ -57,6 +58,8 @@ class Session:
     messages: list[dict] = field(default_factory=list)
     full_messages: list[Any] = field(default_factory=list)
     analysis_done: bool = False
+    analysis_revision: int = 0
+    operation_lock: Any = field(default_factory=threading.Lock, repr=False)
 
     # ---- 河道模型 ----
     river_state: Any = None                  # 惰性创建 RiverModelState
@@ -84,11 +87,13 @@ class Session:
 
     def reset_analysis(self) -> None:
         """清空分析结果但保留数据 —— 切换目标水质等级时用。"""
+        self.analysis_revision += 1
         self.black_spots = None
         self.black_spots_json = None
         self.cross_validation = None
         self.comprehensive_summary = None
         self.captions = {}
+        self.tool_evidence = {}
         self.messages = []
         self.full_messages = []
         self.analysis_done = False

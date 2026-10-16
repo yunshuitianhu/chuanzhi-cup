@@ -32,7 +32,8 @@ async function loadTimeSeries() {
 
 onMounted(loadTimeSeries)
 // 数据或黑点变化后重新取图（黑点散点依赖检测结果）
-watch(() => [store.status.rows, store.status.black_spot_count], loadTimeSeries)
+watch(() => [store.status.analysis_revision, store.status.rows,
+  store.status.black_spot_count, store.status.target_water_class], loadTimeSeries)
 
 /** 把某一面板的数据 + 黑点散点拼成 ECharts option。 */
 function panelOption(key) {
@@ -66,13 +67,13 @@ function panelOption(key) {
 
   if (p.limit !== null && p.limit !== undefined) {
     series.push({
-      name: `V类限值 ${p.limit}`,
+      name: `${ts.value.target_water_class}类${p.limit_direction === 'minimum' ? '下限' : '上限'} ${p.limit}`,
       type: 'line',
       markLine: {
         silent: true, symbol: 'none',
         lineStyle: { color: '#ff4d6d', type: 'dashed', width: 1 },
         data: [{ yAxis: p.limit }],
-        label: { formatter: `限值 ${p.limit}`, color: '#ff8fa3', fontSize: 10 },
+        label: { formatter: `${ts.value.target_water_class}类${p.limit_direction === 'minimum' ? '下限' : '上限'} ${p.limit}`, color: '#ff8fa3', fontSize: 10 },
       },
       data: [],
     })

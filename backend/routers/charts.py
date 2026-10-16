@@ -35,8 +35,8 @@ MAX_POINTS = 4000
 
 # 与原 matplotlib 版本一致的四个面板
 PANELS = [
-    ("ammonia_nitrogen", "氨氮", "mg/L", 2.0, "#E94560"),
-    ("dissolved_oxygen", "溶解氧", "mg/L", 2.0, "#3388FF"),
+    ("ammonia_nitrogen", "氨氮", "mg/L", "nh3", "#E94560"),
+    ("dissolved_oxygen", "溶解氧", "mg/L", "do", "#3388FF"),
     ("turbidity", "浑浊度", "NTU", None, "#8B5CF6"),
     ("ph", "pH", "", None, "#10B981"),
 ]
@@ -81,14 +81,16 @@ def time_series(session: Session = Depends(get_session)) -> dict:
     sub = df.iloc[idx]
 
     panels = []
-    for col, label, unit, limit, color in PANELS:
+    limits = session.analysis_config.get_target_limits()
+    for col, label, unit, limit_key, color in PANELS:
         if col not in df.columns:
             continue
         panels.append({
             "key": col,
             "label": label,
             "unit": unit,
-            "limit": limit,           # 图上的标准限值虚线，None 表示不画
+            "limit": limits.get(limit_key),
+            "limit_direction": "minimum" if limit_key == "do" else "maximum",
             "color": color,
             "values": _series(sub[col].values),
         })
@@ -113,6 +115,7 @@ def time_series(session: Session = Depends(get_session)) -> dict:
             })
 
     return {
+        "target_water_class": session.target_water_class,
         "time": [str(t) for t in sub["datetime"].values],
         "panels": panels,
         "black_spots": spots,

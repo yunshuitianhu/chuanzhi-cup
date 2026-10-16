@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 
 from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
 
-from ..deps import get_session
+from ..deps import get_session, get_exclusive_session
 from ..session import Session
 
 router = APIRouter(tags=["system"])
@@ -46,7 +46,7 @@ def read_config(session: Session = Depends(get_session)) -> dict:
 
 
 @router.post("/config/target-class")
-def set_target_class(payload: dict, session: Session = Depends(get_session)) -> dict:
+def set_target_class(payload: dict, session: Session = Depends(get_exclusive_session)) -> dict:
     """切换目标水质等级（I~V）。
 
     这会改变黑臭检测的判定基线，因此**清除既有分析结果** ——

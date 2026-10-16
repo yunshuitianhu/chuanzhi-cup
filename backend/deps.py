@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import Request
+from fastapi import Request, Depends, HTTPException
 
 from .session import Session, STORE
 
@@ -22,3 +22,13 @@ def get_session(request: Request) -> Session:
         # 兜底：中间件未生效（例如单独构造 Request 的单元测试）
         sid = request.headers.get("X-Session-Id")
     return STORE.get(sid)
+
+
+def get_exclusive_session(session: Session = Depends(get_session)):
+    """同一会话的分析与数据替换互斥，流式响应结束后释放。"""
+    if not session.operation_lock.acquire(blocking=False):
+        raise HTTPException(409, "当前会话正在处理任务，请完成后再重试")
+    try:
+        yield session
+    finally:
+        session.operation_lock.release()

@@ -5,11 +5,12 @@ from __future__ import annotations
 import base64
 import json
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Query
+from starlette.concurrency import run_in_threadpool
 
 from water_quality_mcp.src.water_quality_mcp.loaders import extract_video, load_data
 
-from ..deps import get_session
+from ..deps import get_session, get_exclusive_session
 from ..session import Session
 
 router = APIRouter(prefix="/data", tags=["data"])
@@ -20,7 +21,7 @@ MAX_VIDEO_MB = 500
 
 @router.post("/upload")
 async def upload_data(file: UploadFile = File(...),
-                      session: Session = Depends(get_session)) -> dict:
+                      session: Session = Depends(get_exclusive_session)) -> dict:
     """上传并加载走航监测数据（xlsx/xls/csv）。
 
     与 app.py 一致：加载新数据会**清除上一轮的全部分析结果**，
@@ -32,13 +33,13 @@ async def upload_data(file: UploadFile = File(...),
     if not raw:
         raise HTTPException(400, "文件为空")
 
-    # 先清状态再加载 —— 与原 app.py 的顺序一致（重置在前，读数据在后）
-    session.clear_all()
-
-    df, report = load_data(base64.b64encode(raw).decode(), file.filename or "data.xlsx")
-    if df is None:
+    # 先校验候选数据；失败时保留完整旧会话，避免数据与分析状态脱节。
+    df, report = await run_in_threadpool(
+        load_data, base64.b64encode(raw).decode(), file.filename or "data.xlsx")
+    if df is None or df.empty:
         raise HTTPException(400, report)
 
+    session.clear_all()
     session.df = df
     session.data_filename = file.filename or "data.xlsx"
     return {
@@ -51,8 +52,8 @@ async def upload_data(file: UploadFile = File(...),
 
 
 @router.post("/video")
-async def upload_video(file: UploadFile = File(...), interval: int = 5,
-                       session: Session = Depends(get_session)) -> dict:
+async def upload_video(file: UploadFile = File(...), interval: int = Query(5, ge=1, le=3600),
+                       session: Session = Depends(get_exclusive_session)) -> dict:
     """上传巡航视频并抽帧（可选功能，供视频-传感器交叉印证使用）。"""
     raw = await file.read()
     if len(raw) > MAX_VIDEO_MB * 1024 * 1024:
@@ -60,7 +61,11 @@ async def upload_video(file: UploadFile = File(...), interval: int = 5,
     if not raw:
         raise HTTPException(400, "文件为空")
 
-    frames, report = extract_video(base64.b64encode(raw).decode(), interval)
+    frames, report = await run_in_threadpool(
+        extract_video, base64.b64encode(raw).decode(), interval)
+    if not frames:
+        raise HTTPException(400, report)
+    session.reset_analysis()
     session.video_frames = frames
     session.video_filename = file.filename or "video.mp4"
     return {"ok": bool(frames), "report": report, "frames": len(frames)}
@@ -80,6 +85,7 @@ def status(session: Session = Depends(get_session)) -> dict:
         "black_spot_count": int(len(session.black_spots)) if session.black_spots is not None else 0,
         "has_cross_validation": session.cross_validation is not None,
         "analysis_done": session.analysis_done,
+        "analysis_revision": session.analysis_revision,
         "target_water_class": session.target_water_class,
         "messages": len(session.messages),
     }
