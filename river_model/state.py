@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from .config import YayaoConfig, DEFAULT_CONFIG
+from .config import YayaoConfig
 from .cross_sections import CrossSection
 
 
@@ -37,16 +37,26 @@ class WQResult:
 @dataclass
 class RiverModelState:
     """河道模型全局状态。"""
-    config: YayaoConfig = field(default_factory=lambda: DEFAULT_CONFIG)
+    config: YayaoConfig = field(default_factory=YayaoConfig)
     cross_sections: List[CrossSection] = field(default_factory=list)
     hydro_result: Optional[HydroResult] = None
     wq_result: Optional[WQResult] = None
     scenarios: Dict[str, dict] = field(default_factory=dict)
     engine_type: str = "pure_python"
     model_initialized: bool = False
+    geometry_revision: int = 0
+
+    def invalidate_hydro(self):
+        self.hydro_result = None
+        self.wq_result = None
+        self.scenarios.clear()
 
     def has_hydro(self) -> bool:
         return self.hydro_result is not None
 
     def has_wq(self) -> bool:
-        return self.wq_result is not None
+        if self.wq_result is None:
+            return False
+        origin = self.wq_result.params.get('hydro_run_id')
+        return origin is None or (self.hydro_result is not None
+                                  and origin == self.hydro_result.params.get('run_id'))

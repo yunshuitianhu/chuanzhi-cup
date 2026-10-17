@@ -8,7 +8,7 @@
  * 演示与文档中不得把"潮汐模拟"作为宣传点。
  * 参数默认取 `tidal_amplitude_m = 0`（恒定流），要跑潮汐需用户显式开启。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
@@ -35,68 +35,91 @@ const form = ref({
 })
 
 onMounted(detectParams)
+watch(() => store.status.analysis_revision, () => {
+  params.value = null
+  initResult.value = null
+  hydroResult.value = null
+  pollutionResult.value = null
+  busy.value = ''
+  detectParams()
+})
 
 async function detectParams() {
   if (!store.status.has_data) return
+  const revision = store.status.analysis_revision
   busy.value = 'params'
   try {
-    params.value = await api.riverParams()
+    const result = await api.riverParams()
+    if (revision !== store.status.analysis_revision) return
+    params.value = result
     form.value.upstream_flow_m3s = params.value.avg_discharge_m3s || 6.9
     form.value.mannings_n = params.value.mannings_n || 0.028
     toastOk(`识别到河道：${params.value.river_name}`)
   } catch (e) {
     toastErr(`参数检测失败：${e.message}`)
   } finally {
-    busy.value = ''
+    if (revision === store.status.analysis_revision) busy.value = ''
   }
 }
 
 async function runInit() {
+  const revision = store.status.analysis_revision
+  initResult.value = hydroResult.value = pollutionResult.value = null
   busy.value = 'init'
   try {
-    initResult.value = await api.riverInit({
+    const result = await api.riverInit({
       n_cross_sections: form.value.n_cross_sections,
       mannings_n: form.value.mannings_n,
       auto_detect: true,
     })
+    if (revision !== store.status.analysis_revision) return
+    initResult.value = result
     toastOk('模型初始化完成')
   } catch (e) {
     toastErr(`初始化失败：${e.message}`)
   } finally {
-    busy.value = ''
+    if (revision === store.status.analysis_revision) busy.value = ''
   }
 }
 
 async function runHydro() {
+  const revision = store.status.analysis_revision
+  hydroResult.value = pollutionResult.value = null
   busy.value = 'hydro'
   try {
-    hydroResult.value = await api.riverHydro({
+    const result = await api.riverHydro({
       upstream_flow_m3s: form.value.upstream_flow_m3s,
       tidal_amplitude_m: form.value.tidal_amplitude_m,
       duration_h: form.value.duration_h,
     })
+    if (revision !== store.status.analysis_revision) return
+    hydroResult.value = result
     toastOk('水动力模拟完成')
   } catch (e) {
     toastErr(`水动力模拟失败：${e.message}`)
   } finally {
-    busy.value = ''
+    if (revision === store.status.analysis_revision) busy.value = ''
   }
 }
 
 async function runPollution() {
+  const revision = store.status.analysis_revision
+  pollutionResult.value = null
   busy.value = 'pollution'
   try {
-    pollutionResult.value = await api.riverPollution({
+    const result = await api.riverPollution({
       chainage_m: form.value.chainage_m,
       pollutant_type: form.value.pollutant_type,
       load_kg: form.value.load_kg,
       simulation_hours: form.value.duration_h,
     })
+    if (revision !== store.status.analysis_revision) return
+    pollutionResult.value = result
     toastOk('污染事件模拟完成')
   } catch (e) {
     toastErr(`污染模拟失败：${e.message}`)
   } finally {
-    busy.value = ''
+    if (revision === store.status.analysis_revision) busy.value = ''
   }
 }
 
@@ -174,7 +197,7 @@ const pollutionCompare = computed(() => {
         <code>B_mid</code>，导致质量不守恒（实测残差达蓄水率的 103%）。
       </p>
       <p>
-        · <b>恒定流工况</b>（潮汐振幅 = 0）的结果可用 —— 质量守恒已验证成立<br />
+        · <b>恒定流工况</b>（潮汐振幅 = 0）仅作情景分析，真实河道仍需校准<br />
         · <b>潮汐工况</b>的结果不可作为结论依据
       </p>
       <p class="cv-foot">
@@ -192,7 +215,7 @@ const pollutionCompare = computed(() => {
           6 层检测管道：已知河道坐标库 → OSM → 高德逆地理 → 卫星影像 → 区域默认值 → 监测数据推断。
           坐标落在已知河道 bbox 内时直接命中标定参数（置信度 0.95），无需联网。
         </p>
-        <button class="mini" :disabled="busy === 'params'" @click="detectParams">
+        <button class="mini" :disabled="!!busy || store.chatRunning" @click="detectParams">
           {{ busy === 'params' ? '检测中…' : '重新检测' }}
         </button>
 
@@ -226,12 +249,12 @@ const pollutionCompare = computed(() => {
         </div>
 
         <div class="btn-row">
-          <button class="mini" :disabled="busy === 'init'" @click="runInit">
+          <button class="mini" :disabled="!!busy || store.chatRunning" @click="runInit">
             {{ busy === 'init' ? '初始化中…' : '初始化模型' }}
           </button>
           <button
             class="mini primary"
-            :disabled="busy === 'hydro' || !initResult"
+            :disabled="!!busy || store.chatRunning || !initResult"
             :title="initResult ? '' : '请先点左侧「初始化模型」'"
             @click="runHydro"
           >
@@ -264,7 +287,6 @@ const pollutionCompare = computed(() => {
             <select v-model="form.pollutant_type">
               <option value="ammonia">氨氮</option>
               <option value="cbod">CBOD</option>
-              <option value="cod">COD</option>
             </select>
           </label>
           <label>排放量 kg<input v-model.number="form.load_kg" type="number" step="10" /></label>
@@ -272,13 +294,14 @@ const pollutionCompare = computed(() => {
         </div>
         <button
           class="mini primary"
-          :disabled="busy === 'pollution' || !hydroResult"
+          :disabled="!!busy || store.chatRunning || !hydroResult"
           :title="hydroResult ? '' : '请先运行水动力模拟'"
           @click="runPollution"
         >
           {{ busy === 'pollution' ? '模拟中…' : '模拟污染事件' }}
         </button>
         <p v-if="!hydroResult" class="seq-hint">「模拟污染事件」需先运行水动力 —— 它提供流速场。</p>
+        <p class="hint">COD 尚未实现独立组分模拟，当前支持氨氮和 CBOD，不使用 CBOD 冒充 COD。</p>
 
         <template v-if="pollutionResult">
           <div class="result">

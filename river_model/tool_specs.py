@@ -26,14 +26,14 @@ RIVER_TOOL_SPECS = [
     }),
     _spec('simulate_pollution_event', '基于恒定流水动力结果模拟污染事件，仅作情景分析。', {
         'chainage_m': {'type': 'number', 'minimum': 0},
-        'pollutant_type': {'type': 'string', 'enum': ['ammonia', 'cbod', 'cod']},
-        'load_kg': {'type': 'number', 'exclusiveMinimum': 0},
+        'pollutant_type': {'type': 'string', 'enum': ['ammonia', 'cbod']},
+        'load_kg': {'type': 'number', 'minimum': 0},
         'duration_min': {'type': 'number', 'exclusiveMinimum': 0},
         'simulation_hours': {'type': 'number', 'minimum': 0.5, 'maximum': 48},
     }),
     _spec('get_concentration_profile', '查询模拟结果在指定时刻的沿程浓度。', {
         'time_h': {'type': 'number', 'minimum': 0},
-        'constituent': {'type': 'string', 'enum': ['ammonia', 'cbod', 'cod', 'do']},
+        'constituent': {'type': 'string', 'enum': ['ammonia', 'cbod', 'do']},
     }),
     _spec('compare_scenarios', '对比两个已保存模拟情景的参数。', {
         'scenario1_name': {'type': 'string'}, 'scenario2_name': {'type': 'string'},

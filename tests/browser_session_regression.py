@@ -99,6 +99,38 @@ try:
         load.click()
         expect(page.locator('.stream')).not_to_contain_text('这是第二段完整结论。')
         checks.append('相同行数的新文件也清除旧对话')
+
+        # 只替换模型计算响应，检查真实页面的依赖失效和失败交互。
+        page.route('**/api/river/params', lambda route: route.fulfill(json={
+            'river_name': '测试河道', 'location': '测试位置', 'length_m': 200,
+            'width_avg_m': 50, 'depth_avg_m': 2, 'mannings_n': .028,
+            'longitudinal_slope': .0001, 'avg_discharge_m3s': 1,
+            'tidal_range_m': 0, 'param_sources': {}, 'param_confidence': {}}))
+        page.route('**/api/river/init', lambda route: route.fulfill(json={
+            '断面数': 5, '河段长度_km': .2, '曼宁糙率': .028}))
+        page.route('**/api/river/hydro', lambda route: route.fulfill(json={
+            '工况': '恒定流', '输出帧数': 2, '水位变幅_m': .1, '最大流速_ms': .2,
+            '结果可信度': '仅供回归的模拟响应'}))
+        page.get_by_role('link', name='河道模型').click()
+        init_button = page.get_by_role('button', name='初始化模型', exact=True)
+        expect(init_button).to_be_enabled()
+        init_button.click()
+        hydro_button = page.get_by_role('button', name='运行水动力', exact=True)
+        expect(hydro_button).to_be_enabled()
+        hydro_button.click()
+        pollution_button = page.get_by_role('button', name='模拟污染事件', exact=True)
+        expect(pollution_button).to_be_enabled()
+        page.unroute('**/api/river/hydro')
+        page.route('**/api/river/hydro', lambda route: route.fulfill(
+            status=400, json={'detail': '测试计算失败'}))
+        hydro_button.click()
+        expect(pollution_button).to_be_disabled()
+        expect(page.locator('.toast').filter(has_text='水动力模拟失败')).to_be_visible()
+        checks.append('模型重算失败清除旧结果并禁用污染模拟')
+        page.get_by_role('button', name='IV', exact=True).click()
+        expect(hydro_button).to_be_disabled()
+        expect(page.locator('.result')).to_have_count(0)
+        checks.append('更换目标等级清除河道页的全部旧结果')
         assert not errors, errors
         checks.append('浏览器无未捕获 JavaScript 异常')
         browser.close()

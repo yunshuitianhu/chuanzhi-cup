@@ -81,7 +81,10 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
 
   if (!res.ok) {
     // FastAPI 的错误体是 {detail: ...}，尽量把可读信息透出去
-    const msg = (payload && payload.detail) || (typeof payload === 'string' ? payload : `HTTP ${res.status}`)
+    const detail = payload?.detail
+    const msg = Array.isArray(detail)
+      ? detail.map((x) => `${(x.loc || []).filter((v) => v !== 'body').join('.')}：${x.msg}`).join('；')
+      : detail || (typeof payload === 'string' ? payload : `HTTP ${res.status}`)
     throw new ApiError(String(msg), res.status, payload)
   }
   return payload

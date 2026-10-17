@@ -5,6 +5,7 @@
 
 import json
 import os
+import uuid
 from typing import Optional
 
 import numpy as np
@@ -22,6 +23,7 @@ from .visualization import (
     plot_hydro_wq_dashboard,
 )
 from .wq_engine import solve_water_quality
+from .standards import constituent_limit
 
 
 # ---- Tool 1: 初始化模型 ----
@@ -55,6 +57,12 @@ def tool_river_init(
         amap_key: 高德 API Key (可选, 提升自动检测精度)
         cloud_token: 星图地球 Cloud Token (可选, 提升宽度估计精度)
     """
+    if not 3 <= n_cross_sections <= 100 or (mannings_n is not None and not 0 < mannings_n <= .2):
+        return json.dumps({'error': '断面数须为 3~100，糙率须在 (0, 0.2]'}, ensure_ascii=False)
+    state.model_initialized = False
+    state.invalidate_hydro()
+    state.cross_sections = []
+    state.geometry_revision += 1
     if auto_detect:
         # ---- 自动检测模式 ----
         try:
@@ -192,6 +200,7 @@ def tool_river_hydro_simulation(
     if not state.model_initialized:
         return json.dumps({"error": "请先调用 init_river_model 初始化模型"}, ensure_ascii=False)
 
+    state.invalidate_hydro()  # 旧水质和情景不属于这次边界条件，失败后也不可继续使用。
     # 未显式指定时回落到 config。
     # ⚠️ config 的默认值恰好等于原先写死的常数
     #    （avg_discharge 6.9 / high_water 0.83 / tidal_range÷2 = 0.8 / m2_period 12.42），
@@ -216,6 +225,7 @@ def tool_river_hydro_simulation(
     except Exception as e:
         return json.dumps({"error": f"水动力模拟失败: {str(e)}"}, ensure_ascii=False)
 
+    result.params.update(run_id=uuid.uuid4().hex, geometry_revision=state.geometry_revision)
     state.hydro_result = result
 
     # 生成可视化
@@ -258,6 +268,7 @@ def tool_river_pollution_event(
     load_kg: float = 50.0,
     duration_min: float = 30.0,
     simulation_hours: float = 24.0,
+    target_water_class: str = 'V',
 ) -> str:
     """在雅瑶水道指定位置模拟污染事件。"""
     if not state.has_hydro():
@@ -266,11 +277,13 @@ def tool_river_pollution_event(
             "hint": "水动力模拟提供流速场, 是水质模拟的前提",
         }, ensure_ascii=False)
 
-    valid_types = ["ammonia", "cbod", "cod", "conservative"]
+    valid_types = ["ammonia", "cbod"]
     if pollutant_type not in valid_types:
         return json.dumps({"error": f"无效污染物类型。可选: {valid_types}"}, ensure_ascii=False)
 
+    state.wq_result = None
     try:
+        std_limit = constituent_limit(pollutant_type, target_water_class)
         result = solve_water_quality(
             state.config,
             state.hydro_result,
@@ -284,6 +297,8 @@ def tool_river_pollution_event(
     except Exception as e:
         return json.dumps({"error": f"水质模拟失败: {str(e)}"}, ensure_ascii=False)
 
+    result.params.update(hydro_run_id=state.hydro_result.params.get('run_id'),
+                         hydro_tidal_amplitude_m=state.hydro_result.params.get('tidal_amplitude_m', 0))
     state.wq_result = result
     scenario_name = f"{pollutant_type}_{load_kg}kg_{chainage_m}m"
     state.scenarios[scenario_name] = result.params
@@ -330,13 +345,10 @@ def tool_river_pollution_event(
     # 分析影响
     if pollutant_type == "ammonia" and result.ammonia is not None:
         data = result.ammonia
-        std_limit = 2.0
     elif pollutant_type in ("cbod", "cod") and result.cbod is not None:
         data = result.cbod
-        std_limit = 10.0
     else:
         data = result.ammonia if result.ammonia is not None else result.cbod
-        std_limit = 2.0
 
     peak_c = float(np.max(data)) if data is not None else 0.0
     peak_time_idx = int(np.argmax(np.max(data, axis=1))) if data is not None else 0
@@ -393,8 +405,10 @@ def tool_river_pollution_event(
         "超标倍数": round(peak_c / std_limit, 1) if std_limit > 0 else 0,
         # 两个口径分别标注基准，避免被读成互相矛盾
         "相对标准限值": {
+            "目标水质": target_water_class,
             "基准_mgL": std_limit,
-            "说明": "浓度超过 GB3838 标准限值的断面",
+            "说明": ("CBOD 与 BOD 标准不是同一量测口径，仅作参考，不能据此认定达标"
+                     if pollutant_type == 'cbod' else "浓度超过所选等级标准限值的断面"),
             "断面数": n_exceed_std,
             "桩号范围_m": list(exceed_std_chainage_range),
         },
@@ -422,21 +436,23 @@ def tool_river_concentration_profile(
     state: RiverModelState,
     time_h: float = 6.0,
     constituent: str = "ammonia",
+    target_water_class: str = 'V',
 ) -> str:
     """查询指定时刻的沿程浓度剖面。"""
     if not state.has_wq():
         return json.dumps({"error": "请先运行 simulate_pollution_event"}, ensure_ascii=False)
 
     wq = state.wq_result
+    try:
+        std = constituent_limit(constituent, target_water_class)
+    except ValueError as exc:
+        return json.dumps({'error': str(exc)}, ensure_ascii=False)
     if constituent == "ammonia":
         data = wq.ammonia
-        std = 2.0
     elif constituent in ("cbod", "cod"):
         data = wq.cbod
-        std = 10.0
     elif constituent == "do":
         data = wq.dissolved_oxygen
-        std = 2.0
     else:
         return json.dumps({"error": f"未知组分: {constituent}"}, ensure_ascii=False)
 
@@ -449,7 +465,7 @@ def tool_river_concentration_profile(
     chainage = wq.chainage
 
     # 超标断面
-    exceeded_mask = profile > std
+    exceeded_mask = profile < std if constituent == 'do' else profile > std
     exceeded_sections = [
         {"桩号_m": round(float(chainage[i]), 0), "浓度": round(float(profile[i]), 2)}
         for i in range(len(profile)) if exceeded_mask[i]
@@ -459,6 +475,9 @@ def tool_river_concentration_profile(
         "时刻_h": round(float(wq.t[t_idx]), 1),
         "组分": constituent,
         "标准限值_mgL": std,
+        "目标水质": target_water_class,
+        "限值方向": '下限' if constituent == 'do' else '上限',
+        "口径说明": 'CBOD 使用 BOD 参考值，不能据此认定达标' if constituent == 'cbod' else '所选等级限值',
         "沿程浓度": [round(float(c), 2) for c in profile[::5]],  # 抽样
         "桩号_m": [round(float(ch), 0) for ch in chainage[::5]],
         "最大浓度_mgL": round(float(np.max(profile)), 2),
