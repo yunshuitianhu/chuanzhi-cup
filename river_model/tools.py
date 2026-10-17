@@ -404,6 +404,7 @@ def tool_river_pollution_event(
     return json.dumps({
         "状态": "污染事件模拟完成",
         "反应模型": result.params.get('reaction_model', {}),
+        "反应核算": result.params.get('reaction_diagnostics', {}),
         "质量核算": result.params.get('mass_balance', {}),
         "污染物": pollutant_type,
         "排放量_kg": load_kg,

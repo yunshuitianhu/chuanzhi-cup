@@ -92,6 +92,12 @@ class TransportTests(unittest.TestCase):
                 solve_water_quality(self.cfg, h, chainage_m=kwargs.get('chainage_m', 100),
                     **{k: v for k, v in kwargs.items() if k != 'chainage_m'})
 
+    def test_known_bad_tidal_hydrodynamics_cannot_feed_water_quality(self):
+        h=still_hydro([0,100,200])
+        h.params={'engine':'pure_python_preissmann','tidal_amplitude_m':.8}
+        with self.assertRaisesRegex(ValueError,'水量守恒'):
+            solve_water_quality(self.cfg,h,chainage_m=100)
+
 
 if __name__ == '__main__':
     unittest.main()

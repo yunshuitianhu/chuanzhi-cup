@@ -198,7 +198,7 @@ const pollutionCompare = computed(() => {
       </p>
       <p>
         · <b>恒定流工况</b>（潮汐振幅 = 0）仅作情景分析，真实河道仍需校准<br />
-        · <b>潮汐工况</b>的结果不可作为结论依据
+        · <b>潮汐工况</b>的结果不可作为结论依据，当前不用于水质计算
       </p>
       <p class="cv-foot">
         详见 <code>docs/代码审计与修改方案.md</code> 第 2.8 节。演示与文档中不应把「潮汐模拟」作为宣传点。
@@ -213,7 +213,7 @@ const pollutionCompare = computed(() => {
         <h3 class="st">① 河道参数自动检测</h3>
         <p class="desc">
           6 层检测管道：已知河道坐标库 → OSM → 高德逆地理 → 卫星影像 → 区域默认值 → 监测数据推断。
-          坐标落在已知河道 bbox 内时直接命中标定参数（置信度 0.95），无需联网。
+          坐标落在已知河道范围内时可读取河道库参考参数，无需联网；来源置信度不等于现场率定精度。
         </p>
         <button class="mini" :disabled="!!busy || store.chatRunning" @click="detectParams">
           {{ busy === 'params' ? '检测中…' : '重新检测' }}
@@ -310,6 +310,14 @@ const pollutionCompare = computed(() => {
             <span>超标倍数 <b>{{ pollutionResult['超标倍数'] }}</b></span>
           </div>
           <p class="cred">{{ pollutionResult['提示'] }}</p>
+          <div v-if="pollutionResult['反应模型']?.version" class="reaction-info">
+            <p>本次计算包含硝化耗氧、低氧限制及硝态氮转化。</p>
+            <div class="result">
+              <span>末时刻最低 DO <b>{{ pollutionResult['反应核算']?.final_minimum_do_mgL?.toFixed(3) ?? '—' }} mg/L</b></span>
+              <span>硝化耗氧 <b>{{ pollutionResult['反应核算']?.nitrification_oxygen_demand_kg?.toFixed(3) ?? '—' }} kg O₂</b></span>
+            </div>
+            <p class="hint">{{ pollutionResult['反应模型'].parameter_status }}。{{ pollutionResult['反应模型'].simplifications }}。</p>
+          </div>
           <EChart v-if="pollutionCompare" :option="pollutionCompare" :height="150" />
           <p class="hint">
             两个口径的基准不同，故结论未必一致：左为「是否超 GB3838 限值」，

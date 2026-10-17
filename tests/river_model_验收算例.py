@@ -337,7 +337,7 @@ st_t = RiverModelState()
 st_t.config = cfg_t
 st_t.cross_sections = cs_t
 st_t.model_initialized = True
-st_t.hydro_result = run(cfg_t, cs_t, amp=0.8, duration_h=2.0, dt_s=60.0)
+st_t.hydro_result = run(cfg_t, cs_t, amp=0.0, duration_h=2.0, dt_s=60.0)
 
 ev = json.loads(tool_river_pollution_event(st_t, 1600.0, "ammonia", 50.0, 30.0, 2.0))
 has_std = isinstance(ev.get("相对标准限值"), dict) and "基准_mgL" in ev["相对标准限值"]

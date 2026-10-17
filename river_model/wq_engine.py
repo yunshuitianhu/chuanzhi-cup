@@ -218,6 +218,9 @@ def solve_water_quality(
     """
     if pollutant_type not in ('ammonia', 'cbod'):
         raise ValueError('仅支持独立实现的 ammonia/cbod 组分')
+    if (hydro.params.get('engine') == 'pure_python_preissmann'
+            and hydro.params.get('tidal_amplitude_m', 0)):
+        raise ValueError('当前纯 Python 潮汐水动力未通过水量守恒验收，不能用于水质计算')
     values = (load_kg, chainage_m, duration_min, simulation_hours, dt_s)
     if not all(np.isfinite(value) for value in values) or load_kg < 0 or min(duration_min, simulation_hours, dt_s) <= 0:
         raise ValueError('负荷须非负，时长和步长须为正有限数')
@@ -388,6 +391,13 @@ def solve_water_quality(
                 "oxygen_half_sat_sod_mgL": config.oxygen_half_sat_sod,
                 "parameter_status": "通用情景参数，未经当前河道现场率定",
                 "simplifications": "硝化产物合并为NO3-N；不含生物合成、反硝化、藻类和碱度过程",
+            },
+            "reaction_diagnostics": {
+                "nitrified_n_kg": -float(reaction_change[1] / 1000),
+                "nitrate_n_produced_kg": float(reaction_change[3] / 1000),
+                "nitrification_oxygen_demand_kg": -float(reaction_change[1] / 1000) * config.oxygen_per_nitrified_n,
+                "final_minimum_do_mgL": float(do_out[-1].min()),
+                "final_maximum_do_mgL": float(do_out[-1].max()),
             },
             "duration_min": duration_min,
             "simulation_hours": simulation_hours,
