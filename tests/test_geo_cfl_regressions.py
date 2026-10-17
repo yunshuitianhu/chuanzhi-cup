@@ -61,14 +61,15 @@ class CFLRegressionTests(unittest.TestCase):
                     water_level=np.ones((1, 3)),
                     discharge=np.array([velocities]) * 100,
                     velocity=np.array([velocities]), area=np.ones((1, 3)) * 100)
-                original = wq_engine._advection_step
+                original = wq_engine.conservative_step
                 courant = []
 
-                def record(c, u, dx, dt):
-                    courant.append(float(np.max(np.abs(u))) * dt / dx)
-                    return original(c, u, dx, dt)
+                def record(c, volume, q_face, conductance, dt, *boundary):
+                    out = np.maximum(q_face[1:], 0) + np.maximum(-q_face[:-1], 0)
+                    courant.append(float(np.max(out * dt / volume)))
+                    return original(c, volume, q_face, conductance, dt, *boundary)
 
-                with patch.object(wq_engine, '_advection_step', side_effect=record):
+                with patch.object(wq_engine, 'conservative_step', side_effect=record):
                     result = wq_engine.solve_water_quality(
                         YayaoConfig(), hydro, simulation_hours=1/60,
                         duration_min=1, chainage_m=10, dt_s=60)

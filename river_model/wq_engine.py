@@ -1,8 +1,8 @@
 """水质 ADR (Advection-Diffusion-Reaction) 求解器。
 
 算子分裂法:
-  1. 对流步: 显式迎风格式
-  2. 扩散步: 显式中心差分
+  1. 控制体积面通量：迎风对流 + 守恒扩散
+  2. 单元质量负荷：按真实覆盖时长和水体体积注入
   3. 反应步: Runge-Kutta 4 阶
 
 反应动力学 (简化 QUAL2E 型, 无藻类):
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 from .config import YayaoConfig
 from .state import HydroResult, WQResult
+from .transport import geometry, conservative_step
 
 
 # ---- 反应动力学 ----
@@ -193,6 +194,13 @@ def solve_water_quality(
     Returns:
         WQResult 包含各组分浓度时间序列
     """
+    if pollutant_type not in ('ammonia', 'cbod'):
+        raise ValueError('仅支持独立实现的 ammonia/cbod 组分')
+    values = (load_kg, chainage_m, duration_min, simulation_hours, dt_s)
+    if not all(np.isfinite(value) for value in values) or load_kg < 0 or min(duration_min, simulation_hours, dt_s) <= 0:
+        raise ValueError('负荷须非负，时长和步长须为正有限数')
+    if not hydro.chainage[0] <= chainage_m <= hydro.chainage[-1]:
+        raise ValueError('污染源桩号超出当前河道范围')
     n_cs = len(hydro.chainage)
     chainage = hydro.chainage
     t_hydro = hydro.t * 3600.0  # 转为秒
@@ -255,123 +263,79 @@ def solve_water_quality(
     nh3 = np.ones(n_cs) * config.ammonia_nh3_mgL
     do_ = np.ones(n_cs) * config.dissolved_oxygen_mgL
 
-    # ---- 时间推进 ----
-    total_steps = int(simulation_hours * 3600.0 / dt_s)
-    n_outputs = max(int(total_steps / 60) + 1, 2)  # 每分钟输出一次
-    output_interval = max(total_steps // (n_outputs - 1), 1)
-
-    n_out = total_steps // output_interval + 1
-    t_out = np.zeros(n_out)
-    cbod_out = np.zeros((n_out, n_cs))
-    nh3_out = np.zeros((n_out, n_cs))
-    do_out = np.zeros((n_out, n_cs))
-    out_idx = 0
-
-    # 保存初始状态
-    t_out[0] = 0.0
-    cbod_out[0, :] = cbod
-    nh3_out[0, :] = nh3
-    do_out[0, :] = do_
-    out_idx = 1
-
-    dx = chainage[1] - chainage[0] if n_cs > 1 else 64.0
-    # 使用水动力结果中平均或最接近时间点的流速
-    hydro_dt = np.mean(np.diff(t_hydro)) if len(t_hydro) > 1 else dt_s
-
-    # 质量注入速率 (kg/s → 浓度 mg/L)
-    # load_kg over duration_sec → mass_rate g/s
-    mass_rate_gs = load_kg * 1000.0 / duration_sec if duration_sec > 0 else 0.0
-    # 注入浓度增量: ΔC = mass_rate / Q_at_source (mg/L)
-    # 使用水动力结果中该断面的平均流量
+    # ---- 控制体积质量推进；源项 = 质量速率 × 实际覆盖时长 / 单元水体体积 ----
+    total_seconds = simulation_hours * 3600.0
+    total_steps = int(np.ceil(total_seconds / dt_s))
+    output_interval = max(total_steps // max(total_steps // 60, 1), 1)
+    components = np.stack([cbod, nh3, do_])
+    upstream, downstream = components[:, 0].copy(), components[:, -1].copy()
+    initial_area = hydro.area[0] if hydro.area is not None else np.full(n_cs, config.width_avg_m * config.depth_avg_m)
+    volume, _, _, _ = geometry(chainage, initial_area, hydro.discharge[0], K_array)
+    initial_mass = (components * volume).sum(axis=1)
+    injected = np.zeros(3)
+    inflow = np.zeros(3)
+    outflow = np.zeros(3)
+    reaction_change = np.zeros(3)
+    mass_rate_gs = load_kg * 1000.0 / duration_sec
+    source_component = 1 if pollutant_type == 'ammonia' else 0
+    times, snapshots = [0.0], [components.copy()]
+    max_stability = 0.0
 
     for step in range(1, total_steps + 1):
-        t_current = step * dt_s
-
-        # ---- 从水动力结果线性插值当前时刻的 u, H, A, Q ----
+        t0 = (step - 1) * dt_s
+        t1 = min(step * dt_s, total_seconds)
+        step_dt = t1 - t0
         if len(t_hydro) > 1:
-            hydro_idx_frac = np.interp(t_current, t_hydro,
-                                        np.arange(len(t_hydro)))
-            hydro_lo = int(np.floor(hydro_idx_frac))
-            hydro_hi = min(hydro_lo + 1, len(t_hydro) - 1)
-            frac = hydro_idx_frac - hydro_lo
-            # 插值流速 (保留方向, 不用 np.abs)
-            u_lo = hydro.velocity[hydro_lo, :]
-            u_hi = hydro.velocity[hydro_hi, :]
-            u_now = (1.0 - frac) * u_lo + frac * u_hi
-            # 插值过流面积
-            if hydro.area is not None:
-                a_lo = hydro.area[hydro_lo, :]
-                a_hi = hydro.area[hydro_hi, :]
-                A_now = (1.0 - frac) * a_lo + frac * a_hi
-            else:
-                A_now = np.ones(n_cs) * config.width_avg_m * config.depth_avg_m
-            # 插值流量 (保留方向)
-            q_lo = hydro.discharge[hydro_lo, :]
-            q_hi = hydro.discharge[hydro_hi, :]
-            Q_now = (1.0 - frac) * q_lo + frac * q_hi
+            position = np.interp((t0 + t1) / 2, t_hydro, np.arange(len(t_hydro)))
+            lo = int(np.floor(position))
+            hi = min(lo + 1, len(t_hydro) - 1)
+            fraction = position - lo
+            u_now = (1 - fraction) * hydro.velocity[lo] + fraction * hydro.velocity[hi]
+            Q_now = (1 - fraction) * hydro.discharge[lo] + fraction * hydro.discharge[hi]
+            A_now = ((1 - fraction) * hydro.area[lo] + fraction * hydro.area[hi]
+                     if hydro.area is not None else initial_area)
         else:
-            # 只有稳态结果, 直接用
-            u_now = hydro.velocity[0, :]
-            A_now = hydro.area[0, :] if hydro.area is not None else np.ones(n_cs) * config.width_avg_m * config.depth_avg_m
-            Q_now = hydro.discharge[0, :]
+            u_now, Q_now, A_now = hydro.velocity[0], hydro.discharge[0], initial_area
 
-        # 水深: 面积 / 河宽
-        H_now = np.maximum(A_now / config.width_avg_m,
-                            config.depth_range_m[0] * 0.5)
+        new_volume, q_face, conductance, rate = geometry(chainage, A_now, Q_now, K_array)
+        components *= volume / new_volume  # 几何随时间变化时保持原有质量。
+        volume = new_volume
+        # 对流与扩散共同限制显式步长，包含反向流和边界半单元。
+        n_sub = max(1, int(np.ceil(step_dt * rate / .9)))
+        sub_dt = step_dt / n_sub
+        max_stability = max(max_stability, rate * sub_dt)
+        H_now = np.maximum(A_now / config.width_avg_m, .1)
 
-        # 污染源注入
-        # mass_rate [g/s] / flow [m³/s] = [mg/L]  (1 g/m³ = 1 mg/L, 1 m³/s = 1000 L/s)
-        if t_current <= duration_sec and pollutant_type != "conservative":
-            Q_src = max(abs(Q_now[source_idx]), 0.1)
-            delta_c = mass_rate_gs / Q_src  # mg/L
-            if pollutant_type == "ammonia":
-                nh3[source_idx] += delta_c * dt_s / duration_sec
-            elif pollutant_type in ("cbod", "cod"):
-                cbod[source_idx] += delta_c * dt_s / duration_sec
+        for sub in range(n_sub):
+            sub_t0 = t0 + sub * sub_dt
+            overlap = max(0., min(sub_t0 + sub_dt, duration_sec) - sub_t0)
+            added = mass_rate_gs * overlap
+            components[source_component, source_idx] += added / volume[source_idx]
+            injected[source_component] += added
+            components, step_in, step_out = conservative_step(
+                components, volume, q_face, conductance, sub_dt, upstream, downstream)
+            inflow += step_in
+            outflow += step_out
+            before_reaction = (components * volume).sum(axis=1)
+            components = np.stack(_reaction_step(
+                *components, H_now, np.abs(u_now), K_d, K_s, beta1, SOD,
+                O_sat, T_C, sub_dt, theta_d, theta_n, theta_rea))
+            reaction_change += (components * volume).sum(axis=1) - before_reaction
 
-        # ---- 算子分裂 ----
-        # 子步长可能需要更小以满足 CFL (u*dt/dx < 1)
-        n_sub = max(1, int(np.max(np.abs(u_now)) * dt_s / dx) + 1)
-        dt_sub = dt_s / n_sub
+        if step % output_interval == 0 or step == total_steps:
+            times.append(t1 / 3600)
+            snapshots.append(components.copy())
 
-        for _ in range(n_sub):
-            # 1. 对流
-            cbod = _advection_step(cbod, u_now, dx, dt_sub)
-            nh3 = _advection_step(nh3, u_now, dx, dt_sub)
-            do_ = _advection_step(do_, u_now, dx, dt_sub)
-
-            # 2. 扩散
-            cbod = _diffusion_step(cbod, K_array, dx, dt_sub)
-            nh3 = _diffusion_step(nh3, K_array, dx, dt_sub)
-            do_ = _diffusion_step(do_, K_array, dx, dt_sub)
-
-            # 3. 反应
-            cbod, nh3, do_ = _reaction_step(
-                cbod, nh3, do_, H_now, u_now,
-                K_d, K_s, beta1, SOD, O_sat, T_C, dt_sub,
-                theta_d, theta_n, theta_rea,
-            )
-
-        # ---- 输出 ----
-        if step % output_interval == 0 and out_idx < n_out:
-            t_out[out_idx] = t_current / 3600.0
-            cbod_out[out_idx, :] = cbod
-            nh3_out[out_idx, :] = nh3
-            do_out[out_idx, :] = do_
-            out_idx += 1
-
-    # 确保最后一个时间步被写下
-    if out_idx < n_out:
-        t_out[out_idx] = total_steps * dt_s / 3600.0
-        cbod_out[out_idx, :] = cbod
-        nh3_out[out_idx, :] = nh3
-        do_out[out_idx, :] = do_
-        out_idx += 1
-
-    t_out = t_out[:out_idx]
-    cbod_out = cbod_out[:out_idx, :]
-    nh3_out = nh3_out[:out_idx, :]
-    do_out = do_out[:out_idx, :]
+    t_out = np.asarray(times)
+    output = np.stack(snapshots)
+    cbod_out, nh3_out, do_out = output[:, 0], output[:, 1], output[:, 2]
+    final_mass = (components * volume).sum(axis=1)
+    residual = final_mass - initial_mass - injected - inflow + outflow - reaction_change
+    balance = {name: {key: float(value[i] / 1000) for key, value in {
+        'initial_kg': initial_mass, 'injected_kg': injected, 'inflow_kg': inflow,
+        'outflow_kg': outflow, 'reaction_change_kg': reaction_change,
+        'final_kg': final_mass, 'residual_kg': residual}.items()}
+        for i, name in enumerate(('cbod', 'ammonia', 'do'))}
 
     return WQResult(
         t=t_out,
@@ -384,6 +348,8 @@ def solve_water_quality(
             "load_kg": load_kg,
             "chainage_m": chainage_m,
             "source_section_id": source_idx,
+            "mass_balance": balance,
+            "max_transport_stability": max_stability,
             "duration_min": duration_min,
             "simulation_hours": simulation_hours,
         },
