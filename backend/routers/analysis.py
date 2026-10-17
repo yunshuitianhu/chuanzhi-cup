@@ -49,6 +49,8 @@ def black_spots(session: Session = Depends(get_exclusive_session)) -> dict:
         session.black_spots_json = result_json
 
     parsed = json.loads(result_json)
+    if 'error' in parsed:
+        raise HTTPException(400, parsed['error'])
     clusters = parsed.get("聚类详情", []) or []
     return {
         "result": parsed,

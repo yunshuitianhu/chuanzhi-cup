@@ -138,7 +138,11 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
     if black is None or len(black) == 0:
         raise HTTPException(400, "请先运行黑臭检测")
 
+    if not {'latitude', 'longitude'} <= set(df.columns):
+        raise HTTPException(400, '缺少经纬度，无法绘制溯源地图')
     coords = df[["latitude", "longitude"]].dropna()
+    if coords.empty:
+        raise HTTPException(400, '没有有效经纬度，无法绘制溯源地图')
     track = [[_clean(r.latitude), _clean(r.longitude)] for r in coords.itertuples()]
 
     clusters = []

@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 from sklearn.cluster import DBSCAN
+from .data_quality import measurement_error, assessment_mask
 
 if TYPE_CHECKING:
     from .analysis_config import AnalysisConfig
@@ -570,7 +571,12 @@ def find_black_spots(df, config=None):
 
     target_class = config.target_water_class
 
-    temp = df.copy()
+    error = measurement_error(df)
+    if error:
+        return json.dumps({'error': error}, ensure_ascii=False), None
+    valid = assessment_mask(df)
+    quality = {'有效判定点数': int(valid.sum()), '未判定点数': int((~valid).sum())}
+    temp = df.loc[valid].copy()
     # 增强黑点评分 (超标倍数 × 严重度 × 时间持续性 × 空间连续性)
     temp['black_score'] = compute_black_score_enhanced(temp, config)
     # 传统内梅罗指数 (用于对比参考)
@@ -587,17 +593,21 @@ def find_black_spots(df, config=None):
     temp['spatiotemporal_black'] = (temp['black_score'] > 1.5) & (temp['severity'] == 'normal')
 
     black = temp[temp['is_black']].copy()
-    if len(black) >= 5:
-        clusters = DBSCAN(eps=config.dbscan_eps, min_samples=config.dbscan_min_samples).fit_predict(
-            black[['longitude', 'latitude']])
-        black['cluster_id'] = clusters
-    else:
-        black['cluster_id'] = -1
+    black['cluster_id'] = -1
+    if {'longitude', 'latitude'} <= set(black.columns):
+        coords = black[['longitude', 'latitude']].apply(pd.to_numeric, errors='coerce')
+        spatial_valid = (coords.longitude.between(-180, 180)
+                         & coords.latitude.between(-90, 90))
+        if spatial_valid.sum() >= 5:
+            black.loc[spatial_valid, 'cluster_id'] = DBSCAN(
+                eps=config.dbscan_eps, min_samples=config.dbscan_min_samples
+            ).fit_predict(coords.loc[spatial_valid])
 
     if len(black) == 0:
         return json.dumps({
             "黑点总数": 0,
-            "提示": f"未检测到黑臭水体 (目标水质: {target_class}类)。所有采样点氨氮≤8.0 mg/L 且 DO≥2.0 mg/L。",
+            "提示": f"在 {quality['有效判定点数']} 个有效判定点中未检出黑臭（仅依据氨氮和溶解氧）；{quality['未判定点数']} 个缺测点未判定，不能视作达标。",
+            **quality,
             "判定标准": {"污染指数": f"GB3838-2002 {target_class}类 + 增强时空评分", "黑臭判定": "《城市黑臭水体整治工作指南》(2015)"},
             "可用指标": _AVAILABLE_INDICATORS,
             "缺失指标": _MISSING_INDICATORS,
@@ -620,6 +630,7 @@ def find_black_spots(df, config=None):
             "黑臭判定": "《城市黑臭水体整治工作指南》(2015)"
         },
         "可用指标": _AVAILABLE_INDICATORS,
+        **quality,
         "缺失指标": _MISSING_INDICATORS,
         "黑点总数": len(black),
         "时空增强识别的额外黑点": n_extra,
@@ -710,13 +721,19 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
     if not frames:
         return json.dumps({"error": "视频帧未提取，请先调用 extract_video"}, ensure_ascii=False)
 
+    error = measurement_error(df)
+    if error:
+        return json.dumps({'error': error}, ensure_ascii=False)
+    recording_start = df['datetime'].min()
+    df = df.loc[assessment_mask(df)]
+
     # 结构化视频分析
     vid_df = _analyze_video_frames_structured(frames)
     if vid_df.empty:
         return json.dumps({"error": "未能从视频帧中提取有效指标"}, ensure_ascii=False)
 
     # 时间对齐: 视频第0秒 = 第一条数据时间 + 偏移
-    base_time = df['datetime'].min() + timedelta(seconds=time_offset_sec)
+    base_time = recording_start + timedelta(seconds=time_offset_sec)
     vid_df['frame_datetime'] = vid_df['time_sec'].apply(lambda t: base_time + timedelta(seconds=t))
 
     # 为每个视频帧匹配监测数据 (时间窗口内取均值)
@@ -853,6 +870,8 @@ def build_comprehensive_summary(state, river_state=None, config=None):
         sections["数据概览"] = {
             "记录数": len(state.df),
             "时间范围": f"{state.df['datetime'].min()} ~ {state.df['datetime'].max()}",
+            "有效判定点数": int(assessment_mask(state.df).sum()),
+            "未判定点数": int((~assessment_mask(state.df)).sum()),
         }
         for col, name, unit in [('ammonia_nitrogen', '氨氮', 'mg/L'), ('dissolved_oxygen', '溶解氧', 'mg/L'),
                                   ('turbidity', '浊度', 'NTU'), ('ph', 'pH', ''), ('cod', 'COD', 'mg/L')]:
@@ -956,7 +975,10 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                     "平均流速_ms": round(float(np.nanmean(np.abs(h.velocity))), 3),
                     "参数": h.params,
                 }
-            if hydro_usable and hasattr(river_state, 'has_wq') and river_state.has_wq():
+            wq_tidal = (getattr(river_state.wq_result, 'params', {}) or {}).get('hydro_tidal_amplitude_m', 0)
+            if wq_tidal:
+                river['结论限制'] = '水质模拟来源于未验收潮汐工况，已排除其数值。'
+            if hydro_usable and not wq_tidal and hasattr(river_state, 'has_wq') and river_state.has_wq():
                 w = river_state.wq_result
                 ammonia = w.ammonia if w.ammonia is not None else np.zeros((1, 1))
                 river["水质模拟"] = {

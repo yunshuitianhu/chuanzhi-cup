@@ -7,6 +7,7 @@ import tempfile
 import cv2
 import numpy as np
 import pandas as pd
+from .data_quality import MEASUREMENTS, measurement_error
 
 # 抑制 FFmpeg H.264 解码警告，避免污染 stderr
 os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "-8"
@@ -206,7 +207,7 @@ def load_data(file_bytes: str, filename: str):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    for col in ['ph', 'dissolved_oxygen', 'water_temperature']:
+    for col in ['ph', 'water_temperature']:
         if col in df.columns:
             df[col] = df[col].replace(0, np.nan)
 
@@ -215,6 +216,14 @@ def load_data(file_bytes: str, filename: str):
     for col, (lo, hi) in limits.items():
         if col in df.columns:
             df[col] = df[col].where((df[col] >= lo) & (df[col] <= hi), np.nan)
+
+    # 插值可用于趋势展示，但不能制造实测证据。DO=0 是合法的严重低氧观测。
+    for col in MEASUREMENTS:
+        if col in df:
+            df[f'__observed_{col}'] = df[col].notna() & np.isfinite(df[col])
+    error = measurement_error(df)
+    if error:
+        return None, error
 
     for col in numeric_cols:
         if col in df.columns and df[col].isna().sum() > 0:
