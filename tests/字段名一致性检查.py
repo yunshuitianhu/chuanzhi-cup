@@ -24,7 +24,6 @@ warnings.filterwarnings("ignore")
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJ)
-sys.path.insert(0, os.path.join(PROJ, "water_quality_mcp", "src"))
 
 import numpy as np
 import pandas as pd
@@ -94,13 +93,13 @@ print("#" * 72)
 print("# 界面字段名 vs 后端产出字段名 一致性检查")
 print("#" * 72)
 
-from water_quality_mcp.analysis import (
+from water_quality_mcp.src.water_quality_mcp.analysis import (
     build_comprehensive_summary,
     cross_validate_video_with_monitoring,
     find_black_spots,
 )
-from water_quality_mcp.analysis_config import DEFAULT_CONFIG
-from water_quality_mcp.state import WaterQualityState
+from water_quality_mcp.src.water_quality_mcp.analysis_config import DEFAULT_CONFIG
+from water_quality_mcp.src.water_quality_mcp.state import WaterQualityState
 
 # ---------- 造一份能触发聚类与触发指标的数据 ----------
 rng = np.random.default_rng(7)
@@ -188,6 +187,7 @@ seg = strip_comments(APP_SRC[start:start + 6000])
 read3 = set(re.findall(r'cv_data\.get\(\s*["\']([^"\']+)["\']', seg)) | \
         set(re.findall(r'cv_data\[["\']([^"\']+)["\']\]', seg)) | \
         set(re.findall(r'["\']([A-Za-z_]+)["\']\s+in\s+cv_data', seg))
+bad = []
 if miss2 or read3:
     produced3 = flat_keys(cv_obj) if "error" not in cv_obj else set()
     print(f"\n{'=' * 72}")
@@ -239,7 +239,7 @@ print("=" * 72)
 print("5. rag_engine.build_query_from_summary（RAG 注入的回归守卫）")
 print(f"{'=' * 72}")
 
-from water_quality_mcp.rag_engine import get_rag_engine
+from water_quality_mcp.src.water_quality_mcp.rag_engine import get_rag_engine
 
 engine = get_rag_engine()
 try:
@@ -263,5 +263,7 @@ print(f"   {'[PASS]' if ok_rag else '[FAIL]'} RAG 查询构造正常"
 
 print()
 print("=" * 72)
-print(f"检查完成：{'全部通过' if not miss1 and ok_rag else '存在不一致，见上'}")
+passed = not miss1 and not miss2 and not bad and ok_rag
+print(f"检查完成：{'全部通过' if passed else '存在不一致，见上'}")
 print("=" * 72)
+sys.exit(0 if passed else 1)
