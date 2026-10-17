@@ -529,20 +529,18 @@ def data_summary(df):
     """返回水质数据统计摘要 JSON。"""
     if df is None or len(df) == 0:
         return json.dumps({"error": "数据未加载"}, ensure_ascii=False)
-    agg_cols = {k: v for k, v in {
-        'ammonia_nitrogen': ['mean', 'max'], 'dissolved_oxygen': ['mean', 'min'],
-        'turbidity': ['mean', 'max'], 'ph': ['mean', 'min', 'max'], 'cod': ['mean', 'max']
-    }.items() if k in df.columns}
-    s = df.agg(agg_cols) if agg_cols else pd.DataFrame()
     result = {
         "记录数": len(df),
         "时间范围": f"{df['datetime'].min()} ~ {df['datetime'].max()}",
     }
     for col, name, unit in [('ammonia_nitrogen','氨氮','mg/L'), ('dissolved_oxygen','溶解氧','mg/L'),
                               ('turbidity','浊度','NTU'), ('ph','pH',''), ('cod','COD','mg/L')]:
-        if col in s.columns:
-            result[name] = {"均值": round(float(s[col]['mean']), 2) if 'mean' in s[col].index else None,
-                            "极值": round(float(s[col]['max' if 'max' in s[col].index else 'min']), 2),
+        if col in df.columns:
+            values = pd.to_numeric(df[col], errors='coerce')
+            values = values[np.isfinite(values)]
+            extreme = values.min() if col == 'dissolved_oxygen' else values.max()
+            result[name] = {"均值": round(float(values.mean()), 2) if len(values) else None,
+                            "极值": round(float(extreme), 2) if len(values) else None,
                             "单位": unit}
     return json.dumps(result, ensure_ascii=False)
 
