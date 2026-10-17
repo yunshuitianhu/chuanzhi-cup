@@ -56,6 +56,7 @@ class YayaoConfig:
 
     # ---- 水质基线 (V类) ----
     ammonia_nh3_mgL: float = 3.0
+    nitrate_n_mgL: float = 0.0        # NO3-N 初值；无实测时为情景假设，不是观测值
     dissolved_oxygen_mgL: float = 2.0
     cod_mgL: float = 60.0
     bod_cbod_mgL: float = 20.0
@@ -81,6 +82,10 @@ class YayaoConfig:
     # ---- 反应动力学参数 (20°C) ----
     k_cbod_decay: float = 0.25        # CBOD衰减速率 d⁻¹
     k_nitrification: float = 0.15     # 硝化速率 d⁻¹
+    oxygen_per_nitrified_n: float = 4.57  # 完全硝化理论耗氧 mgO2/mgN，不含生物合成
+    oxygen_half_sat_nitrification: float = 0.6  # mgO2/L；以下为待率定情景参数
+    oxygen_half_sat_cbod: float = 0.5
+    oxygen_half_sat_sod: float = 0.5
     k_organic_n_hydrolysis: float = 0.20  # 有机氮水解 d⁻¹
     k_reaeration_base: float = 5.32   # Owens-Gibbs 复氧系数
     k_sediment_oxygen_demand: float = 1.0  # 底泥耗氧 g/m²/d

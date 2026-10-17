@@ -6,9 +6,11 @@
   3. 反应步: Runge-Kutta 4 阶
 
 反应动力学 (简化 QUAL2E 型, 无藻类):
-  CBOD: dL/dt = -(K_d + K_s)·L
-  NH₃:  dN/dt = -β₁·N + S_sed
-  DO:   dO/dt = -K_d·L - SOD/H + K_a·(O_sat - O)
+  CBOD: dL/dt = -(K_d·f_L(O) + K_s)·L
+  NH₃-N: dN/dt = -β₁·f_N(O)·N，等量生成 NO3-N
+  DO:   dO/dt = -K_d·f_L(O)·L - 4.57·β₁·f_N(O)·N
+                 - SOD/H·f_S(O) + K_a·(O_sat - O)
+  f(O) = O/(K_O+O)。参数为未现场率定的简化情景值，无反硝化/藻类/碱度过程。
 
 纵向离散系数: Fischer 公式 (1979)
 复氧系数: Owens-Gibbs (浅水河道)
@@ -129,42 +131,62 @@ def _reaction_step(cbod: np.ndarray, nh3: np.ndarray, do_: np.ndarray,
                    H: np.ndarray, u: np.ndarray,
                    K_d: float, K_s: float, beta1: float, SOD: float,
                    O_sat: float, T_C: float, dt_s: float,
-                   theta_d: float, theta_n: float, theta_rea: float) -> tuple:
-    """RK4 求解反应步 dC/dt = f(C)。
+                   theta_d: float, theta_n: float, theta_rea: float,
+                   oxygen_per_n: float = 4.57, oxygen_half_sat_n: float = .6,
+                   oxygen_half_sat_cbod: float = .5, oxygen_half_sat_sod: float = .5) -> tuple:
+    """带氧限制的耦合 RK4；按反应损失率细分，不能靠截零消除透支的氧。
 
-    注意: 反应速率常数单位为 d⁻¹, dt_s 为秒, 需转换为天。
+    速率单位 d⁻¹，dt_s 单位秒。NH3-N 的反应损失全部视为 NO3-N 生成，
+    由调用方同步推进硝态氮。4.57 为完全硝化理论耗氧，不含生物合成。
     """
-    dt_day = dt_s / 86400.0  # 秒 → 天
+    scalar = (K_d, K_s, beta1, SOD, O_sat, T_C, dt_s, theta_d, theta_n, theta_rea,
+              oxygen_per_n, oxygen_half_sat_n, oxygen_half_sat_cbod, oxygen_half_sat_sod)
+    if (not np.all(np.isfinite(scalar)) or min(K_d, K_s, beta1, SOD, O_sat, dt_s) < 0
+            or min(theta_d, theta_n, theta_rea, oxygen_per_n,
+                   oxygen_half_sat_n, oxygen_half_sat_cbod, oxygen_half_sat_sod) <= 0):
+        raise ValueError('反应参数须有限，速率/时长/饱和氧须非负，温度系数及氧限制参数须为正')
+    values = np.stack(np.broadcast_arrays(cbod, nh3, do_)).astype(float, copy=True)
+    if np.any(~np.isfinite(values)) or np.any(values < 0):
+        raise ValueError('反应初始浓度须为非负有限数')
+    if np.any(~np.isfinite(H)) or np.any(np.asarray(H) <= 0) or np.any(~np.isfinite(u)):
+        raise ValueError('反应水深须为正有限数，流速须有限')
+    dt_day = dt_s / 86400.0
     temp_fac_d = theta_d ** (T_C - 20.0)
     temp_fac_n = theta_n ** (T_C - 20.0)
     temp_fac_rea = theta_rea ** (T_C - 20.0)
 
-    Ka = _owens_gibbs_ka(u, H)
-    n = len(cbod)
+    kd, kn = K_d * temp_fac_d, beta1 * temp_fac_n
+    ka = _owens_gibbs_ka(np.abs(u), H) * temp_fac_rea
+    sod = SOD / np.asarray(H)
+    # L、N 在反应期间只减不增；以 K_O 给氧损失系数取上界，限制 RK4 的子步。
+    loss_bound = max(kd + K_s, kn, float(np.max(ka
+        + kd * values[0] / oxygen_half_sat_cbod
+        + oxygen_per_n * kn * values[1] / oxygen_half_sat_n
+        + sod / oxygen_half_sat_sod)))
+    if not np.isfinite(loss_bound):
+        raise ValueError('反应速率溢出，请检查温度或动力学参数')
+    n_sub = max(1, int(np.ceil(dt_day * loss_bound / .25)))
+    if n_sub > 100000:
+        raise ValueError('反应刚性过高，请减小步长或核查参数')
+    h = dt_day / n_sub
 
-    def rhs(L, N, O):
-        dL = -(K_d * temp_fac_d + K_s) * L
-        dN = -beta1 * temp_fac_n * N
-        dO = (-K_d * temp_fac_d * L
-              - SOD / np.maximum(H, 0.1)
-              + Ka * temp_fac_rea * (O_sat - O))
-        return dL, dN, dO
+    def rhs(y):
+        L, N, O = y
+        oxidation = kd * L * O / (oxygen_half_sat_cbod + O)
+        nitrification = kn * N * O / (oxygen_half_sat_n + O)
+        sediment_demand = sod * O / (oxygen_half_sat_sod + O)
+        return np.stack((-(oxidation + K_s * L), -nitrification,
+                         ka * (O_sat - O) - oxidation - oxygen_per_n * nitrification - sediment_demand))
 
-    # RK4 (使用 dt_day 因为速率常数为 d⁻¹)
-    L1, N1, O1 = rhs(cbod, nh3, do_)
-    L2, N2, O2 = rhs(cbod + 0.5 * dt_day * L1, nh3 + 0.5 * dt_day * N1, do_ + 0.5 * dt_day * O1)
-    L3, N3, O3 = rhs(cbod + 0.5 * dt_day * L2, nh3 + 0.5 * dt_day * N2, do_ + 0.5 * dt_day * O2)
-    L4, N4, O4 = rhs(cbod + dt_day * L3, nh3 + dt_day * N3, do_ + dt_day * O3)
-
-    cbod_new = cbod + dt_day / 6.0 * (L1 + 2.0 * L2 + 2.0 * L3 + L4)
-    nh3_new = nh3 + dt_day / 6.0 * (N1 + 2.0 * N2 + 2.0 * N3 + N4)
-    do_new = do_ + dt_day / 6.0 * (O1 + 2.0 * O2 + 2.0 * O3 + O4)
-
-    return (
-        np.maximum(cbod_new, 0.0),
-        np.maximum(nh3_new, 0.0),
-        np.maximum(do_new, 0.0),
-    )
+    for _ in range(n_sub):
+        k1 = rhs(values)
+        k2 = rhs(values + h * .5 * k1)
+        k3 = rhs(values + h * .5 * k2)
+        k4 = rhs(values + h * k3)
+        values += h / 6 * (k1 + 2*k2 + 2*k3 + k4)
+        if np.any(~np.isfinite(values)) or np.any(values < -1e-12):
+            raise FloatingPointError('耦合反应出现非物理浓度，请检查参数或减小步长')
+    return tuple(np.maximum(values, 0.))  # 仅清除浮点舍入量级的负数
 
 
 # ---- 主求解器 ----
@@ -262,20 +284,23 @@ def solve_water_quality(
     cbod = np.ones(n_cs) * config.bod_cbod_mgL
     nh3 = np.ones(n_cs) * config.ammonia_nh3_mgL
     do_ = np.ones(n_cs) * config.dissolved_oxygen_mgL
+    nitrate = np.ones(n_cs) * config.nitrate_n_mgL
+    if np.any(~np.isfinite([cbod, nh3, do_, nitrate])) or min(cbod.min(), nh3.min(), do_.min(), nitrate.min()) < 0:
+        raise ValueError('各组分初始浓度须为非负有限数')
 
     # ---- 控制体积质量推进；源项 = 质量速率 × 实际覆盖时长 / 单元水体体积 ----
     total_seconds = simulation_hours * 3600.0
     total_steps = int(np.ceil(total_seconds / dt_s))
     output_interval = max(total_steps // max(total_steps // 60, 1), 1)
-    components = np.stack([cbod, nh3, do_])
+    components = np.stack([cbod, nh3, do_, nitrate])
     upstream, downstream = components[:, 0].copy(), components[:, -1].copy()
     initial_area = hydro.area[0] if hydro.area is not None else np.full(n_cs, config.width_avg_m * config.depth_avg_m)
     volume, _, _, _ = geometry(chainage, initial_area, hydro.discharge[0], K_array)
     initial_mass = (components * volume).sum(axis=1)
-    injected = np.zeros(3)
-    inflow = np.zeros(3)
-    outflow = np.zeros(3)
-    reaction_change = np.zeros(3)
+    injected = np.zeros(4)
+    inflow = np.zeros(4)
+    outflow = np.zeros(4)
+    reaction_change = np.zeros(4)
     mass_rate_gs = load_kg * 1000.0 / duration_sec
     source_component = 1 if pollutant_type == 'ammonia' else 0
     times, snapshots = [0.0], [components.copy()]
@@ -317,9 +342,13 @@ def solve_water_quality(
             inflow += step_in
             outflow += step_out
             before_reaction = (components * volume).sum(axis=1)
-            components = np.stack(_reaction_step(
-                *components, H_now, np.abs(u_now), K_d, K_s, beta1, SOD,
-                O_sat, T_C, sub_dt, theta_d, theta_n, theta_rea))
+            before_nh3 = components[1].copy()
+            components[:3] = np.stack(_reaction_step(
+                *components[:3], H_now, np.abs(u_now), K_d, K_s, beta1, SOD,
+                O_sat, T_C, sub_dt, theta_d, theta_n, theta_rea,
+                config.oxygen_per_nitrified_n, config.oxygen_half_sat_nitrification,
+                config.oxygen_half_sat_cbod, config.oxygen_half_sat_sod))
+            components[3] += before_nh3 - components[1]
             reaction_change += (components * volume).sum(axis=1) - before_reaction
 
         if step % output_interval == 0 or step == total_steps:
@@ -335,13 +364,14 @@ def solve_water_quality(
         'initial_kg': initial_mass, 'injected_kg': injected, 'inflow_kg': inflow,
         'outflow_kg': outflow, 'reaction_change_kg': reaction_change,
         'final_kg': final_mass, 'residual_kg': residual}.items()}
-        for i, name in enumerate(('cbod', 'ammonia', 'do'))}
+        for i, name in enumerate(('cbod', 'ammonia', 'do', 'nitrate'))}
 
     return WQResult(
         t=t_out,
         chainage=chainage,
         cbod=cbod_out,
         ammonia=nh3_out,
+        nitrate=output[:, 3],
         dissolved_oxygen=do_out,
         params={
             "pollutant_type": pollutant_type,
@@ -350,6 +380,15 @@ def solve_water_quality(
             "source_section_id": source_idx,
             "mass_balance": balance,
             "max_transport_stability": max_stability,
+            "reaction_model": {
+                "version": "oxygen_limited_nitrification_v1",
+                "oxygen_per_nitrified_n": config.oxygen_per_nitrified_n,
+                "oxygen_half_sat_nitrification_mgL": config.oxygen_half_sat_nitrification,
+                "oxygen_half_sat_cbod_mgL": config.oxygen_half_sat_cbod,
+                "oxygen_half_sat_sod_mgL": config.oxygen_half_sat_sod,
+                "parameter_status": "通用情景参数，未经当前河道现场率定",
+                "simplifications": "硝化产物合并为NO3-N；不含生物合成、反硝化、藻类和碱度过程",
+            },
             "duration_min": duration_min,
             "simulation_hours": simulation_hours,
         },

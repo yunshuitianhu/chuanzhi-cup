@@ -74,9 +74,12 @@ class TransportTests(unittest.TestCase):
 
     def test_uniform_first_order_decay_matches_analytic_solution(self):
         x = np.linspace(0, 200, 11)
-        cfg = YayaoConfig(ammonia_nh3_mgL=3., water_temp_C=20., k_nitrification=.1)
-        result = solve_water_quality(cfg, still_hydro(x), load_kg=0,
-            chainage_m=100, duration_min=1, simulation_hours=1, dt_s=60)
+        # 无限供氧的数学极限下应恢复一阶解析解，不把该高 DO 当作现场条件。
+        cfg = YayaoConfig(ammonia_nh3_mgL=3., water_temp_C=20., k_nitrification=.1,
+                          dissolved_oxygen_mgL=1e8, bod_cbod_mgL=0., k_sediment_oxygen_demand=0.)
+        with patch('river_model.wq_engine._owens_gibbs_ka', return_value=np.zeros(len(x))):
+            result = solve_water_quality(cfg, still_hydro(x), load_kg=0,
+                chainage_m=100, duration_min=1, simulation_hours=1, dt_s=60)
         expected = 3 * np.exp(-.1 / 24)
         np.testing.assert_allclose(result.ammonia[-1], expected, rtol=1e-9)
         self.assertAlmostEqual(result.params['mass_balance']['ammonia']['residual_kg'], 0., places=9)

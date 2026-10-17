@@ -403,6 +403,8 @@ def tool_river_pollution_event(
 
     return json.dumps({
         "状态": "污染事件模拟完成",
+        "反应模型": result.params.get('reaction_model', {}),
+        "质量核算": result.params.get('mass_balance', {}),
         "污染物": pollutant_type,
         "排放量_kg": load_kg,
         "排放位置_m": chainage_m,
@@ -551,6 +553,9 @@ def tool_river_export_data(
         export = {
             "chainage_m": wq.chainage.tolist(),
             "time_h": wq.t.tolist(),
+            "model_metadata": wq.params,
+            "units": {"ammonia_mgL": "mgN/L", "nitrate_n_mgL": "mgN/L",
+                      "cbod_mgL": "mgO2/L", "do_mgL": "mgO2/L"},
         }
         if wq.ammonia is not None:
             export["ammonia_mgL"] = wq.ammonia.tolist()
@@ -558,6 +563,8 @@ def tool_river_export_data(
             export["cbod_mgL"] = wq.cbod.tolist()
         if wq.dissolved_oxygen is not None:
             export["do_mgL"] = wq.dissolved_oxygen.tolist()
+        if wq.nitrate is not None:
+            export["nitrate_n_mgL"] = wq.nitrate.tolist()
 
         out_path = "river_model_export.json"
         with open(out_path, "w", encoding="utf-8") as f:
@@ -582,6 +589,8 @@ def tool_river_export_data(
                     row["ammonia_mgL"] = wq.ammonia[ti, ci]
                 if wq.dissolved_oxygen is not None:
                     row["do_mgL"] = wq.dissolved_oxygen[ti, ci]
+                if wq.nitrate is not None:
+                    row["nitrate_n_mgL"] = wq.nitrate[ti, ci]
                 rows.append(row)
         df = pd.DataFrame(rows)
         df.to_csv(out_path, index=False, encoding="utf-8-sig")
