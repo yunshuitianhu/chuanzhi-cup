@@ -12,6 +12,7 @@ import shutil
 import tempfile
 import threading
 import time
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 import numpy as np
@@ -280,7 +281,7 @@ def _build_unsteady_flow_file(work_dir: str, config: YayaoConfig,
     dt_eff_s = dt_min_eff * 60.0
 
     total_minutes = int(duration_h * 60)
-    n_steps = int(total_minutes / dt_min_eff) + 1
+    n_steps = int(np.ceil(duration_h * 3600 / dt_eff_s)) + 1
 
     if dt_min_eff < 60:
         interval_tok = f"{dt_min_eff}MIN"
@@ -292,8 +293,8 @@ def _build_unsteady_flow_file(work_dir: str, config: YayaoConfig,
     rm_up = int(config.length_m)
     rm_dn = 0
 
-    flows = [upstream_flow_m3s * (1.0 + 0.05 * np.sin(2 * np.pi * m * dt_eff_s / T_tide))
-             for m in range(n_steps)]
+    # 请求给出恒定上游流量时，不人为叠加没有观测依据的 5% 周期扰动。
+    flows = [upstream_flow_m3s for _ in range(n_steps)]
     stages = [downstream_stage_m + tidal_amplitude_m * np.sin(2 * np.pi * m * dt_eff_s / T_tide)
               for m in range(n_steps)]
 
@@ -327,25 +328,43 @@ def _build_unsteady_flow_file(work_dir: str, config: YayaoConfig,
 
 
 def _build_plan_file(work_dir: str, duration_h: float, dt_s: float,
-                     output_interval_min: float) -> str:
-    """生成计算方案文件 (.p01)。"""
-    end_h = int(duration_h)
-    end_m = int((duration_h - end_h) * 60)
+                     output_interval_min: float, unsteady: bool = False) -> str:
+    """生成方案；非恒定流显式启用，默认保留原恒定流选择。"""
+    def token(seconds):
+        allowed_seconds = (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30)
+        allowed_minutes = (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60)
+        if seconds in allowed_seconds:
+            return f'{int(seconds)}SEC'
+        if seconds / 60 in allowed_minutes:
+            return f'{int(seconds / 60)}MIN' if seconds < 3600 else '1HOUR'
+        raise ValueError('HEC-RAS 时间间隔不是当前适配器支持的标准令牌')
+    if (not np.isfinite(duration_h) or duration_h <= 0
+            or abs(duration_h*60-round(duration_h*60)) > 1e-7):
+        raise ValueError('HEC-RAS 模拟时长须为正，且结束时间精确到整分钟')
+    computation, mapping = token(dt_s), token(output_interval_min * 60)
+    if output_interval_min*60 < dt_s or (output_interval_min*60 / dt_s) % 1:
+        raise ValueError('HEC-RAS 输出间隔须为计算步长的整数倍')
+    start = datetime(2024, 1, 1)
+    end = start + timedelta(hours=duration_h)
+    def stamp(value):
+        months = ('JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC')
+        return f'{value.day:02d}{months[value.month-1]}{value.year:04d},{value:%H%M}'
     lines = [
         "Plan Title=Yayao Simulation",
         "Program Version=7.00",
         "",
         "Geom File=g01",
-        "Unsteady Flow File=u01",
-        "Flow File=f01",
+        "Flow File=u01" if unsteady else "Flow File=f01",
         "",
-        "Simulation Date=01Jan2024",
-        "Simulation Time=00:00:00",
-        "Simulation End Date=01Jan2024",
-        f"Simulation End Time={end_h:02d}:{end_m:02d}:00",
-        f"Computation Interval={dt_s:.1f}sec",
+        f"Simulation Date={stamp(start)},{stamp(end)}",
+        f"Computation Interval={computation}",
         "Computation Level Option=1",
-        f"Output Interval={output_interval_min:.1f}min",
+        f"Output Interval={mapping}",
+        f"Mapping Interval={mapping}",
+        f"DSS Interval={mapping}",
+        "Run HTab=1",
+        f"Run UNet={1 if unsteady else 0}",
+        "Run SedTran=0",
         "Mixed Flow Regime=0",
         "Unsteady Flow Computational Scheme=1",
     ]
@@ -527,12 +546,12 @@ def run_hecras_simulation(
     dt_s: float = 60.0,
     output_interval_min: float = 30.0,
     keep_work_dir: bool = False,
+    unsteady: bool = False,
 ) -> HydroResult:
     """通过 HEC-RAS COM 运行水动力模拟。
 
-    当前 HEC-RAS 7.0 非恒定流 plan 格式未完全兼容 — 只跑稳态流初始化。
-    非恒定流结果由 hydro_engine.run_hydrodynamic() 降级到纯 Python 求解。
-    此函数返回稳态流结果，或抛出异常由上层捕获后降级。
+    unsteady=True 为显式非恒定流适配路径；尚未改变 Web 默认引擎策略。
+    此路径必须读到真实非恒定流时间序列，不允许用恒定流结果冒充。
 
     Args:
         keep_work_dir: 是否保留临时工作目录。**默认 False（跑完即删）**。
@@ -544,6 +563,8 @@ def run_hecras_simulation(
     """
     if not is_hecras_available():
         raise RuntimeError("HEC-RAS 不可用: Ras.exe 未找到")
+    if tidal_amplitude_m and not unsteady:
+        raise ValueError('非零潮汐边界必须显式启用 HEC-RAS 非恒定流方案')
 
     work_dir = tempfile.mkdtemp(prefix="hecras_yayao_")
     ras = None          # 在 try 外声明：finally 里要用它来释放 COM
@@ -556,7 +577,7 @@ def run_hecras_simulation(
                                    upstream_flow_m3s, downstream_stage_m,
                                    tidal_amplitude_m, tidal_period_h,
                                    duration_h, dt_s)
-        _build_plan_file(work_dir, duration_h, dt_s, output_interval_min)
+        _build_plan_file(work_dir, duration_h, dt_s, output_interval_min, unsteady=unsteady)
         _build_f01_file(work_dir, config, upstream_flow_m3s, downstream_stage_m)
 
         # 2~3. COM 打开项目并计算。
@@ -615,7 +636,8 @@ def run_hecras_simulation(
 
         result = _extract_hecras_results(hdf_path, config, upstream_flow_m3s,
                                           downstream_stage_m, tidal_amplitude_m,
-                                          tidal_period_h, duration_h, dt_s, work_dir)
+                                          tidal_period_h, duration_h, dt_s, work_dir,
+                                          cross_sections=cross_sections, require_unsteady=unsteady)
 
         # 结果里带着 work_dir 路径；若即将在 finally 里删掉它，
         # 必须把这个字段改掉 —— 否则返回的是一个指向不存在目录的路径，
@@ -651,13 +673,16 @@ def _extract_hecras_results(hdf_path: str, config: YayaoConfig,
                              upstream_flow_m3s: float, downstream_stage_m: float,
                              tidal_amplitude_m: float, tidal_period_h: float,
                              duration_h: float, dt_s: float,
-                             work_dir: str) -> HydroResult:
+                             work_dir: str, cross_sections=None,
+                             require_unsteady: bool = False) -> HydroResult:
     """从 HEC-RAS 7.0 HDF5 输出文件提取水动力结果。"""
     import h5py
 
     with h5py.File(hdf_path, "r") as h5:
         results = h5["Results"]
         has_unsteady = "Unsteady" in results
+        if require_unsteady and not has_unsteady:
+            raise ValueError('HEC-RAS 未返回非恒定流结果，不接受恒定流替代')
 
         if has_unsteady:
             # 非恒定流
@@ -677,12 +702,12 @@ def _extract_hecras_results(hdf_path: str, config: YayaoConfig,
             vkey = next((k for k in ("Velocity Total", "Velocity Channel")
                          if k in xs), None)
             vel = np.array(xs[vkey]) if vkey else np.zeros_like(wl)
-            area = np.zeros_like(wl)
+            area = np.array(xs['Flow Area']) if 'Flow Area' in xs else None
 
             if "Time" in h5[base_path]:
-                t_hours = np.array(h5[base_path]["Time"], dtype=float) * 24.0
+                t_hours = np.array(h5[base_path]["Time"], dtype=float).reshape(-1) * 24.0
             else:
-                t_hours = np.linspace(0, duration_h, wl.shape[0])
+                raise ValueError('HEC-RAS 缺少实际时间轴，不能合成时间轴')
 
             engine = "hecras_7.0_unsteady"
         else:
@@ -697,7 +722,7 @@ def _extract_hecras_results(hdf_path: str, config: YayaoConfig,
                 vel = np.array(av["Velocity Total"])
             else:
                 vel = np.zeros_like(wl)
-            area = np.zeros_like(wl)
+            area = np.array(xs['Flow Area']) if 'Flow Area' in xs else None
 
             t_hours = np.array([0.0])
             engine = "hecras_7.0_steady"
@@ -727,17 +752,37 @@ def _extract_hecras_results(hdf_path: str, config: YayaoConfig,
                 else:
                     stations = raw.astype(float)
             else:
-                stations = np.linspace(config.length_m, 0, n_nodes)
+                raise ValueError('HEC-RAS 结果缺少断面桩号，不能补造等距断面')
         else:
-            stations = np.linspace(config.length_m, 0, n_nodes)
+            raise ValueError('HEC-RAS 结果缺少断面属性')
 
         chainage = config.length_m - stations
         sort_idx = np.argsort(chainage)
         chainage = chainage[sort_idx]
         wl = wl[:, sort_idx]
         q = q[:, sort_idx]
-        vel = vel[:, sort_idx]
-        area = area[:, sort_idx]
+        area_source = 'hecras_hdf_flow_area'
+        if area is not None:
+            area = area[:, sort_idx]
+        else:
+            if not cross_sections:
+                raise ValueError('HEC-RAS 未输出过水面积，且未提供对应断面几何')
+            section_x = np.array([cs.chainage_m for cs in cross_sections])
+            selected = [int(np.argmin(np.abs(section_x-x))) for x in chainage]
+            if any(abs(section_x[i]-x) > 1.01 for x,i in zip(chainage, selected)):
+                raise ValueError('HEC-RAS 结果桩号与提供的断面几何不匹配')
+            area = np.array([[cross_sections[j].flow_area(float(stage))
+                              for j,stage in zip(selected,row)] for row in wl])
+            area_source = 'derived_from_supplied_cross_sections'
+        if (wl.shape != q.shape or wl.shape != area.shape or wl.shape[0] != len(t_hours)
+                or len(chainage) != wl.shape[1] or np.any(np.diff(chainage) <= 0)
+                or any(np.any(~np.isfinite(v)) for v in (wl, q, area, t_hours))
+                or np.any(area <= 0)):
+            raise ValueError('HEC-RAS 时间/断面/过水面积包含非法值或形状不匹配')
+        if has_unsteady and (len(t_hours) < 2 or np.any(np.diff(t_hours) <= 0)
+                             or abs(t_hours[0]) > 1e-5 or t_hours[-1] < duration_h-1e-5):
+            raise ValueError('HEC-RAS 实际时间轴未覆盖所请求的模拟区间')
+        vel = q / area  # 体平均速度与总流量、总过水面积一致，保留反向流符号
 
     return HydroResult(
         t=t_hours,
@@ -754,6 +799,8 @@ def _extract_hecras_results(hdf_path: str, config: YayaoConfig,
             "duration_h": duration_h,
             "dt_s": dt_s,
             "engine": engine,
+            "area_source": area_source,
+            "velocity_source": "bulk_discharge_divided_by_area",
             "work_dir": work_dir,
         },
     )

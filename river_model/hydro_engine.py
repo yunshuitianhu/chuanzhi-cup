@@ -58,7 +58,7 @@ def get_engine_info() -> str:
         return ("HEC-RAS 7.0 (COM) 可用 — 仅用于恒定流工况; "
                 "非恒定流(潮汐)工况自动使用纯 Python Preissmann 求解器")
     elif ras_installed:
-        return "纯 Python Preissmann 隐式格式求解器 (HEC-RAS 7.0 已检测到但 COM 未注册 — 以管理员运行 _Register_New_RAS_and_RASMapper_Files.bat)"
+        return "纯 Python Preissmann 隐式格式求解器 (已检测到 HEC-RAS，当前进程无法使用 COM；需检查注册和运行权限)"
     else:
         return "纯 Python Preissmann 隐式格式求解器"
 
