@@ -41,6 +41,7 @@ async function autoAnalyze() {
     toastErr(`分析失败：${e.message}`)
   } finally {
     running.value = false
+    await store.refreshStatus().catch((e) => toastErr(e.message))
   }
 }
 
@@ -64,6 +65,7 @@ async function send() {
     toastErr(`对话失败：${e.message}`)
   } finally {
     running.value = false
+    await store.refreshStatus().catch((e) => toastErr(e.message))
   }
 }
 
@@ -105,6 +107,11 @@ async function consume(res) {
         scrollDown()
       } else if (ev === 'done') {
         current = null
+        if (payload?.status === 'partial' || payload?.status === 'failed') {
+          messages.value.push({ role: 'error', content: payload.status === 'partial'
+            ? '本轮仅部分完成，请查看失败或缺失的分析步骤。'
+            : '本轮未通过完成校验，不能视为分析成功。' })
+        }
         await store.refreshStatus()
       } else if (ev === 'error') {
         messages.value.push({ role: 'error', content: payload?.message || '未知错误' })

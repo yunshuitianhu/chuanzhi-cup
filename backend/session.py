@@ -58,6 +58,8 @@ class Session:
     messages: list[dict] = field(default_factory=list)
     full_messages: list[Any] = field(default_factory=list)
     analysis_done: bool = False
+    analysis_status: str = 'idle'
+    analysis_steps: dict[str, str] = field(default_factory=dict)
     analysis_revision: int = 0
     operation_lock: Any = field(default_factory=threading.Lock, repr=False)
 
@@ -97,6 +99,8 @@ class Session:
         self.messages = []
         self.full_messages = []
         self.analysis_done = False
+        self.analysis_status = 'idle'
+        self.analysis_steps = {}
         self.river_state = None
 
     def clear_all(self) -> None:

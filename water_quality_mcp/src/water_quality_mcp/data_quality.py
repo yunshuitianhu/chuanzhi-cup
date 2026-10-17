@@ -6,6 +6,16 @@ MEASUREMENTS = {'ammonia_nitrogen': ('氨氮', 0, 1000),
                 'dissolved_oxygen': ('溶解氧', 0, 20)}
 
 
+def coordinate_text(row):
+    try:
+        lat, lon = float(row['latitude']), float(row['longitude'])
+        if np.isfinite(lat) and np.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180:
+            return f'{lat:.6f}, {lon:.6f}'
+    except (KeyError, TypeError, ValueError):
+        pass
+    return None
+
+
 def observed_mask(df, column):
     if column not in df:
         return pd.Series(False, index=df.index)

@@ -26,6 +26,7 @@ import httpx
 from openai import OpenAI
 
 from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
+from water_quality_mcp.src.water_quality_mcp.data_quality import measurement_error
 
 from .tools import (
     SYSTEM_PROMPT_AUTO, SYSTEM_PROMPT_CHAT, TOOLS,
@@ -38,6 +39,8 @@ MODEL_NAME = "deepseek-chat"
 BASE_URL = "https://api.deepseek.com/v1"
 MAX_TURNS = 15
 TIMEOUT = httpx.Timeout(120.0, connect=10.0)
+REQUIRED_ANALYSIS_STEPS = {'get_data_summary', 'find_black_spots',
+                           'get_comprehensive_summary', 'generate_final_report'}
 
 
 def _sse(event: str, data: dict) -> str:
@@ -51,12 +54,25 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
     是返回工具调用还是最终回答**。工具调用的 arguments 在流里是分片到达的，
     必须按 index 累积拼接后才能解析。
     """
+    run_revision = session.analysis_revision
+    if auto:
+        session.analysis_done = False
+        session.analysis_status = 'running'
+        session.analysis_steps = {}
+        session.tool_evidence = {}
+        error = measurement_error(session.df)
+        if error:
+            session.analysis_status = 'failed'
+            yield _sse('error', {'message': error, 'status': 'failed'})
+            return
     api_key = resolve_api_key("DEEPSEEK_API_KEY")
     if not api_key:
+        if auto:
+            session.analysis_status = 'failed'
         yield _sse("error", {"message": "未配置 DeepSeek API Key"})
         return
 
-    client = OpenAI(base_url=BASE_URL, api_key=api_key, timeout=TIMEOUT)
+    client = None
 
     msgs = list(session.full_messages)
     system_prompt = SYSTEM_PROMPT_AUTO if auto else SYSTEM_PROMPT_CHAT
@@ -71,6 +87,7 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
     turn = 0
 
     try:
+        client = OpenAI(base_url=BASE_URL, api_key=api_key, timeout=TIMEOUT)
         tool_errors = 0
         while turn < MAX_TURNS:
             turn += 1
@@ -140,6 +157,10 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
 
                 result, is_err = execute_tool(name, args, session, api_key)
                 tool_errors += int(is_err)
+                if auto:
+                    outcome = json.loads(result)
+                    session.analysis_steps[name] = ('failed' if is_err else
+                        'skipped' if outcome.get('skipped') else 'succeeded')
                 yield _sse("tool_done", {"name": name, "ok": not is_err,
                                          "chars": len(result)})
 
@@ -166,11 +187,22 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
         if final_text:
             session.messages.append({"role": "assistant", "content": final_text})
         if auto:
-            session.analysis_done = bool(final_text) and tool_errors == 0
+            complete = (bool(final_text) and run_revision == session.analysis_revision
+                        and session.black_spots is not None
+                        and all(session.analysis_steps.get(name) == 'succeeded'
+                                for name in REQUIRED_ANALYSIS_STEPS)
+                        and 'failed' not in session.analysis_steps.values())
+            session.analysis_done = complete
+            session.analysis_status = ('succeeded' if complete else 'partial'
+                if final_text and 'succeeded' in session.analysis_steps.values() else 'failed')
 
-        yield _sse("done", {"turns": turn, "tool_errors": tool_errors})
+        yield _sse("done", {"turns": turn, "tool_errors": tool_errors,
+                           "status": session.analysis_status if auto else 'succeeded'})
 
     except Exception as e:                       # noqa: BLE001
+        if auto:
+            session.analysis_done = False
+            session.analysis_status = 'failed'
         logger.exception("Agent 运行失败")
         msg = str(e)
         if "api_key" in msg.lower() or "401" in msg or "auth" in msg.lower():
@@ -179,4 +211,8 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
             msg = "无法连接 DeepSeek API，请检查网络"
         yield _sse("error", {"message": msg[:300]})
     finally:
-        client.close()
+        if auto and session.analysis_status == 'running':
+            session.analysis_status = 'cancelled'
+            session.analysis_done = False
+        if client is not None:
+            client.close()

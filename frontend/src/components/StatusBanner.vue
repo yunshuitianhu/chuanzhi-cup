@@ -11,10 +11,14 @@ const items = computed(() => [
   store.status.video_frames
     ? { ok: true, text: `视频 ${store.status.video_frames} 帧` }
     : { ok: false, text: '视频未上传' },
-  store.status.has_black_spots
+  store.status.has_detection
     ? { ok: true, text: `黑臭检测完成 ${store.status.black_spot_count} 个黑点` }
     : { ok: false, text: '黑臭检测未运行' },
   { ok: true, text: `目标水质 ${store.status.target_water_class} 类` },
+  { ok: store.status.analysis_status === 'succeeded', text: `自动分析：${({
+    idle: '未运行', running: '进行中', succeeded: '已完成',
+    partial: '部分完成', failed: '失败', cancelled: '已取消',
+  })[store.status.analysis_status] || '未运行'}` },
 ])
 </script>
 

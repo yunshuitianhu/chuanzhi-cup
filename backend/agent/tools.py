@@ -158,6 +158,10 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 return "未配置 DeepSeek API Key", True
             if session.df is None:
                 return json.dumps({'error': '数据未加载'}, ensure_ascii=False), True
+            if session.analysis_status == 'running' and any(
+                    session.analysis_steps.get(step) != 'succeeded'
+                    for step in ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary')):
+                return json.dumps({'error': '请先完成本轮数据摘要、黑臭检测和综合摘要，再生成报告'}, ensure_ascii=False), True
             # 报告以会话内的实际分析数据为依据，不直接信任模型拼写的 summary 数字。
             evidence = build_comprehensive_summary(
                 session.water_quality_state(), session.get_river_state(), cfg)
@@ -216,6 +220,8 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                               cloud_token=resolve_api_key("CLOUD_TOKEN"))
             if name == "run_hydrodynamic_simulation":
                 kwargs.setdefault("tidal_amplitude_m", 0.0)
+            if name in ('simulate_pollution_event', 'get_concentration_profile'):
+                kwargs['target_water_class'] = session.target_water_class
             if name in ("simulate_pollution_event", "get_concentration_profile", "export_river_model_data"):
                 hydro = st.hydro_result
                 if hydro is not None and hydro.params.get("tidal_amplitude_m", 0):
@@ -229,7 +235,7 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
         return f"工具执行出错（{type(e).__name__}）: {e}", True
 
 
-def execute_tool(name: str, args: dict, session, api_key: str | None = None,
+def _dispatch_validated(name: str, args: dict, session, api_key: str | None = None,
                  amap_key: str | None = None) -> tuple[str, bool]:
     """验证工具参数，并把内核 JSON 错误映射到 SSE 的失败状态。"""
     spec = next((t['function']['parameters'] for t in TOOLS
@@ -266,12 +272,38 @@ def execute_tool(name: str, args: dict, session, api_key: str | None = None,
         failed = failed or isinstance(parsed, dict) and 'error' in parsed
     except (ValueError, TypeError):
         pass
-    if not failed and name in {
-        'search_nearby_pollution_sources', 'reverse_geocode',
-        'get_national_station_data', 'search_treatment_cases', 'analyze_video',
-    }:
-        session.tool_evidence[name] = result
     return result, bool(failed)
+
+
+def execute_tool(name: str, args: dict, session, api_key: str | None = None,
+                 amap_key: str | None = None) -> tuple[str, bool]:
+    """工具统一返回 ok/data/error/skipped，纯文本错误也不会被存为证据。"""
+    raw, failed = _dispatch_validated(name, args, session, api_key, amap_key)
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        data = raw
+    skipped = isinstance(data, dict) and bool(data.get('skipped'))
+    error = data.get('error') if isinstance(data, dict) else None
+    if name == 'reverse_geocode' and not (isinstance(data, dict) and '地址' in data):
+        failed = True
+        error = error or str(data)
+    if name == 'search_treatment_cases' and isinstance(data, dict) and '状态' in data and '检索结果' not in data:
+        failed = True
+        error = data['状态']
+    if name == 'generate_final_report' and (not isinstance(data, str) or not data.strip()):
+        failed = True
+        error = '报告未生成有效正文'
+    failed = bool(failed or error)
+    outcome = {'ok': not failed, 'data': None if failed else data,
+               'error': str(error or raw) if failed else None, 'skipped': skipped and not failed}
+    evidence_tools = {'search_nearby_pollution_sources', 'reverse_geocode',
+                      'get_national_station_data', 'search_treatment_cases', 'analyze_video'}
+    if name in evidence_tools:
+        session.tool_evidence.pop(name, None)
+        if not failed and not skipped:
+            session.tool_evidence[name] = json.dumps(data, ensure_ascii=False)
+    return json.dumps(outcome, ensure_ascii=False), failed
 
 
 # ---- 输出截断 ----------------------------------------------------------

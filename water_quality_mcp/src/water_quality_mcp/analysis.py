@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 from sklearn.cluster import DBSCAN
-from .data_quality import measurement_error, assessment_mask
+from .data_quality import measurement_error, assessment_mask, coordinate_text
 
 if TYPE_CHECKING:
     from .analysis_config import AnalysisConfig
@@ -917,7 +917,7 @@ def build_comprehensive_summary(state, river_state=None, config=None):
             top5_list.append({
                 "排名": i,
                 "时间": str(row['datetime']),
-                "经纬度": f"{row['latitude']:.6f}, {row['longitude']:.6f}",
+                "经纬度": coordinate_text(row),
                 "内梅罗指数": round(float(row['black_score']), 2),
                 "黑臭等级": row['severity_label'],
                 "氨氮_mgL": round(float(row['ammonia_nitrogen']), 2) if pd.notna(row.get('ammonia_nitrogen')) else None,
@@ -929,8 +929,8 @@ def build_comprehensive_summary(state, river_state=None, config=None):
 
         # 空间范围
         sections["空间分析"] = {
-            "轨迹起点": f"{state.df['latitude'].iloc[0]:.6f}, {state.df['longitude'].iloc[0]:.6f}",
-            "轨迹终点": f"{state.df['latitude'].iloc[-1]:.6f}, {state.df['longitude'].iloc[-1]:.6f}",
+            "轨迹起点": coordinate_text(state.df.iloc[0]),
+            "轨迹终点": coordinate_text(state.df.iloc[-1]),
             "最密集聚类中心": None,
         }
         if len(clusters_out) > 0:
@@ -941,6 +941,9 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                 "内梅罗等级": densest.get('内梅罗等级', ''),
                 "黑臭等级": densest.get('黑臭等级', ''),
             }
+
+    if state.black_spots is not None and len(state.black_spots) == 0:
+        sections['黑臭检测'] = {'黑点总数': 0, '提示': '本次有效判定点未检出黑臭，缺测点未判定'}
 
     # ---- 3. 交叉印证 ----
     if hasattr(state, 'cross_validation_result') and state.cross_validation_result:
