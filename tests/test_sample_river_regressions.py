@@ -2,12 +2,14 @@
 import json
 import sys
 import unittest
-from contextlib import ExitStack
+from contextlib import ExitStack, chdir
+from tempfile import TemporaryDirectory
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from river_model.state import RiverModelState, WQResult
@@ -38,6 +40,47 @@ class ArrivalRegressionTests(unittest.TestCase):
 
     def test_zero_baseline_without_increase_is_not_arrival(self):
         self.assertIsNone(self.simulate([0., 0., 0.])['下游到达时间_h'])
+
+
+class ArtifactRegressionTests(unittest.TestCase):
+    def test_failed_generation_does_not_report_a_stale_file(self):
+        with TemporaryDirectory() as tmp, chdir(tmp):
+            Path('chart.png').write_bytes(b'old output')
+            def fail(path):
+                Path(path).write_bytes(b'partial new output')
+                raise RuntimeError('plot failed')
+            files, warnings = tools._generate_files([('chart.png', fail)])
+            self.assertEqual(files, [])
+            self.assertEqual(Path('chart.png').read_bytes(), b'old output')
+            self.assertIn('plot failed', warnings[0]['原因'])
+            self.assertEqual(list(Path('.').glob('.river-output-*')), [])
+
+    def test_later_outputs_survive_an_earlier_failure(self):
+        with TemporaryDirectory() as tmp, chdir(tmp):
+            files, warnings = tools._generate_files([
+                ('missing.png', lambda path: None),
+                ('good.png', lambda path: Path(path).write_bytes(b'new result')),
+            ])
+            self.assertEqual(files, ['good.png'])
+            self.assertEqual(Path(files[0]).read_bytes(), b'new result')
+            self.assertEqual(warnings[0]['文件'], 'missing.png')
+
+    def test_empty_file_is_not_a_successful_output(self):
+        with TemporaryDirectory() as tmp, chdir(tmp):
+            files, warnings = tools._generate_files([('empty.png', lambda path: Path(path).touch())])
+            self.assertEqual(files, [])
+            self.assertEqual(len(warnings), 1)
+
+    def test_current_dataframe_mapping_does_not_modify_session(self):
+        from river_model.geo_mapping import build_chainage_gps_mapping
+        df = pd.DataFrame({'datetime':pd.date_range('2025-08-01', periods=20),
+                           'longitude':np.linspace(113.1,113.11,20),
+                           'latitude':np.linspace(23.1,23.11,20)})
+        original = df.copy(deep=True)
+        mapping = build_chainage_gps_mapping(df)
+        self.assertEqual(mapping['point_count'], 20)
+        self.assertGreater(mapping['total_length_m'], 0)
+        pd.testing.assert_frame_equal(df, original)
 
 
 if __name__ == '__main__':

@@ -6,6 +6,8 @@
 import json
 import os
 import uuid
+import tempfile
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -24,6 +26,23 @@ from .visualization import (
 )
 from .wq_engine import solve_water_quality
 from .standards import constituent_limit
+
+
+def _generate_files(jobs):
+    """只发布本次成功生成的文件，旧文件不能冒充本次输出。"""
+    generated, warnings = [], []
+    for filename, generate in jobs:
+        try:
+            with tempfile.TemporaryDirectory(prefix='.river-output-', dir=os.getcwd()) as tmp:
+                candidate = Path(tmp) / filename
+                generate(str(candidate))
+                if not candidate.is_file() or candidate.stat().st_size == 0:
+                    raise ValueError('生成器未写入有效文件')
+                os.replace(candidate, filename)
+            generated.append(filename)
+        except Exception as exc:
+            warnings.append({'文件': filename, '原因': str(exc)})
+    return generated, warnings
 
 
 # ---- Tool 1: 初始化模型 ----
@@ -228,12 +247,10 @@ def tool_river_hydro_simulation(
     result.params.update(run_id=uuid.uuid4().hex, geometry_revision=state.geometry_revision)
     state.hydro_result = result
 
-    # 生成可视化
-    try:
-        plot_water_level_profile(result, state.config, "river_hydro_profile.png")
-        plot_discharge_profile(result, "river_discharge_profile.png")
-    except Exception:
-        pass
+    files, warnings = _generate_files([
+        ('river_hydro_profile.png', lambda path: plot_water_level_profile(result, state.config, path)),
+        ('river_discharge_profile.png', lambda path: plot_discharge_profile(result, path)),
+    ])
 
     # 统计摘要
     wl_max = float(np.max(result.water_level))
@@ -254,7 +271,8 @@ def tool_river_hydro_simulation(
         "平均流速_ms": round(v_mean, 3),
         "最大流量_m3s": round(q_max, 1),
         "引擎": result.params.get("engine", "unknown"),
-        "输出文件": ["river_hydro_profile.png", "river_discharge_profile.png"],
+        "输出文件": files,
+        "文件生成说明": warnings,
         "提示": "水动力场就绪。可调用 simulate_pollution_event 模拟污染事件。",
     }, ensure_ascii=False)
 
@@ -269,6 +287,7 @@ def tool_river_pollution_event(
     duration_min: float = 30.0,
     simulation_hours: float = 24.0,
     target_water_class: str = 'V',
+    monitoring_data=None,
 ) -> str:
     """在雅瑶水道指定位置模拟污染事件。"""
     if not state.has_hydro():
@@ -303,44 +322,33 @@ def tool_river_pollution_event(
     scenario_name = f"{pollutant_type}_{load_kg}kg_{chainage_m}m"
     state.scenarios[scenario_name] = result.params
 
-    # 生成可视化
-    try:
-        plot_concentration_contour(result, pollutant_type if pollutant_type != "cod" else "cbod",
-                                    "river_wq_contour.png", state.config)
-        plot_concentration_profile(result, simulation_hours * 0.5,
-                                    pollutant_type if pollutant_type != "cod" else "cbod",
-                                    "river_wq_profile.png", state.config)
-        plot_concentration_timeseries(
-            result,
-            [0, result.ammonia.shape[1] // 4, result.ammonia.shape[1] // 2,
-             3 * result.ammonia.shape[1] // 4, result.ammonia.shape[1] - 1],
-            pollutant_type if pollutant_type != "cod" else "cbod",
-            "river_wq_timeseries.png",
-        )
-        if state.has_hydro():
-            plot_hydro_wq_dashboard(state.hydro_result, result, "river_dashboard.png", state.config)
+    # 每张图独立生成；某张失败不会阻止其余图，也不会把旧文件列作新结果。
+    stations = len(result.chainage)
+    jobs = [
+        ('river_wq_contour.png', lambda path: plot_concentration_contour(
+            result, pollutant_type, path, state.config)),
+        ('river_wq_profile.png', lambda path: plot_concentration_profile(
+            result, simulation_hours * .5, pollutant_type, path, state.config)),
+        ('river_wq_timeseries.png', lambda path: plot_concentration_timeseries(
+            result, [0, stations // 4, stations // 2, 3 * stations // 4, stations - 1],
+            pollutant_type, path)),
+        ('river_dashboard.png', lambda path: plot_hydro_wq_dashboard(
+            state.hydro_result, result, path, state.config)),
+    ]
 
-        # 自动生成地图动画 (如果 GPS 数据可用)
-        try:
-            excel_default = (
-                "苗圃杯/无人船智能水质监测分析和因果溯源样本数据/"
-                "河道巡航走航样本数据.xlsx"
-            )
-            if os.path.exists(excel_default):
-                from .geo_mapping import build_chainage_gps_mapping
-                from .animation import build_pollution_map_animation
-                gps_mapping = build_chainage_gps_mapping(excel_default, smoothing_sigma=3.0)
-                build_pollution_map_animation(
-                    gps_mapping, result,
-                    pollutant_type if pollutant_type != "cod" else "cbod",
-                    source_chainage_m=chainage_m,
-                    output_path="river_pollution_animation.html",
-                    max_frames=40,
-                )
-        except Exception:
-            pass  # 动画失败不影响主流程
-    except Exception:
-        pass
+    def generate_animation(path):
+        if monitoring_data is None or len(monitoring_data) == 0:
+            raise ValueError('当前会话没有提供监测轨迹，已跳过动画')
+        from .geo_mapping import build_chainage_gps_mapping
+        from .animation import build_pollution_map_animation
+        gps_mapping = build_chainage_gps_mapping(monitoring_data, smoothing_sigma=3.0)
+        if float(result.chainage[-1]) > gps_mapping['total_length_m'] + 1:
+            raise ValueError('当前轨迹的桩号范围未覆盖模拟河段；请核实映射，已跳过动画')
+        build_pollution_map_animation(gps_mapping, result, pollutant_type,
+                                     source_chainage_m=chainage_m, output_path=path, max_frames=40)
+
+    jobs.append(('river_pollution_animation.html', generate_animation))
+    files, warnings = _generate_files(jobs)
 
     # 分析影响
     if pollutant_type == "ammonia" and result.ammonia is not None:
@@ -425,9 +433,8 @@ def tool_river_pollution_event(
             "说明": "已达到浓度阈值" if arrival_h is not None else "本模拟时段内未达到浓度阈值",
         },
         "情景名称": scenario_name,
-        "输出文件": ["river_wq_contour.png", "river_wq_profile.png",
-                   "river_wq_timeseries.png", "river_dashboard.png",
-                   "river_pollution_animation.html"],
+        "输出文件": files,
+        "文件生成说明": warnings,
         "提示": (f"峰值浓度 {peak_c:.1f} mg/L，为标准({std_limit} mg/L)的 {peak_c/std_limit:.1f} 倍；"
                  f"相对监测基线则放大至 {peak_c / max(float(data[0, :].max()), 1e-9):.2f} 倍"
                  f"（基线 {float(data[0, :].max()):.1f} mg/L 本身可能已超标，故两者结论未必一致）。"

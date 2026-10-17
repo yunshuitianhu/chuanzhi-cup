@@ -159,7 +159,8 @@ def pollution(payload: PollutionRequest | None = None,
 
     kwargs = payload.model_dump(exclude_none=True)
     kwargs.setdefault('chainage_m', float((st.hydro_result.chainage[0] + st.hydro_result.chainage[-1]) / 2))
-    result = _json(tool_river_pollution_event(st, **kwargs, target_water_class=session.target_water_class))
+    result = _json(tool_river_pollution_event(st, **kwargs, target_water_class=session.target_water_class,
+                                            monitoring_data=session.df))
     return result
 
 

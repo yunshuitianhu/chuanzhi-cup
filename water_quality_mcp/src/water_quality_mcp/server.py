@@ -324,6 +324,7 @@ def tool_simulate_pollution_event(
     return tool_river_pollution_event(
         _get_river_state(),
         chainage_m, pollutant_type, load_kg, duration_min, simulation_hours,
+        monitoring_data=state.df,
     )
 
 

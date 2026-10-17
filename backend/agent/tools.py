@@ -222,6 +222,8 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 kwargs.setdefault("tidal_amplitude_m", 0.0)
             if name in ('simulate_pollution_event', 'get_concentration_profile'):
                 kwargs['target_water_class'] = session.target_water_class
+            if name == 'simulate_pollution_event':
+                kwargs['monitoring_data'] = session.df
             if name in ("simulate_pollution_event", "get_concentration_profile", "export_river_model_data"):
                 hydro = st.hydro_result
                 if hydro is not None and hydro.params.get("tidal_amplitude_m", 0):

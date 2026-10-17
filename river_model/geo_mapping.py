@@ -48,14 +48,14 @@ def _haversine(lon1: np.ndarray, lat1: np.ndarray,
     return R * 2.0 * np.arctan2(np.sqrt(a), np.sqrt(1.0 - a))
 
 
-def build_chainage_gps_mapping(excel_path: str,
+def build_chainage_gps_mapping(excel_path,
                                 smoothing_sigma: float = 3.0,
                                 interp_resolution_m: float = 50.0,
                                 ) -> dict:
     """从走航船 Excel 数据建立 chainage ↔ GPS 双向映射。
 
     Args:
-        excel_path: 走航数据 Excel 文件路径
+        excel_path: 走航数据 Excel 文件路径或当前会话 DataFrame（不修改原表）
         smoothing_sigma: 高斯平滑 sigma (点数), 值越大越平滑。默认 3.0
         interp_resolution_m: 插值网格分辨率 (m)。默认 50m 一个点
 
@@ -73,7 +73,7 @@ def build_chainage_gps_mapping(excel_path: str,
             "_chainage_to_lon": interp1d — 正向插值器
     """
     # 1. 加载数据
-    df = pd.read_excel(excel_path)
+    df = excel_path.copy() if isinstance(excel_path, pd.DataFrame) else pd.read_excel(excel_path)
 
     # 列名映射 (与 loaders.py 一致)
     col_map = {

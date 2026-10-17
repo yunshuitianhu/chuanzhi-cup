@@ -1019,7 +1019,7 @@ def execute_tool(name, args, api_key, amap_key, cloud_token=None):
             if args["tidal_amplitude_m"] != 0:
                 return json.dumps({"error": "潮汐模型未通过质量守恒验收，Agent 仅支持恒定流模拟"}, ensure_ascii=False)
             return tool_river_hydro_simulation(st.session_state.river_state, **args)
-        elif name == "simulate_pollution_event": return tool_river_pollution_event(st.session_state.river_state, **args)
+        elif name == "simulate_pollution_event": return tool_river_pollution_event(st.session_state.river_state, monitoring_data=st.session_state.get('df'), **args)
         elif name == "get_concentration_profile": return tool_river_concentration_profile(st.session_state.river_state, **args)
         elif name == "compare_scenarios": return tool_river_compare_scenarios(st.session_state.river_state, **args)
         elif name == "export_river_model_data": return tool_river_export_data(st.session_state.river_state, **args)
@@ -1418,6 +1418,7 @@ with tab3:
                     load_kg=50.0,
                     duration_min=30.0,
                     simulation_hours=24.0,
+                    monitoring_data=st.session_state.get('df'),
                 )
                 st.success("污染事件模拟完成")
 
