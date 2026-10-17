@@ -981,15 +981,24 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                 river['结论限制'] = '水质模拟来源于未验收潮汐工况，已排除其数值。'
             if hydro_usable and not wq_tidal and hasattr(river_state, 'has_wq') and river_state.has_wq():
                 w = river_state.wq_result
-                ammonia = w.ammonia if w.ammonia is not None else np.zeros((1, 1))
+                pollutant = w.params.get('pollutant_type', 'unknown')
+                concentration = w.cbod if pollutant == 'cbod' else w.ammonia
                 river["水质模拟"] = {
-                    "污染物": w.params.get('pollutant_type', 'unknown'),
+                    "污染物": pollutant,
                     "排放量_kg": w.params.get('load_kg', '?'),
                     "排放桩号_m": w.params.get('chainage_m', '?'),
                     "模拟时长_h": w.t[-1],
-                    "峰值浓度_mgL": round(float(ammonia.max()), 2),
-                    "峰值时刻_h": round(float(w.t[np.unravel_index(ammonia.argmax(), ammonia.shape)[0]]), 1),
+                    "反应模型": w.params.get('reaction_model', {}),
+                    "反应核算": w.params.get('reaction_diagnostics', {}),
+                    "结论限制": "仅为情景模拟，参数未经当前河道现场率定，不能据此认定污染责任",
                 }
+                if pollutant in ('ammonia', 'cbod') and concentration is not None:
+                    river['水质模拟'].update({
+                        "峰值浓度_mgL": round(float(concentration.max()), 2),
+                        "峰值时刻_h": round(float(w.t[np.unravel_index(concentration.argmax(), concentration.shape)[0]]), 1),
+                    })
+                else:
+                    river['水质模拟']['数据状态'] = '缺少有效污染物组分，不生成峰值结论'
             if river:
                 sections["河道模型"] = river
         except (AttributeError, KeyError, TypeError, ValueError, IndexError):

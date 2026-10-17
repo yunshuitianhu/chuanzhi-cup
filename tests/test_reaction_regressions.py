@@ -1,6 +1,7 @@
 """独立化学计量、无氧极限、氮质量积分和高精度 ODE 参照。"""
 import sys
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +11,7 @@ from scipy.integrate import solve_ivp
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from river_model.wq_engine import _reaction_step, solve_water_quality
 from river_model.config import YayaoConfig
+from river_model.state import RiverModelState, WQResult
 from test_transport_regressions import still_hydro, integrated_kg
 
 
@@ -94,6 +96,21 @@ class ReactionTests(unittest.TestCase):
         for args in ({'beta1':-1.}, {'oxygen_half_sat_n':0.}, {'T_C':float('nan')}):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 self.react(**args)
+
+    def test_summary_keeps_reaction_assumptions_and_correct_cbod_peak(self):
+        from water_quality_mcp.src.water_quality_mcp.analysis import build_comprehensive_summary
+        from water_quality_mcp.src.water_quality_mcp.state import WaterQualityState
+        h=still_hydro([0.,100.,200.])
+        w=WQResult(t=np.array([0.,1.]),chainage=h.chainage,
+                   cbod=np.array([[3.,4.,5.],[6.,7.,8.]]),ammonia=np.ones((2,3)),
+                   params={'pollutant_type':'cbod','reaction_model':{'parameter_status':'未经率定'}})
+        st=RiverModelState(hydro_result=h,wq_result=w)
+        summary=json.loads(build_comprehensive_summary(WaterQualityState(),st))
+        model=summary['河道模型']['水质模拟']
+        self.assertEqual(model['峰值浓度_mgL'],8.)
+        self.assertEqual(model['峰值时刻_h'],1.)
+        self.assertEqual(model['反应模型']['parameter_status'],'未经率定')
+        self.assertIn('情景模拟',model['结论限制'])
 
 
 if __name__ == '__main__':
