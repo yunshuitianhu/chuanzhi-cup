@@ -385,13 +385,13 @@ def tool_river_pollution_event(
             float(result.chainage[exceed_mask][-1]) if n_exceed_std > 0 else 0,
         )
 
-    # 下游到达时间 (峰值到达最后一个断面)
-    arrival_h = float(result.t[-1])
+    # 这里检测的是下游浓度首次超过初始值 1.3 倍，不是污染峰到达。
+    arrival_h = None
     if data is not None:
         last_cs = data[:, -1]
         exceed_factor = 1.3
         exceeded = np.where(last_cs > last_cs[0] * exceed_factor)[0]
-        arrival_h = float(result.t[exceeded[0]]) if len(exceeded) > 0 else float(result.t[-1])
+        arrival_h = float(result.t[exceeded[0]]) if len(exceeded) > 0 else None
 
     return json.dumps({
         "状态": "污染事件模拟完成",
@@ -418,7 +418,12 @@ def tool_river_pollution_event(
             "断面数": n_affected,
             "桩号范围_m": list(affected_chainage_range),
         },
-        "下游到达时间_h": round(arrival_h, 1),
+        "下游到达时间_h": round(arrival_h, 4) if arrival_h is not None else None,
+        "下游到达判定": {
+            "已达到阈值": arrival_h is not None,
+            "判定口径": "下游末断面浓度首次超过该断面初始浓度的 1.3 倍；不代表污染峰到达",
+            "说明": "已达到浓度阈值" if arrival_h is not None else "本模拟时段内未达到浓度阈值",
+        },
         "情景名称": scenario_name,
         "输出文件": ["river_wq_contour.png", "river_wq_profile.png",
                    "river_wq_timeseries.png", "river_dashboard.png",
