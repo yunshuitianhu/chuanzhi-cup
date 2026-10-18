@@ -55,13 +55,14 @@ class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body, isForm = false, binary = false } = {}) {
+async function request(path, { method = 'GET', body, isForm = false, binary = false, signal } = {}) {
   const headers = {}
   if (sessionId) headers['X-Session-Id'] = sessionId
   if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json'
 
   const res = await fetch(BASE + path, {
     method,
+    signal,
     headers,
     body: isForm ? body : (body !== undefined ? JSON.stringify(body) : undefined),
   })
@@ -129,6 +130,7 @@ export const api = {
 
   timeSeries: () => request('/charts/time-series'),
   traceMap: () => request('/charts/trace-map'),
+  amapStaticMap: (params, signal) => request(`/maps/amap-static?${new URLSearchParams(params)}`, { binary:true, signal }),
   crossValidationChart: () => request('/charts/cross-validation'),
 
   // ---- 国控站点 ----

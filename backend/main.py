@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import PROJECT_ROOT  # noqa: F401  —— 导入即完成 sys.path 与 .env 初始化
-from .routers import agent, analysis, charts, data, rag, river, stations, system, trace, projects
+from .routers import agent, analysis, charts, data, rag, river, stations, system, trace, projects, maps
 from .session import STORE
 
 logging.basicConfig(level=logging.INFO,
@@ -45,6 +45,9 @@ async def session_middleware(request: Request, call_next):
     会话在中间件层解析（而非依赖里），保证**所有**响应（含 SSE、错误响应）
     都带上这个头，前端只需在一处读取。
     """
+    # 底图是公共背景，不读取分析数据；图片请求不应不断创建空会话。
+    if request.url.path.startswith("/api/maps/"):
+        return await call_next(request)
     session = STORE.get(request.headers.get("X-Session-Id"))
     request.state.session_id = session.id
     response = await call_next(request)
@@ -77,6 +80,7 @@ app.include_router(trace.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
 app.include_router(river.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
+app.include_router(maps.router, prefix="/api")
 
 
 @app.get("/")

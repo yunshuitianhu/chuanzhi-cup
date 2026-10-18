@@ -8,14 +8,14 @@
  *   - Top-5 严重点位（编号标记）
  *   - 污染点位热力图
  *
- * 底图用 Esri 卫星图 + OSM，都不需要 API Key。
- * 注意坐标系：监测数据是 WGS-84，Esri/OSM 底图也是 WGS-84，**无偏移**。
- * 高德底图是 GCJ-02（有偏移），故默认不启用。
+ * 高德官方静态底图经后端取图；显示坐标转GCJ-02，原始数据保持WGS-84。
  */
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { severityLayer } from '../utils/severityLayer'
+import { amapStaticLayer } from '../utils/amapStaticLayer'
+import { displayTrace, wgsToGcj, gcjToWgs } from '../utils/mapCoordinates'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr } from '../composables/useToast'
@@ -27,35 +27,73 @@ const loading = ref(false)
 const showHeat = ref(true), showClusters = ref(false), showTop5 = ref(true)
 let map = null
 let layerGroup = null
+let baseLayer = null, resizeObserver = null, disposed = false, loadVersion = 0, sourceVersion = 0
+const provider = ref(store.config.keys.amap ? 'amap' : 'esri')
+const baseState = ref('loading'), baseMessage = ref('正在加载底图…'), fallbackReason = ref('')
+const tried = new Set()
+const sourceNames = {amap:'高德街道图', esri:'Esri 卫星图', osm:'OSM 街道图'}
 
-const BASE_LAYERS = {
-  'Esri 卫星图 (WGS-84 无偏移)': L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 19, attribution: 'Esri' },
-  ),
-  'OSM 街道图 (WGS-84)': L.tileLayer(
-    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    { maxZoom: 19, attribution: 'OSM' },
-  ),
-  'CartoDB Voyager': L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-    { maxZoom: 19, subdomains: 'abc', attribution: 'CartoDB' },
-  ),
+function selectSource(source, automatic = false) {
+  if (!map) return
+  if (!automatic) { tried.clear(); fallbackReason.value = '' }
+  const previous = provider.value
+  const c = map.getCenter()
+  let center = [c.lat, c.lng]
+  if (previous === 'amap') center = gcjToWgs(center)
+  if (source === 'amap') center = wgsToGcj(center)
+  const version = ++sourceVersion
+  baseLayer?.remove()
+  provider.value = source
+  tried.add(source)
+  map.setMaxZoom(source === 'amap' ? 17 : 19)
+  map.setView(center, Math.min(map.getZoom(), source === 'amap' ? 17 : 19), {animate:false})
+  baseState.value = 'loading'; baseMessage.value = `正在加载${sourceNames[source]}…`
+  let successes = 0, failures = 0, fallbackQueued = false
+  const report = (state, message) => {
+    if (disposed || version !== sourceVersion) return
+    baseState.value = state; baseMessage.value = message
+    if (state !== 'error' || fallbackQueued) return
+    const next = ['amap','esri','osm'].find(s => !tried.has(s) && (s !== 'amap' || store.config.keys.amap))
+    if (next) {
+      fallbackQueued = true
+      fallbackReason.value = `${sourceNames[source]}加载失败：${message}；已尝试备用底图。`
+      queueMicrotask(() => { if (!disposed && version === sourceVersion) selectSource(next, true) })
+    }
+  }
+  if (source === 'amap') baseLayer = amapStaticLayer(api.amapStaticMap, report)
+  else {
+    const osm = source === 'osm'
+    baseLayer = L.tileLayer(osm
+      ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+      : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom:19, attribution:osm ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' : 'Esri',
+    })
+    baseLayer.on('tileload', () => { successes++; report('ready', `${sourceNames[source]}已加载`) })
+    baseLayer.on('tileerror', () => {
+      failures++
+      if (failures >= 3 && !successes) report('error', '底图服务不可达或拒绝访问')
+      else if (successes) report('partial', '部分底图未加载，可重试或切换底图')
+    })
+    baseLayer.on('load', () => { if (failures && !successes) report('error', '底图服务不可达或拒绝访问') })
+  }
+  baseLayer.addTo(map)
+  render()
 }
 
 function initMap() {
   if (map || !el.value) return
-  map = L.map(el.value, { zoomControl: true, attributionControl: true })
-  BASE_LAYERS['Esri 卫星图 (WGS-84 无偏移)'].addTo(map)
-  L.control.layers(BASE_LAYERS).addTo(map)
+  map = L.map(el.value, { zoomControl: true, attributionControl: true, minZoom:1, worldCopyJump:true })
   layerGroup = L.layerGroup().addTo(map)
   map.setView([30, 105], 3)   // 中性初始视角；有数据后 fitBounds
+  selectSource(provider.value)
+  resizeObserver = new ResizeObserver(() => map?.invalidateSize())
+  resizeObserver.observe(el.value)
 }
 
-function render() {
+function render(fit = false) {
   if (!map || !layerGroup) return
   layerGroup.clearLayers()
-  const d = data.value
+  const d = displayTrace(data.value, provider.value === 'amap')
   if (!d) return
 
   // 轨迹
@@ -63,7 +101,7 @@ function render() {
     const line = L.polyline(d.track, { color: '#2ea3f2', weight: 2, opacity: .75 })
     line.addTo(layerGroup)
     line.bindPopup(`走航轨迹 · ${d.track.length} 个点`)
-    map.fitBounds(line.getBounds(), { padding: [24, 24] })
+    if (fit) map.fitBounds(line.getBounds(), { padding: [24, 24], maxZoom:17 })
   }
 
   // 邻域平均严重程度；密集采样不累加成更严重的颜色。
@@ -117,27 +155,44 @@ function render() {
 }
 
 async function load() {
-  if (!store.status.has_data) { data.value = null; render(); return }
+  const version = ++loadVersion
+  if (!store.status.has_data) { data.value = null; loading.value = false; render(); return }
   loading.value = true
   try {
-    data.value = await api.traceMap()
-    render()
+    const result = await api.traceMap()
+    if (disposed || version !== loadVersion) return
+    data.value = result
+    render(true)
   } catch (e) {
-    toastErr(`地图数据加载失败：${e.message}`)
+    if (!disposed && version === loadVersion) toastErr(`地图数据加载失败：${e.message}`)
   } finally {
-    loading.value = false
+    if (version === loadVersion) loading.value = false
   }
 }
 
 onMounted(() => { initMap(); load() })
-onBeforeUnmount(() => { map?.remove(); map = null; layerGroup = null })
+onBeforeUnmount(() => { disposed = true; loadVersion++; sourceVersion++; resizeObserver?.disconnect(); map?.remove(); map = null; layerGroup = null })
 
-watch(() => [store.status.black_spot_count, store.status.analysis_revision], load)
-watch([showHeat, showClusters, showTop5], render)
+watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision], load)
+watch([showHeat, showClusters, showTop5], () => render())
+watch(() => store.config.keys.amap, (ready) => { if (ready && !tried.has('amap')) selectSource('amap') })
 </script>
 
 <template>
   <div class="wrap">
+    <div class="basemap-options">
+      <label>地图底图
+        <select :value="provider" @change="selectSource($event.target.value)">
+          <option value="amap">高德街道图{{ store.config.keys.amap ? '' : '（需配置 Web服务 Key）' }}</option>
+          <option value="esri">Esri 卫星图</option>
+          <option value="osm">OSM 街道图</option>
+        </select>
+      </label>
+      <button type="button" @click="selectSource(provider)">重试底图</button>
+      <span role="status" :class="{ 'map-error':baseState === 'error' }">{{ baseMessage }}</span>
+    </div>
+    <p v-if="fallbackReason" class="map-warning">{{ fallbackReason }}</p>
+    <p v-if="baseState === 'error'" class="map-warning">底图暂不可用，轨迹与热力图仍可查看。请检查网络或切换底图。</p>
     <div class="layer-options">
       <label><input v-model="showHeat" type="checkbox" />严重程度热力图</label>
       <label><input v-model="showClusters" type="checkbox" />聚类范围</label>
@@ -159,6 +214,10 @@ watch([showHeat, showClusters, showTop5], render)
 
 <style scoped>
 .wrap { position: relative; }
+.basemap-options { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:10px; color:var(--c-sub); font-size:12px; }
+.basemap-options label { display:flex; align-items:center; gap:8px; }
+.basemap-options select,.basemap-options button { background:var(--c-bg); color:var(--c-text); border:1px solid var(--c-border); border-radius:5px; padding:6px 9px; }
+.map-warning,.map-error { color:#f0bc67; font-size:12px; }
 .layer-options { display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; color:var(--c-sub); font-size:12px; }
 .layer-options label { display:flex; align-items:center; gap:5px; cursor:pointer; }
 .map { height: 460px; border-radius: 8px; overflow: hidden; z-index: 0; }
