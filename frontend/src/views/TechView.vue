@@ -6,7 +6,7 @@
  * 这里改为卡片流，交互逻辑一致：**无需对话即可单独体验每项能力**。
  * 这是给评审最快看懂"这个系统能做什么"的一页。
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
@@ -19,13 +19,12 @@ import RagSearch from '../components/RagSearch.vue'
 
 const store = useSessionStore()
 const running = ref(false)
-const summary = ref(null)
+const summary = computed(() => store.blackSpots)
 
 async function runBlackSpots() {
   running.value = true
   try {
     const res = await store.runBlackSpots()
-    summary.value = res
     toastOk(`黑臭检测完成：检出 ${res.result['黑点总数']} 个黑点`)
   } catch (e) {
     toastErr(`检测失败：${e.message}`)
@@ -38,13 +37,13 @@ async function runBlackSpots() {
 <template>
   <Panel title="核心技术能力展示" subtitle="每项能力均可独立运行，无需通过对话提问">
     <StatusBanner />
+    <p v-for="message in store.resultsWarnings" :key="message" class="hint">{{ message }}</p>
 
     <section class="block">
       <h2 class="bt">📡 国控水质站点实时查询</h2>
       <p class="desc">
-        接入生态环境部「国家地表水水质自动监测实时数据发布系统」，覆盖全国
-        <b>1800+</b> 自动监测断面，每小时更新。通过逆向其 AJAX 接口直接取 JSON，
-        无需浏览器或 Playwright；内置 95+ 站点离线坐标库作降级。
+        查询生态环境部国控站点公开数据。实时请求失败时使用离线坐标库作位置参考，
+        各次查询显示实际来源、数据时间及可用状态，离线坐标不当作实时监测值。
       </p>
       <p class="hint">💡 无需上传数据即可体验</p>
       <StationQuery />
@@ -54,11 +53,11 @@ async function runBlackSpots() {
       <h2 class="bt">🔍 多维黑臭点智能检测</h2>
       <p class="desc">
         <b>4 维增强评分</b>：内梅罗综合指数 × 严重度因子 × 时间持续性 × 空间连续性。
-        孤立单点超标被抑制、持续成片超标被放大，再用 DBSCAN（eps≈33m）
-        聚类识别热点区域，最后按《城市黑臭水体整治工作指南》(2015)
-        与 GB3838-2002 分级。
+        观测时长和空间连续性用于排序，孤立点仍保留阈值预警。
+        使用米制球面距离和时间邻域聚类；氨氮、DO仅作点级筛查，
+        工程综合指数与增强排序评分分别显示。
       </p>
-      <button class="run" :disabled="!store.canAnalyze || running" @click="runBlackSpots">
+      <button class="run" :disabled="!store.canAnalyze || !store.ready || store.loading || store.chatRunning || running" @click="runBlackSpots">
         {{ running ? '检测中…' : '运行黑臭检测' }}
       </button>
       <p v-if="!store.canAnalyze" class="hint">⚠️ 请先在左侧上传走航监测数据并点击「加载数据」</p>

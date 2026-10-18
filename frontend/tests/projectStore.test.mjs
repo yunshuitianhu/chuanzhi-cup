@@ -63,3 +63,77 @@ test('切换已提交但后续请求失败时停用旧视图，避免显示混�
   assert.equal(store.projectState.current.id,'B')
   assert.equal(store.switchingProject,false)
 })
+
+test('启动时恢复已保存的零预警检测与交叉印证，不重新执行分析',async()=>{
+  const store=useSessionStore(createPinia()),calls=[]
+  const status={analysis_revision:7,results_revision:0,has_data:true,rows:3,has_detection:true,black_spot_count:0}
+  globalThis.fetch=async(path,options)=>{
+    calls.push([path,options.method])
+    if(path==='/api/health')return reply({ok:true})
+    if(path==='/api/config')return reply({keys:{},target_water_class:'V'})
+    if(path==='/api/data/status')return reply(status)
+    if(path==='/api/projects')return reply({current:{id:'saved'},river_ui:{form:{length_m:900}},projects:[]})
+    if(path==='/api/analysis/results')return reply({analysis_revision:7,results_revision:0,
+      black_spots:{result:{'黑点总数':0}},cross_validation:{'时间对齐':{'时间偏移秒':-5}},comprehensive:null,warnings:[]})
+    if(path==='/api/agent/history')return reply({messages:[{content:'历史报告'}]})
+    if(path.startsWith('/api/data/preview'))return reply({rows:[{}],total:3})
+    throw new Error(path)
+  }
+  await store.bootstrap()
+  assert.equal(store.ready,true)
+  assert.equal(store.blackSpots.result['黑点总数'],0)
+  assert.equal(store.crossValidation['时间对齐']['时间偏移秒'],-5)
+  assert.equal(store.riverForm.length_m,900)
+  assert.ok(calls.every(([,method])=>method==='GET'))
+})
+
+test('预警数量相同但结果版本变化时更新结果并保留模型草稿和历史',async()=>{
+  const store=useSessionStore(createPinia())
+  store.status={analysis_revision:2,results_revision:1,has_data:true,black_spot_count:3}
+  store.projectState={current:{id:'A'},projects:[],river_ui:{}}
+  store.riverForm={length_m:800};store.chatMessages=[{content:'历史'}]
+  store.blackSpots={result:{old:true}};store.crossValidation={old:true}
+  globalThis.fetch=async path=>{
+    if(path==='/api/data/status')return reply({...store.status,results_revision:2})
+    if(path==='/api/analysis/results')return reply({analysis_revision:2,results_revision:2,
+      black_spots:{result:{'黑点总数':3,'聚类热点数':2}},cross_validation:null,comprehensive:null,warnings:[]})
+    throw new Error(path)
+  }
+  await store.refreshStatus()
+  assert.equal(store.blackSpots.result['聚类热点数'],2)
+  assert.equal(store.crossValidation,null)
+  assert.equal(store.riverForm.length_m,800)
+  assert.equal(store.chatMessages[0].content,'历史')
+})
+
+test('项目切换后到达的旧结果不能覆盖新项目',async()=>{
+  const store=useSessionStore(createPinia())
+  store.status={analysis_revision:2,results_revision:1}
+  store.projectState={current:{id:'A'}}
+  let release
+  globalThis.fetch=()=>new Promise(resolve=>{release=()=>resolve(reply({analysis_revision:2,results_revision:1,
+    black_spots:{result:{old:true}},cross_validation:null,warnings:[]}))})
+  const old=store.refreshResults()
+  store.projectState={current:{id:'B'}};store.workspaceRevision++
+  store.blackSpots={result:{new:true}}
+  release();await old
+  assert.deepEqual(store.blackSpots,{result:{new:true}})
+})
+
+test('缓存读取失败显示可重试说明，保留其它可用功能',async()=>{
+  const store=useSessionStore(createPinia());store.ready=true
+  store.status={analysis_revision:2,results_revision:1}
+  globalThis.fetch=async()=>reply({detail:'临时断线'},503)
+  await store.refreshResults()
+  assert.equal(store.ready,true)
+  assert.match(store.resultsWarnings[0],/加载失败.*临时断线.*刷新重试/)
+})
+
+test('并行提交被拒绝且不提前解除首个任务的忙碌标记',async()=>{
+  const store=useSessionStore(createPinia());let release,secondCalled=false
+  const first=store._run(()=>new Promise(resolve=>{release=resolve}))
+  await assert.rejects(store._run(()=>{secondCalled=true}),/任务尚未完成/)
+  assert.equal(secondCalled,false);assert.equal(store.loading,true)
+  release();await first
+  assert.equal(store.loading,false)
+})

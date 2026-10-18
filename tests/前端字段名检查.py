@@ -133,7 +133,7 @@ scenarios.append((
     "1. /api/analysis/black-spots -> BlackSpotResult.vue",
     "frontend/src/components/BlackSpotResult.vue",
     [r.json()] if r.status_code == 200 else [],
-    (),
+    ("提示",),  # 仅零预警分支返回；组件v-if显示，零预警SSR回归另行覆盖。
 ))
 
 # ---- 2. 交叉印证（需视频帧；没有就跳过，不伪造数据）----

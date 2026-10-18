@@ -124,6 +124,7 @@ export const api = {
   },
 
   summary: () => request('/analysis/summary'),
+  analysisResults: () => request('/analysis/results'),
   blackSpots: () => request('/analysis/black-spots', { method: 'POST' }),
   crossValidate: (payload) => request('/analysis/cross-validate', { method: 'POST', body: payload || {} }),
   comprehensive: () => request('/analysis/comprehensive'),

@@ -66,6 +66,8 @@ const METRICS = [
       </div>
     </div>
 
+    <p v-if="res['提示']" class="std">{{res['提示']}}</p>
+
     <p v-if="res['判定标准']" class="std">
       判定标准：{{ res['判定标准']['污染指数'] }} ｜ {{ res['判定标准']['黑臭判定'] }}
     </p>

@@ -140,3 +140,76 @@ test('检测面板将非黑臭指数线索和观测跨度明确显示',async()=>
   assert.match(html,/首末观测跨度 60 min/)
   assert.doesNotMatch(html,/时空额外发现|持续 60 min/)
 })
+
+test('技术页直接显示恢复的检测结果，包含零预警情形',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:Tech}=await server.ssrLoadModule('/src/views/TechView.vue')
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  const pinia=createPinia(),store=useSessionStore(pinia)
+  store.blackSpots={result:{'黑点总数':0,'提示':'恢复的零预警结果'}}
+  store.status.has_detection=true;store.status.detection_outdated=true
+  const app=createSSRApp(Tech);app.use(pinia)
+  const html=await renderToString(app)
+  assert.match(html,/恢复的零预警结果/)
+  assert.match(html,/检测结果使用旧算法/)
+})
+
+test('交叉印证恢复旧项目比例时改用参照表述，保留零值',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:Cross}=await server.ssrLoadModule('/src/components/CrossValidation.vue')
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  const pinia=createPinia(),store=useSessionStore(pinia)
+  store.status.video_frames=3
+  store.crossValidation={'时间对齐':{'时间偏移秒':-5,'匹配窗口秒':20,'匹配成功帧数':3,'总视频帧数':3},
+    '黑臭判定一致性':{'一致率_%':0,'视频判黑准确率_%':0,'视频判黑召回率_%':0}}
+  const app=createSSRApp(Cross);app.use(pinia)
+  const html=await renderToString(app)
+  assert.match(html,/视频预警符合率/);assert.match(html,/传感器预警的视频覆盖率/)
+  assert.match(html,/未经过人工真值复核/)
+  assert.doesNotMatch(html,/>视频判黑准确率</)
+  assert.match(html,/value="-5"/);assert.match(html,/value="20"/)
+  assert.ok((html.match(/>0<small/g)||[]).length>=3)
+})
+
+test('已有监测表时可单独加载视频，成功后清除文件选择',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:DataPanel}=await server.ssrLoadModule('/src/components/DataPanel.vue')
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  const pinia=createPinia(),store=useSessionStore(pinia)
+  store.status.has_data=true
+  const calls=[];store.uploadVideo=async file=>{calls.push(file.name);return {frames:3,report:'完成'}}
+  store.uploadData=()=>{throw new Error('不应重载监测表')}
+  let controls
+  const app=createSSRApp(DataPanel);app.use(pinia)
+  app.mixin({created(){if(this.$options.__file?.endsWith('DataPanel.vue'))controls=this.$.setupState}})
+  await renderToString(app)
+  assert.ok(controls?.onPick,'实际组件处理函数可访问')
+  controls.onPick('video',{target:{files:[{name:'new.mp4'}]}})
+  assert.equal(controls.canLoad,true);assert.equal(controls.loadLabel,'加载视频')
+  await controls.load()
+  assert.deepEqual(calls,['new.mp4'])
+  assert.equal(controls.videoFile,null)
+  assert.equal(controls.canLoad,false)
+})
+
+test('统计与时间序列的迟到响应不能覆盖较新数据',async()=>{
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  for(const [file,method,value] of [
+    ['/src/components/SummaryCards.vue','load','data'],
+    ['/src/views/ChartsView.vue','loadTimeSeries','ts'],
+  ]) {
+    const {default:Component}=await server.ssrLoadModule(file)
+    const pinia=createPinia(),store=useSessionStore(pinia);store.status.has_data=true
+    let controls
+    const app=createSSRApp(Component);app.use(pinia)
+    app.component('RouterLink',{props:['to'],setup(props,{slots}){return()=>h('a',{href:props.to},slots.default?.())}})
+    app.mixin({created(){if(this.$options.__file?.endsWith(file.split('/').at(-1)))controls=this.$.setupState}})
+    await renderToString(app)
+    let resolveOld,resolveNew,count=0
+    globalThis.fetch=async()=>new Promise(resolve=>{if(count++===0)resolveOld=resolve;else resolveNew=resolve})
+    const old=controls[method](),fresh=controls[method]()
+    resolveNew(new Response('{"marker":"new"}',{status:200}));await fresh
+    resolveOld(new Response('{"marker":"old"}',{status:200}));await old
+    assert.equal(controls[value].marker,'new',file)
+  }
+})

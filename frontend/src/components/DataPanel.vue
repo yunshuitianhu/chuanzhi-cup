@@ -20,7 +20,7 @@ const dataInput = ref(null)
 const videoInput = ref(null)
 const report = ref('')
 
-const canLoad = computed(() => !!dataFile.value && !store.loading && !store.chatRunning)
+const canLoad = computed(() => (!!dataFile.value || (!!videoFile.value && store.status.has_data)) && !store.loading && !store.chatRunning)
 
 /**
  * 文件选择框的显示文本。
@@ -49,6 +49,7 @@ const videoLabel = computed(() => {
 /** 会话里已加载过数据 → 按钮改为「重新选择并加载」，语义更准确。 */
 const loadLabel = computed(() => {
   if (store.loading) return '处理中…'
+  if (!dataFile.value && videoFile.value && store.status.has_data) return '加载视频'
   return store.status.has_data ? '重新加载数据' : '加载数据'
 })
 
@@ -64,13 +65,18 @@ function clearPick(kind) {
 }
 
 async function load() {
-  if (!dataFile.value) return
+  if (!canLoad.value) return
   try {
-    const res = await store.uploadData(dataFile.value)
-    report.value = res.report
-    toastOk(`数据加载完成：${res.rows} 条记录`)
+    if (dataFile.value) {
+      const res = await store.uploadData(dataFile.value)
+      report.value = res.report
+      clearPick('data')
+      toastOk(`数据加载完成：${res.rows} 条记录`)
+    }
     if (videoFile.value) {
       const v = await store.uploadVideo(videoFile.value)
+      report.value = v.report
+      clearPick('video')
       toastOk(`视频抽帧完成：${v.frames} 帧`)
     }
   } catch (e) {
@@ -108,8 +114,9 @@ async function load() {
 
     <!-- 已有数据但未选新文件时，说明清楚点按钮不会重置 -->
     <p v-if="store.status.has_data && !dataFile" class="hint loaded-note">
-      数据已加载。选择新文件后才能重新加载 —— 重新加载会清空全部分析结果。
+      数据已加载。可单独上传或替换视频；选择新监测表重新加载会清空分析和模型。
     </p>
+    <p v-if="videoFile && !dataFile && store.status.has_data" class="hint">加载新视频会清除旧交叉印证和报告完成标记，保留监测表、检测结果及河道模型。</p>
 
     <p v-if="videoFile" class="hint">
       ⚠ 大视频上传需要时间，请等文件名出现后再点「加载数据」。

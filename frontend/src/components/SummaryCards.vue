@@ -1,6 +1,6 @@
 <script setup>
 /** 数据统计指标卡 —— 对应 app.py 的 tool_data_summary 展示。 */
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr } from '../composables/useToast'
@@ -8,18 +8,23 @@ import { toastErr } from '../composables/useToast'
 const store = useSessionStore()
 const data = ref(null)
 const FIELDS = ['氨氮', '溶解氧', '浊度', 'pH', 'COD']
+let requestVersion = 0
 
 async function load() {
+  const version = ++requestVersion
   if (!store.status.has_data) { data.value = null; return }
+  data.value = null
   try {
-    data.value = await api.summary()
+    const result = await api.summary()
+    if (version === requestVersion) data.value = result
   } catch (e) {
-    toastErr(`统计加载失败：${e.message}`)
+    if (version === requestVersion) toastErr(`统计加载失败：${e.message}`)
   }
 }
 
 onMounted(load)
-watch(() => store.status.rows, load)
+onBeforeUnmount(() => { requestVersion++ })
+watch(() => [store.status.rows, store.status.analysis_revision], load)
 </script>
 
 <template>

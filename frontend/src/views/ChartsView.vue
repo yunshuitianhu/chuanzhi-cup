@@ -5,7 +5,7 @@
  * 与原版的本质区别：原版是把 matplotlib 生成的 PNG 贴上来，
  * 这里全部由 ECharts 在前端渲染 —— 可缩放、可悬浮读数、可切换图例。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import EChart from '../components/EChart.vue'
@@ -18,23 +18,28 @@ import { toastErr } from '../composables/useToast'
 const store = useSessionStore()
 const ts = ref(null)          // time-series 数据
 const loading = ref(false)
+let requestVersion = 0
 
 async function loadTimeSeries() {
-  if (!store.status.has_data) return
+  const version = ++requestVersion
+  ts.value = null
+  if (!store.status.has_data) { loading.value = false; return }
   loading.value = true
   try {
-    ts.value = await api.timeSeries()
+    const result = await api.timeSeries()
+    if (version === requestVersion) ts.value = result
   } catch (e) {
-    toastErr(`图表数据加载失败：${e.message}`)
+    if (version === requestVersion) toastErr(`图表数据加载失败：${e.message}`)
   } finally {
-    loading.value = false
+    if (version === requestVersion) loading.value = false
   }
 }
 
 onMounted(loadTimeSeries)
+onBeforeUnmount(() => { requestVersion++ })
 // 数据或黑点变化后重新取图（黑点散点依赖检测结果）
 watch(() => [store.status.analysis_revision, store.status.rows,
-  store.status.black_spot_count, store.status.target_water_class], loadTimeSeries)
+  store.status.black_spot_count, store.status.target_water_class, store.status.results_revision], loadTimeSeries)
 
 /** 把某一面板的数据 + 黑点散点拼成 ECharts option。 */
 function panelOption(key) {

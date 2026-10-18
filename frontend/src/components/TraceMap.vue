@@ -251,7 +251,7 @@ onBeforeUnmount(() => {
   map?.remove(); map = null; layerGroup = null
 })
 
-watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision, store.status.detection_algorithm_version], load)
+watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision, store.status.detection_algorithm_version, store.status.results_revision], load)
 watch([showHeat, showClusters, showTop5, showTrack, heatRadius, heatOpacity], () => render())
 watch(selectedId,()=>render())
 watch(()=>props.simulation,load)

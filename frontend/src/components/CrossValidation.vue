@@ -6,7 +6,6 @@
  * 改为 ECharts 热力图 + 一致性指标卡片。
  */
 import { computed, ref, watch } from 'vue'
-import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import EChart from './EChart.vue'
 import { toastErr, toastOk } from '../composables/useToast'
@@ -14,7 +13,7 @@ import { toastErr, toastOk } from '../composables/useToast'
 const store = useSessionStore()
 const offset = ref(0)
 const windowSec = ref(30)
-const result = ref(null)
+const result = computed(() => store.crossValidation)
 const running = ref(false)
 
 const hasVideo = computed(() => store.status.video_frames > 0)
@@ -22,9 +21,9 @@ const hasVideo = computed(() => store.status.video_frames > 0)
 async function run() {
   running.value = true
   try {
-    result.value = await store.runCrossValidation({
-      time_offset_sec: Number(offset.value) || 0,
-      time_window_sec: Number(windowSec.value) || 30,
+    await store.runCrossValidation({
+      time_offset_sec: Number(offset.value),
+      time_window_sec: Number(windowSec.value),
     })
     toastOk('交叉印证完成')
   } catch (e) {
@@ -99,7 +98,10 @@ const alignment = computed(() => result.value?.['时间对齐'] || {})
 const agreement = computed(() => result.value?.['黑臭判定一致性'] || {})
 const findings = computed(() => result.value?.['关键发现'] || [])
 
-watch(() => store.status.video_frames, (n) => { if (!n) result.value = null })
+watch([() => alignment.value['时间偏移秒'], () => alignment.value['匹配窗口秒']], ([offsetSec, width]) => {
+  if (Number.isFinite(offsetSec)) offset.value = offsetSec
+  if (Number.isFinite(width)) windowSec.value = width
+}, { immediate:true })
 </script>
 
 <template>
@@ -111,13 +113,13 @@ watch(() => store.status.video_frames, (n) => { if (!n) result.value = null })
     <div class="controls">
       <label>
         时间偏移 (秒)
-        <input v-model.number="offset" type="number" step="10" />
+        <input v-model.number="offset" type="number" step="any" />
       </label>
       <label>
         匹配窗口 (秒)
-        <input v-model.number="windowSec" type="number" step="10" />
+        <input v-model.number="windowSec" type="number" min="0.001" step="any" />
       </label>
-      <button class="run" :disabled="running" @click="run">
+      <button class="run" :disabled="running || store.loading || store.chatRunning || !Number.isFinite(Number(windowSec)) || Number(windowSec) <= 0" @click="run">
         {{ running ? '计算中…' : '运行交叉印证' }}
       </button>
       <span class="hint">视频已提取 {{ store.status.video_frames }} 帧</span>
@@ -136,18 +138,24 @@ watch(() => store.status.video_frames, (n) => { if (!n) result.value = null })
           <span class="m-sub">{{ agreement['双方一致_黑臭'] ?? 0 }} 帧双方判黑</span>
         </div>
         <div class="metric">
-          <span class="m-label">视频判黑准确率</span>
-          <span class="m-val">{{ agreement['视频判黑准确率_%'] ?? '—' }}<small>%</small></span>
+          <span class="m-label">视频预警符合率</span>
+          <span class="m-val">{{ agreement['视频预警符合率_%'] ?? agreement['视频判黑准确率_%'] ?? '—' }}<small>%</small></span>
+          <span class="m-sub">以传感器阈值预警为参照</span>
         </div>
         <div class="metric">
-          <span class="m-label">视频判黑召回率</span>
-          <span class="m-val">{{ agreement['视频判黑召回率_%'] ?? '—' }}<small>%</small></span>
+          <span class="m-label">传感器预警的视频覆盖率</span>
+          <span class="m-val">{{ agreement['传感器预警视频覆盖率_%'] ?? agreement['视频判黑召回率_%'] ?? '—' }}<small>%</small></span>
         </div>
       </div>
 
       <p v-if="agreement['解读']" class="interp">{{ agreement['解读'] }}</p>
+      <p class="interp">{{ agreement['指标口径'] || '以传感器阈值筛查为参照，未经过人工真值复核，不能解释为现场准确率。' }}</p>
 
       <EChart v-if="heatOption.series" :option="heatOption" :height="300" />
+      <p v-if="result['相关性说明']" class="interp">{{ result['相关性说明'] }}</p>
+      <details v-if="result['相关性限制']?.length" class="findings"><summary>部分相关系数未计算（{{result['相关性限制'].length}} 项）</summary>
+        <p v-for="message in result['相关性限制']" :key="message">{{message}}</p>
+      </details>
 
       <ul v-if="findings.length" class="findings">
         <li v-for="(f, i) in findings" :key="i">{{ f }}</li>

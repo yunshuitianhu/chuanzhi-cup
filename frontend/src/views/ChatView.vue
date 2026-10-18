@@ -132,6 +132,7 @@ async function consume(res) {
     </template>
 
     <div v-if="!store.status.has_data" class="tip">请先在左侧上传并加载走航数据。</div>
+    <div v-if="store.status.analysis_status === 'stale'" class="tip">检测或视频结果已更新，下方保留的是历史对话；请重新分析以生成当前报告。</div>
 
     <div ref="scroller" class="stream">
       <div v-if="!messages.length" class="placeholder">

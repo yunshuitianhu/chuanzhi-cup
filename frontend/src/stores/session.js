@@ -30,6 +30,10 @@ export const useSessionStore = defineStore('session', {
     blackSpots: null,        // { result, cluster_fields }
     crossValidation: null,
     comprehensive: null,
+    resultsWarnings: [],
+    statusRequest: 0,
+    resultsRequest: 0,
+    projectRequest: 0,
   }),
 
   getters: {
@@ -39,7 +43,11 @@ export const useSessionStore = defineStore('session', {
 
   actions: {
     async refreshProjects() {
-      this.projectState = await api.projects()
+      const request = ++this.projectRequest
+      const workspace = this.workspaceRevision
+      const state = await api.projects()
+      if (request !== this.projectRequest || workspace !== this.workspaceRevision) return
+      this.projectState = state
       if (this.riverForm === null) this.riverForm = this.projectState.river_ui?.form || null
     },
 
@@ -50,6 +58,7 @@ export const useSessionStore = defineStore('session', {
         this.riverForm = state.river_ui?.form || null
         this.preview = { columns:[], rows:[], total:0 }
         this.blackSpots = this.crossValidation = this.comprehensive = null
+        this.resultsWarnings = []
         this.chatMessages = []
         this.config = await api.config()
         await this.refreshStatus()
@@ -79,6 +88,7 @@ export const useSessionStore = defineStore('session', {
     },
 
     async changeProject(request) {
+      this.statusRequest++; this.resultsRequest++; this.projectRequest++
       this.switchingProject = true
       try { await this.adoptProject(await request()) }
       finally { this.switchingProject = false }
@@ -109,6 +119,7 @@ export const useSessionStore = defineStore('session', {
     },
 
     async _run(fn) {
+      if (this.loading || this.chatRunning) throw new Error('当前任务尚未完成，请稍后重试')
       this.loading = true
       this.error = ''
       try {
@@ -122,7 +133,11 @@ export const useSessionStore = defineStore('session', {
     },
 
     async refreshStatus() {
+      const request = ++this.statusRequest
+      const project = this.projectState.current?.id
+      const workspace = this.workspaceRevision
       const status = await api.status()
+      if (request !== this.statusRequest || project !== this.projectState.current?.id || workspace !== this.workspaceRevision) return
       if (status.analysis_revision !== this.status.analysis_revision) {
         this.chatMessages = []
         this.blackSpots = null
@@ -131,7 +146,37 @@ export const useSessionStore = defineStore('session', {
         this.riverForm = null
         await this.refreshProjects()
       }
+      if (request !== this.statusRequest || workspace !== this.workspaceRevision) return
+      if (status.results_revision !== this.status.results_revision) {
+        this.blackSpots = this.crossValidation = this.comprehensive = null
+      }
       this.status = status
+      if (status.has_data) await this.refreshResults()
+      else {
+        this.blackSpots = this.crossValidation = this.comprehensive = null
+        this.resultsWarnings = []
+      }
+    },
+
+    async refreshResults() {
+      const request = ++this.resultsRequest
+      const project = this.projectState.current?.id
+      const workspace = this.workspaceRevision
+      const revision = this.status.analysis_revision
+      const resultsRevision = this.status.results_revision
+      const current = () => request === this.resultsRequest && project === this.projectState.current?.id
+        && workspace === this.workspaceRevision && revision === this.status.analysis_revision
+        && resultsRevision === this.status.results_revision
+      try {
+        const saved = await api.analysisResults()
+        if (!current() || saved.analysis_revision !== revision || saved.results_revision !== resultsRevision) return
+        this.blackSpots = saved.black_spots
+        this.crossValidation = saved.cross_validation
+        this.comprehensive = saved.comprehensive
+        this.resultsWarnings = saved.warnings || []
+      } catch (e) {
+        if (current()) this.resultsWarnings = [`已保存分析结果加载失败：${e.message}。可刷新重试。`]
+      }
     },
 
     async refreshPreview(limit = 50) {
@@ -155,6 +200,7 @@ export const useSessionStore = defineStore('session', {
     async uploadVideo(file) {
       return this._run(async () => {
         const res = await api.uploadVideo(file)
+        this.crossValidation = this.comprehensive = null
         await this.refreshStatus()
         return res
       })
