@@ -6,7 +6,7 @@ import { createPinia } from 'pinia'
 
 const memory = new Map()
 globalThis.localStorage = { getItem:k=>memory.get(k)||null, setItem:(k,v)=>memory.set(k,v), removeItem:k=>memory.delete(k) }
-const server = await createServer({ server:{middlewareMode:true}, appType:'custom', logLevel:'error', mode:'test' })
+const server = await createServer({ server:{middlewareMode:true,hmr:false,ws:false}, optimizeDeps:{noDiscovery:true,entries:[]}, appType:'custom', logLevel:'error', mode:'test' })
 const { useSessionStore } = await server.ssrLoadModule('/src/stores/session.js')
 test.after(async () => { await server.close() })
 const reply = (body, status=200) => new Response(JSON.stringify(body),{

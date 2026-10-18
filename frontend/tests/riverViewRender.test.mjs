@@ -7,7 +7,7 @@ import { renderToString } from '@vue/server-renderer'
 import { createPinia } from 'pinia'
 
 globalThis.localStorage = { getItem:()=>null, setItem:()=>{}, removeItem:()=>{} }
-const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'error',mode:'test'})
+const server=await createServer({server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test'})
 test.after(async()=>{await server.close()})
 const { default:RiverView }=await server.ssrLoadModule('/src/views/RiverView.vue')
 test('无数据也显示手工建模、初始化、水动力和污染事件控件',async()=>{
