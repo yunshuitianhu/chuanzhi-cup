@@ -22,7 +22,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from water_quality_mcp.src.water_quality_mcp.analysis import (
     get_cluster_extent,
     get_severity_info,
+    calc_black_score_vectorized,
 )
+from water_quality_mcp.src.water_quality_mcp.data_quality import observed_mask
 
 from ..deps import get_session
 from ..session import Session
@@ -135,12 +137,12 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
     black = session.black_spots
     if df is None or len(df) == 0:
         raise HTTPException(400, "数据未加载")
-    if black is None or len(black) == 0:
-        raise HTTPException(400, "请先运行黑臭检测")
+    if black is None:
+        black = pd.DataFrame(columns=['cluster_id', 'black_score'])
 
     if not {'latitude', 'longitude'} <= set(df.columns):
         raise HTTPException(400, '缺少经纬度，无法绘制溯源地图')
-    coords = df[["latitude", "longitude"]].dropna()
+    coords = df.loc[df.latitude.between(-90,90) & df.longitude.between(-180,180), ['latitude','longitude']]
     if coords.empty:
         raise HTTPException(400, '没有有效经纬度，无法绘制溯源地图')
     track = [[_clean(r.latitude), _clean(r.longitude)] for r in coords.itertuples()]
@@ -167,13 +169,14 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
         })
 
     top5 = []
-    for i, (_, r) in enumerate(black.nlargest(5, "black_score").iterrows(), 1):
+    for i, (_, r) in enumerate((black.nlargest(5, "black_score") if len(black) else black).iterrows(), 1):
         _, label, color = get_severity_info(float(r["black_score"]), session.analysis_config)
         top5.append({
             "rank": i,
             "coord": [_clean(r["latitude"]), _clean(r["longitude"])],
             "time": str(r["datetime"]),
             "score": _clean(r["black_score"]),
+            "raw_score": _clean(r.get('nemerow_raw')),
             "grade": label,
             "color": color,
             "ammonia": _clean(r.get("ammonia_nitrogen")),
@@ -183,13 +186,19 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
             "ph": _clean(r.get("ph")),
         })
 
-    # 热力点（黑点密度）
-    heat = [[_clean(r.latitude), _clean(r.longitude), 1.0]
-            for r in black[["latitude", "longitude"]].dropna().itertuples()]
+    # 使用原始综合污染指数，不用时空增强评分或点密度代替严重程度。
+    valid = (observed_mask(df, 'ammonia_nitrogen') & observed_mask(df, 'dissolved_oxygen')
+             & df.latitude.between(-90, 90) & df.longitude.between(-180, 180))
+    observed = df.loc[valid]
+    scores = calc_black_score_vectorized(observed, session.analysis_config)
+    heat = [[float(row.latitude), float(row.longitude), float(score)]
+            for row, score in zip(observed.itertuples(), scores) if np.isfinite(score)]
 
     center = [_clean(df["latitude"].mean()), _clean(df["longitude"].mean())]
     return {"center": center, "track": track, "clusters": clusters,
             "top5": top5, "heat": heat,
+            "heat_metric": "原始综合污染指数；邻域加权平均，颜色表示严重程度，不表示采样密度",
+            "target_water_class": session.target_water_class,
             "bounds": {
                 "lat": [_clean(df["latitude"].min()), _clean(df["latitude"].max())],
                 "lon": [_clean(df["longitude"].min()), _clean(df["longitude"].max())],

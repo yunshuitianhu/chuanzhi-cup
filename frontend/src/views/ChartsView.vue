@@ -150,7 +150,7 @@ const caption = computed(() => store.status.has_data
       </div>
     </Panel>
 
-    <Panel title="交互式溯源地图" subtitle="轨迹 · 聚类范围 · Top-5 严重点位 · 污染源 POI">
+    <Panel title="交互式溯源地图" subtitle="严重程度渐变热力图 · 轨迹 · 可选聚类与 Top5 点位">
       <TraceMap />
     </Panel>
 

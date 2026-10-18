@@ -15,7 +15,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import 'leaflet.heat'
+import { severityLayer } from '../utils/severityLayer'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr } from '../composables/useToast'
@@ -24,6 +24,7 @@ const store = useSessionStore()
 const el = ref(null)
 const data = ref(null)
 const loading = ref(false)
+const showHeat = ref(true), showClusters = ref(false), showTop5 = ref(true)
 let map = null
 let layerGroup = null
 
@@ -48,7 +49,7 @@ function initMap() {
   BASE_LAYERS['Esri 卫星图 (WGS-84 无偏移)'].addTo(map)
   L.control.layers(BASE_LAYERS).addTo(map)
   layerGroup = L.layerGroup().addTo(map)
-  map.setView([23.17, 113.12], 14)   // 默认视角；有数据后 fitBounds 覆盖
+  map.setView([30, 105], 3)   // 中性初始视角；有数据后 fitBounds
 }
 
 function render() {
@@ -65,16 +66,13 @@ function render() {
     map.fitBounds(line.getBounds(), { padding: [24, 24] })
   }
 
-  // 热力图（黑点密度）
-  if (d.heat?.length) {
-    L.heatLayer(d.heat, {
-      radius: 18, blur: 14, maxZoom: 17, minOpacity: .25,
-      gradient: { 0.2: '#2E8B57', 0.4: '#FFA500', 0.6: '#FF4500', 0.8: '#DC143C', 1: '#8B0000' },
-    }).addTo(layerGroup)
+  // 邻域平均严重程度；密集采样不累加成更严重的颜色。
+  if (showHeat.value && d.heat?.length) {
+    severityLayer(d.heat).addTo(layerGroup)
   }
 
   // 聚类热点
-  for (const c of d.clusters || []) {
+  for (const c of (showClusters.value ? d.clusters || [] : [])) {
     L.circle(c.center, {
       radius: c.radius_m, color: c.color, weight: 1.5,
       fillOpacity: .06, dashArray: '5,5',
@@ -86,6 +84,7 @@ function render() {
     }).addTo(layerGroup).bindPopup(
       `<b>热点 ${c.id} — ${c.grade}</b><br>`
       + `采样点：${c.count} 个<br>`
+      + `时空增强评分均值：${c.avg_score}<br>`
       + `内梅罗均值：${c.avg_score}<br>`
       + `影响半径：${Math.round(c.radius_m)} m<br>`
       + `时间：${c.time_range[0].slice(11, 19)} ~ ${c.time_range[1].slice(11, 19)}<br>`
@@ -95,7 +94,7 @@ function render() {
   }
 
   // Top-5 严重点位
-  for (const p of d.top5 || []) {
+  for (const p of (showTop5.value ? d.top5 || [] : [])) {
     L.marker(p.coord, {
       icon: L.divIcon({
         className: '',
@@ -108,7 +107,8 @@ function render() {
     }).addTo(layerGroup).bindPopup(
       `<b>第 ${p.rank} 严重点位 — ${p.grade}</b><br>`
       + `时间：${p.time}<br>`
-      + `内梅罗指数：${p.score}<br>`
+      + `原始综合指数：${p.raw_score ?? '—'}<br>`
+      + `时空增强排序评分：${p.score}<br>`
       + `氨氮：${p.ammonia ?? '—'} mg/L<br>`
       + `溶解氧：${p.do ?? '—'} mg/L<br>`
       + `COD：${p.cod ?? '—'} mg/L<br>`
@@ -118,7 +118,7 @@ function render() {
 }
 
 async function load() {
-  if (!store.status.has_black_spots) { data.value = null; render(); return }
+  if (!store.status.has_data) { data.value = null; render(); return }
   loading.value = true
   try {
     data.value = await api.traceMap()
@@ -133,22 +133,26 @@ async function load() {
 onMounted(() => { initMap(); load() })
 onBeforeUnmount(() => { map?.remove(); map = null; layerGroup = null })
 
-watch(() => store.status.black_spot_count, load)
+watch(() => [store.status.black_spot_count, store.status.analysis_revision], load)
+watch([showHeat, showClusters, showTop5], render)
 </script>
 
 <template>
   <div class="wrap">
-    <div v-if="!store.status.has_black_spots" class="tip">
-      运行「黑臭检测」后此地图会显示轨迹、热点与严重点位。
+    <div class="layer-options">
+      <label><input v-model="showHeat" type="checkbox" />严重程度热力图</label>
+      <label><input v-model="showClusters" type="checkbox" />聚类范围</label>
+      <label><input v-model="showTop5" type="checkbox" />Top5 点位</label>
+    </div>
+    <div v-if="!store.status.has_data" class="tip">
+      上传走航数据后显示严重程度热力图；完成黑臭检测后叠加热点和严重点位。
     </div>
     <div ref="el" class="map"></div>
     <div v-if="data" class="legend">
-      <div class="lg-title">GB3838-2002 污染等级（内梅罗指数）</div>
-      <div class="lg-item"><i style="background:#2E8B57"></i>达 V 类</div>
-      <div class="lg-item"><i style="background:#FFA500"></i>轻污染</div>
-      <div class="lg-item"><i style="background:#FF4500"></i>污染</div>
-      <div class="lg-item"><i style="background:#DC143C"></i>重污染</div>
-      <div class="lg-item"><i style="background:#8B0000"></i>严重污染</div>
+      <div class="lg-title">相对 {{ data.target_water_class }} 类的综合污染指数</div>
+      <div class="gradient"></div>
+      <div class="ticks"><span v-for="v in [0,1,2,3,5,8]" :key="v" :style="{left:`${v/8*100}%`}">{{ v === 8 ? '≥8' : v }}</span></div>
+      <div class="lg-note">绿 → 黄 → 橙 → 红：程度逐渐加重<br>邻域平滑仅供展示，不代表未采样水域实测值</div>
       <div class="lg-note">虚线圆 = 聚类范围 · 数字 = Top5 严重点位</div>
     </div>
   </div>
@@ -156,6 +160,8 @@ watch(() => store.status.black_spot_count, load)
 
 <style scoped>
 .wrap { position: relative; }
+.layer-options { display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; color:var(--c-sub); font-size:12px; }
+.layer-options label { display:flex; align-items:center; gap:5px; cursor:pointer; }
 .map { height: 460px; border-radius: 8px; overflow: hidden; z-index: 0; }
 .tip { padding: 40px; text-align: center; color: var(--c-sub); font-size: 13px; }
 
@@ -169,4 +175,7 @@ watch(() => store.status.black_spot_count, load)
 .lg-item { display: flex; align-items: center; gap: 6px; color: var(--c-sub); }
 .lg-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .lg-note { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--c-border); color: var(--c-sub); }
+.gradient { width: 235px; height: 12px; border-radius: 4px; background: linear-gradient(to right,#2e8b57 0%,#66be5a 12.5%,#ffc83c 25%,#ff7323 37.5%,#dc233c 62.5%,#780023 100%); }
+.ticks { position:relative; height:20px; color:var(--c-sub); }
+.ticks span { position:absolute; transform:translateX(-50%); }
 </style>
