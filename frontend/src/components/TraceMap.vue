@@ -216,13 +216,13 @@ function render(fit = false) {
   const selected=d.samples?.find(s=>s.id === selectedId.value)
   if (selected) {
     const node=document.createElement('div')
-    node.style.whiteSpace='pre-line'
+    node.className='sample-popup'
     node.textContent=[`采样点 #${selected.id+1} · ${selected.grade}`, selected.time || '时间未提供',
       ...sampleMetrics.map(([key,label,unit])=>`${label}：${numberText(selected.values[key])} ${unit}`
         + (selected.values[key] == null && selected.interpolated[key] != null ? `（缺测；插值参考 ${numberText(selected.interpolated[key])}）` : '')),
       `原始综合指数：${numberText(selected.raw_score)}`].join('\n')
     L.circleMarker(selected.coord,{radius:8,color:'#fff',weight:3,fillColor:'#159aff',fillOpacity:1})
-      .addTo(layerGroup).bindPopup(node,{maxWidth:310}).openPopup()
+      .addTo(layerGroup).bindPopup(node,{minWidth:240,maxWidth:310,maxHeight:280}).openPopup()
   }
 }
 
@@ -330,6 +330,7 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
 
 <style scoped>
 .wrap { position: relative; }
+.map :deep(.sample-popup) { white-space:pre-line;min-width:220px;line-height:1.6;overflow-wrap:break-word; }
 .click-hint { color:var(--c-sub);font-size:12px;margin:6px 0 10px; }
 .sample-detail { margin-top:12px;padding:14px;background:#1b2c3c;border:1px solid #3f718f;border-radius:8px;font-size:12px; }
 .sample-detail p { color:var(--c-sub);line-height:1.6; }
