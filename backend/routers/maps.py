@@ -7,7 +7,7 @@ import re
 import threading
 import time
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Path, Query, Response
 import requests
 
 from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
@@ -19,6 +19,7 @@ _TTL = 60
 _MAX_IMAGE_BYTES = 8 * 1024 * 1024
 _MAX_CACHE_BYTES = 16 * 1024 * 1024
 _UPSTREAM = "https://restapi.amap.com/v3/staticmap"
+_TILE_CACHE: OrderedDict = OrderedDict()
 
 
 @router.get("/amap-static")
@@ -83,3 +84,45 @@ def _image_response(body, content_type):
     return Response(body, media_type=content_type, headers={
         "Cache-Control": f"private, max-age={_TTL}", "X-Content-Type-Options": "nosniff",
     })
+
+
+@router.get("/starcloud/{z}/{x}/{y}")
+def starcloud_tile(z: int = Path(ge=0, le=18), x: int = Path(ge=0), y: int = Path(ge=0)):
+    """星图官方XYZ影像瓦片；使用已有Token，浏览器只看到同源地址。"""
+    if x >= 2**z or y >= 2**z:
+        raise HTTPException(422, "瓦片行列超出当前缩放级别范围")
+    token = resolve_api_key("CLOUD_TOKEN")
+    if not token:
+        raise HTTPException(503, "未配置星图影像 Token，请在后端配置 CLOUD_TOKEN。")
+    cache_key = (hashlib.sha256(token.encode()).digest(), z, x, y)
+    with _LOCK:
+        now = time.monotonic()
+        for expired in [k for k, v in _TILE_CACHE.items() if v[0] <= now]:
+            _TILE_CACHE.pop(expired)
+        cached = _TILE_CACHE.get(cache_key)
+        if cached:
+            _TILE_CACHE.move_to_end(cache_key)
+            return _image_response(cached[1], "image/webp")
+    try:
+        with requests.get(f"https://tiles1.geovisearth.com/base/v1/img/{z}/{x}/{y}", params={
+            "format":"webp", "tmsIds":"w", "token":token,
+        }, timeout=(5, 12), stream=True, allow_redirects=False) as upstream:
+            if upstream.status_code != 200:
+                raise HTTPException(502, f"星图影像服务返回 HTTP {upstream.status_code}，请检查权限、额度或切换底图。")
+            chunks, length = [], 0
+            for chunk in upstream.iter_content(65536):
+                length += len(chunk)
+                if length > 1024 * 1024:
+                    raise HTTPException(502, "星图影像瓦片响应过大")
+                chunks.append(chunk)
+            body = b"".join(chunks)
+            mime = upstream.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            if mime != "image/webp" or not (body.startswith(b"RIFF") and body[8:12] == b"WEBP"):
+                raise HTTPException(502, "星图未返回有效影像，请检查 Token 权限、来源限制和额度。")
+    except requests.RequestException:
+        raise HTTPException(502, "星图影像连接失败或超时，请检查后端网络或切换底图。") from None
+    with _LOCK:
+        _TILE_CACHE[cache_key] = (time.monotonic() + 300, body)
+        while len(_TILE_CACHE) > 96 or sum(len(v[1]) for v in _TILE_CACHE.values()) > _MAX_CACHE_BYTES:
+            _TILE_CACHE.popitem(last=False)
+    return _image_response(body, "image/webp")

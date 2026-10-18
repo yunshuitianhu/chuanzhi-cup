@@ -28,6 +28,7 @@ class MapRegressionTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
         maps._CACHE.clear()
+        maps._TILE_CACHE.clear()
         self.key_patch = patch.object(maps, 'resolve_api_key', return_value=SECRET)
         self.key_patch.start()
 
@@ -35,6 +36,7 @@ class MapRegressionTests(unittest.TestCase):
         self.key_patch.stop()
         self.client.close()
         maps._CACHE.clear()
+        maps._TILE_CACHE.clear()
 
     def get(self, **overrides):
         return self.client.get('/api/maps/amap-static', params={**QUERY, **overrides})
@@ -127,6 +129,59 @@ class MapRegressionTests(unittest.TestCase):
     def test_jpeg_supported(self):
         with patch.object(maps.requests, 'get', return_value=upstream(b'\xff\xd8\xffjpeg', 'image/jpeg')):
             self.assertEqual(self.get().headers['content-type'], 'image/jpeg')
+
+    def test_satellite_tile_uses_fixed_upstream_and_hides_token(self):
+        body = b'RIFF\x10\x00\x00\x00WEBPsample'
+        count = STORE.count
+        with patch.object(maps.requests, 'get', return_value=upstream(body,'image/webp')) as get:
+            response = self.client.get('/api/maps/starcloud/15/26680/14215')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.content,body)
+        self.assertEqual(response.headers['content-type'],'image/webp')
+        self.assertNotIn('X-Session-Id',response.headers)
+        self.assertEqual(STORE.count,count)
+        self.assertNotIn(SECRET,response.text+str(response.headers))
+        self.assertEqual(get.call_args.args,('https://tiles1.geovisearth.com/base/v1/img/15/26680/14215',))
+        self.assertEqual(get.call_args.kwargs['params'],{'format':'webp','tmsIds':'w','token':SECRET})
+        self.assertFalse(get.call_args.kwargs['allow_redirects'])
+
+    def test_satellite_tile_validation(self):
+        with patch.object(maps.requests,'get') as get:
+            for path in ['19/0/0','0/1/0','1/0/2','15/-1/0','nan/0/0','15/0/99999999']:
+                self.assertEqual(self.client.get('/api/maps/starcloud/'+path).status_code,422)
+            get.assert_not_called()
+
+    def test_satellite_missing_token(self):
+        with patch.object(maps,'resolve_api_key',return_value=''), patch.object(maps.requests,'get') as get:
+            self.assertEqual(self.client.get('/api/maps/starcloud/0/0/0').status_code,503)
+            get.assert_not_called()
+
+    def test_satellite_errors_are_sanitized_and_not_cached(self):
+        for response in [upstream(status=403),upstream(status=302),
+                         upstream(SECRET.encode(),'application/json'),upstream(PNG,'image/webp')]:
+            with patch.object(maps.requests,'get',return_value=response):
+                result=self.client.get('/api/maps/starcloud/0/0/0')
+            self.assertEqual(result.status_code,502)
+            self.assertNotIn(SECRET,result.text)
+        self.assertFalse(maps._TILE_CACHE)
+
+    def test_satellite_timeout_never_echoes_token(self):
+        with patch.object(maps.requests,'get',side_effect=maps.requests.Timeout('?token='+SECRET)):
+            result=self.client.get('/api/maps/starcloud/0/0/0')
+        self.assertEqual(result.status_code,502)
+        self.assertNotIn(SECRET,result.text)
+
+    def test_satellite_cache_expiry_and_rotation(self):
+        with patch.object(maps.requests,'get',side_effect=lambda *a,**k:upstream(b'RIFF0000WEBPimage','image/webp')) as get:
+            self.client.get('/api/maps/starcloud/0/0/0')
+            self.client.get('/api/maps/starcloud/0/0/0')
+            self.assertEqual(get.call_count,1)
+            with patch.object(maps,'resolve_api_key',return_value='rotated'):
+                self.client.get('/api/maps/starcloud/0/0/0')
+            self.assertEqual(get.call_count,2)
+            for k,v in list(maps._TILE_CACHE.items()):maps._TILE_CACHE[k]=(0,v[1])
+            self.client.get('/api/maps/starcloud/0/0/0')
+            self.assertEqual(get.call_count,3)
 
 
 if __name__ == '__main__':
