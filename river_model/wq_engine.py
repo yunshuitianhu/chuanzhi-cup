@@ -203,11 +203,12 @@ def solve_water_quality(
     source_start_h: float = 0.0,
     output_interval_s: float = 60.0,
     output_times_h: Optional[np.ndarray] = None,
+    point_sources: Optional[list[dict]] = None,
 ) -> WQResult:
     """运行水质 ADR 模拟 (含污染事件)。
 
     Args:
-        config: 雅瑶水道配置
+        config: 通用河段配置
         hydro: 水动力结果 (由 solve_hydrodynamics 产出)
         pollutant_type: "ammonia" | "cbod"
         load_kg: 污染物总质量 (kg)
@@ -218,6 +219,9 @@ def solve_water_quality(
         source_start_h: 相对模拟起点的排放开始时刻 (h)，允许晚于模拟终点
         output_interval_s: 默认输出间隔 (s)，独立于积分步长
         output_times_h: 指定观测输出时刻 (h)，替代默认等间隔输出；另保留首尾及排放边界
+        point_sources: 仅供受控实验的多排放事件。每项须给出 pollutant_type、load_kg、
+            chainage_m、duration_min、source_start_h；提供时替代单源参数，空列表表示无排放。
+            同一物理源的多次排放可重复 source_id。Web 入口尚不开放多源反演。
 
     Returns:
         WQResult 包含各组分浓度时间序列
@@ -238,10 +242,33 @@ def solve_water_quality(
     n_cs = len(hydro.chainage)
     chainage = hydro.chainage
     t_hydro = hydro.t * 3600.0  # 转为秒
-    duration_sec = duration_min * 60.0
-    source_start_sec = source_start_h * 3600.0
-    source_end_sec = source_start_sec + duration_sec
     total_seconds = simulation_hours * 3600.0
+    if point_sources is not None and not isinstance(point_sources, list):
+        raise ValueError('point_sources 须为排放事件列表')
+    events = ([dict(pollutant_type=pollutant_type, load_kg=load_kg, chainage_m=chainage_m,
+                    duration_min=duration_min, source_start_h=source_start_h)]
+              if point_sources is None else point_sources)
+    releases = []
+    for event_number, event in enumerate(events, 1):
+        if not isinstance(event, dict):
+            raise ValueError('每个排放事件须为参数字典')
+        try:
+            kind = event['pollutant_type']
+            mass, position, minutes, start = [float(event[key]) for key in
+                ('load_kg', 'chainage_m', 'duration_min', 'source_start_h')]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('排放事件缺少必要数值参数') from exc
+        if (kind not in ('ammonia', 'cbod') or not all(np.isfinite([mass, position, minutes, start]))
+                or min(mass, start) < 0 or minutes <= 0
+                or not hydro.chainage[0] <= position <= hydro.chainage[-1]):
+            raise ValueError('排放事件的组分、负荷、桩号或时长无效')
+        idx = int(np.argmin(np.abs(hydro.chainage - position)))
+        releases.append(dict(source_id=str(event.get('source_id', f'source_{event_number}')),
+            pollutant_type=kind, load_kg=mass, chainage_m=position, duration_min=minutes,
+            source_start_h=start, start_s=start * 3600., end_s=start * 3600. + minutes * 60.,
+            rate_gs=mass * 1000. / (minutes * 60.), component=1 if kind == 'ammonia' else 0,
+            source_section_id=idx, source_effective_chainage_m=float(hydro.chainage[idx]),
+            source_snap_distance_m=float(abs(hydro.chainage[idx] - position)), injected_kg=0.))
     if (t_hydro.ndim != 1 or not len(t_hydro) or not np.all(np.isfinite(t_hydro))
             or t_hydro[0] != 0 or np.any(np.diff(t_hydro) <= 0)):
         raise ValueError('水动力时间轴须从 0 开始且严格递增，单位为小时')
@@ -322,7 +349,8 @@ def solve_water_quality(
                 or np.any((requested < 0) | (requested > simulation_hours))):
             raise ValueError('输出时刻须为模拟范围内的有限一维数组，最多 10000 项')
         output_seconds = requested * 3600.0
-    release_edges = [s for s in (source_start_sec, source_end_sec) if 0 < s < total_seconds]
+    release_edges = [s for release in releases for s in (release['start_s'], release['end_s'])
+                     if 0 < s < total_seconds]
     output_seconds = np.unique(np.r_[0., output_seconds, release_edges, total_seconds])
     # 在输出及排放边界处分步，避免提前排放、跨边界摊平，或把邻帧当作观测时刻。
     step_edges = np.unique(np.r_[np.arange(total_steps) * dt_s, output_seconds])
@@ -336,8 +364,6 @@ def solve_water_quality(
     inflow = np.zeros(4)
     outflow = np.zeros(4)
     reaction_change = np.zeros(4)
-    mass_rate_gs = load_kg * 1000.0 / duration_sec
-    source_component = 1 if pollutant_type == 'ammonia' else 0
     times, snapshots = [0.0], [components.copy()]
     max_stability = 0.0
 
@@ -366,10 +392,12 @@ def solve_water_quality(
 
         for sub in range(n_sub):
             sub_t0 = t0 + sub * sub_dt
-            overlap = max(0., min(sub_t0 + sub_dt, source_end_sec) - max(sub_t0, source_start_sec))
-            added = mass_rate_gs * overlap
-            components[source_component, source_idx] += added / volume[source_idx]
-            injected[source_component] += added
+            for release in releases:
+                overlap = max(0., min(sub_t0 + sub_dt, release['end_s']) - max(sub_t0, release['start_s']))
+                added = release['rate_gs'] * overlap
+                components[release['component'], release['source_section_id']] += added / volume[release['source_section_id']]
+                injected[release['component']] += added
+                release['injected_kg'] += added / 1000.
             components, step_in, step_out = conservative_step(
                 components, volume, q_face, conductance, sub_dt, upstream, downstream)
             inflow += step_in
@@ -407,13 +435,16 @@ def solve_water_quality(
         nitrate=output[:, 3],
         dissolved_oxygen=do_out,
         params={
-            "pollutant_type": pollutant_type,
-            "load_kg": load_kg,
-            "chainage_m": chainage_m,
-            "source_section_id": source_idx,
-            "source_effective_chainage_m": float(chainage[source_idx]),
-            "source_snap_distance_m": float(abs(chainage[source_idx] - chainage_m)),
-            "source_start_h": source_start_h,
+            "source_mode": "single" if point_sources is None else "explicit_events",
+            "point_sources": [{key: value for key, value in release.items()
+                if key not in ('start_s', 'end_s', 'rate_gs', 'component')} for release in releases],
+            "pollutant_type": pollutant_type if point_sources is None else "multiple",
+            "load_kg": load_kg if point_sources is None else sum(r['load_kg'] for r in releases),
+            "chainage_m": chainage_m if point_sources is None else None,
+            "source_section_id": source_idx if point_sources is None else None,
+            "source_effective_chainage_m": float(chainage[source_idx]) if point_sources is None else None,
+            "source_snap_distance_m": float(abs(chainage[source_idx] - chainage_m)) if point_sources is None else None,
+            "source_start_h": source_start_h if point_sources is None else None,
             "output_interval_s": output_interval_s if output_times_h is None else None,
             "output_sampling": "指定时刻" if output_times_h is not None else "等间隔及排放边界",
             "time_unit": "h",
@@ -441,7 +472,7 @@ def solve_water_quality(
                 "final_minimum_do_mgL": float(do_out[-1].min()),
                 "final_maximum_do_mgL": float(do_out[-1].max()),
             },
-            "duration_min": duration_min,
+            "duration_min": duration_min if point_sources is None else None,
             "simulation_hours": simulation_hours,
         },
     )
