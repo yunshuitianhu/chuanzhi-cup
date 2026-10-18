@@ -16,6 +16,8 @@ test('项目参数优先于默认模板，恢复已运行结果',()=>{
   assert.equal(restored.form.length_m,800)
   assert.equal(restored.form.duration_h,.5)
   assert.equal(restored.hydro.status,'hydro')
+  assert.equal(restored.hydro.工况,'恒定流')
+  assert.match(restored.hydro.结果可信度,/不代表现场率定/)
   assert.equal(restored.pollution.status,'wq')
 })
 test('保存的未应用几何草稿不能沿用旧模型按钮状态',()=>{

@@ -25,7 +25,8 @@ export function restoreRiverWorkspace(saved, draft, defaults) {
     && form.duration_h === model.hydro_params.duration_h
     && form.tidal_amplitude_m === (model.hydro_params.tidal_amplitude_m ?? 0)
   return { form,
-    init: geometryMatches ? (ui.init || { 状态:'已恢复模型' }) : null,
-    hydro: hydroMatches ? (ui.hydro || { 状态:'已恢复水动力结果' }) : null,
+    init: geometryMatches ? { 断面数:model.cross_section_count, 河段长度_km:model.config.length_m/1000,
+      曼宁糙率:model.config.mannings_n, ...ui.init } : null,
+    hydro: hydroMatches ? { 工况:'恒定流', 结果可信度:'已恢复恒定流情景；请核实断面、边界和反应参数，结果不代表现场率定。', ...ui.hydro } : null,
     pollution: hydroMatches && model.has_wq ? (ui.pollution || { 状态:'已恢复水质结果' }) : null }
 }
