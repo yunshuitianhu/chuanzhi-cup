@@ -25,6 +25,7 @@ from water_quality_mcp.src.water_quality_mcp.analysis import (
     calc_black_score_vectorized,
 )
 from water_quality_mcp.src.water_quality_mcp.data_quality import observed_mask
+from ..map_samples import map_samples
 
 from ..deps import get_session
 from ..session import Session
@@ -196,7 +197,7 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
 
     center = [_clean(df["latitude"].mean()), _clean(df["longitude"].mean())]
     return {"center": center, "track": track, "clusters": clusters,
-            "top5": top5, "heat": heat,
+            "top5": top5, "heat": heat, "samples": map_samples(df, session.analysis_config),
             "heat_metric": "原始综合污染指数；邻域加权平均，颜色表示严重程度，不表示采样密度",
             "target_water_class": session.target_water_class,
             "bounds": {

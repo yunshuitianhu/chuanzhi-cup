@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 from typing import Literal
 
@@ -26,6 +26,21 @@ from ..deps import get_session, get_exclusive_session
 from ..session import Session
 
 router = APIRouter(prefix="/river", tags=["river"])
+
+
+@router.get('/playback')
+def playback(constituent: Literal['ammonia', 'cbod', 'do'] = 'ammonia',
+             max_frames: int = Query(121, ge=6, le=241), session: Session = Depends(get_exclusive_session)):
+    state = session.river_state
+    if state is None or not state.has_wq():
+        raise HTTPException(400, '请先初始化河段、运行水动力并模拟污染事件，再播放扩散过程。')
+    if not state.has_hydro() or state.hydro_result.params.get('tidal_amplitude_m', 0) != 0:
+        raise HTTPException(400, '当前播放器只支持已运行的一维恒定流情景，请重新运行恒定流模型。')
+    from ..river_playback import playback_data
+    try:
+        return playback_data(state, session.df, constituent, session.target_water_class, max_frames)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 MODEL_CAVEAT = (
     "当前支持一维恒定流情景；河段几何、边界和反应参数须核实并率定。"
