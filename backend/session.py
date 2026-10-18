@@ -63,6 +63,8 @@ class Session:
     analysis_status: str = 'idle'
     analysis_steps: dict[str, str] = field(default_factory=dict)
     analysis_revision: int = 0
+    # 进程内派生结果缓存标记；不改变监测数据/物理模型版本，不属于项目文件格式。
+    results_revision: int = 0
     operation_lock: Any = field(default_factory=threading.Lock, repr=False)
 
     # ---- 河道模型 ----
@@ -97,6 +99,7 @@ class Session:
     def reset_analysis(self) -> None:
         """清空分析结果但保留数据 —— 切换目标水质等级时用。"""
         self.analysis_revision += 1
+        self.results_revision += 1
         self.black_spots = None
         self.black_spots_json = None
         self.cross_validation = None
@@ -111,6 +114,40 @@ class Session:
         self.analysis_steps = {}
         self.river_state = None
         self.river_ui = {}
+
+    def invalidate_report(self) -> None:
+        """保留历史正文，撤销依赖旧结果的摘要与完成标记。"""
+        self.comprehensive_summary = None
+        self.captions = {}
+        self.analysis_steps.pop('get_comprehensive_summary', None)
+        self.analysis_steps.pop('generate_final_report', None)
+        if self.analysis_status != 'running' and (self.analysis_done or self.analysis_status in ('succeeded','partial','stale')):
+            self.analysis_status = 'stale'
+        self.analysis_done = False
+
+    def set_detection(self, raw, black) -> None:
+        self.black_spots = black
+        self.black_spots_json = raw
+        self.invalidate_report()
+        for name in ('reverse_geocode','search_nearby_pollution_sources','search_treatment_cases'):
+            self.tool_evidence.pop(name, None)
+            self.analysis_steps.pop(name, None)
+        self.results_revision += 1
+
+    def set_cross_validation(self, result) -> None:
+        self.cross_validation = result
+        self.invalidate_report()
+        self.results_revision += 1
+
+    def replace_video(self, frames, filename) -> None:
+        self.video_frames = frames
+        self.video_filename = filename
+        self.cross_validation = None
+        self.invalidate_report()
+        for name in ('analyze_video','cross_validate_video'):
+            self.tool_evidence.pop(name, None)
+            self.analysis_steps.pop(name, None)
+        self.results_revision += 1
 
     def clear_all(self) -> None:
         """加载新数据时调用 —— 与原 app.py 的「重置所有分析状态」一致。"""

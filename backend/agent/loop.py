@@ -76,6 +76,9 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
 
     msgs = list(session.full_messages)
     system_prompt = SYSTEM_PROMPT_AUTO if auto else SYSTEM_PROMPT_CHAT
+    if session.analysis_status == 'stale':
+        system_prompt += (' 当前检测或视频已更新，历史报告和工具记录可能过期。'
+                          '请先调用当前数据摘要、检测及综合摘要工具，勿直接沿用历史统计或视觉结论。')
     # 每次请求按模式重建 system 消息，避免继承上一轮的自动分析 SOP。
     msgs = [m for m in msgs if not (isinstance(m, dict) and m.get('role') == 'system')]
     msgs.insert(0, {"role": "system", "content": system_prompt})

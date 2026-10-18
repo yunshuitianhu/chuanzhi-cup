@@ -66,9 +66,7 @@ async def upload_video(file: UploadFile = File(...), interval: int = Query(5, ge
         extract_video, base64.b64encode(raw).decode(), interval)
     if not frames:
         raise HTTPException(400, report)
-    session.reset_analysis()
-    session.video_frames = frames
-    session.video_filename = file.filename or "video.mp4"
+    session.replace_video(frames, file.filename or "video.mp4")
     return {"ok": bool(frames), "report": report, "frames": len(frames)}
 
 
@@ -90,6 +88,7 @@ def status(session: Session = Depends(get_session)) -> dict:
         "analysis_steps": session.analysis_steps,
         "has_detection": session.black_spots is not None,
         "analysis_revision": session.analysis_revision,
+        "results_revision": session.results_revision,
         "target_water_class": session.target_water_class,
         "messages": len(session.messages),
     }

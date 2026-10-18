@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 
 from water_quality_mcp.src.water_quality_mcp.analysis import (
     build_comprehensive_summary,
@@ -20,6 +21,40 @@ from ..deps import get_session, get_exclusive_session
 from ..session import Session
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
+
+
+class CrossValidationRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True, allow_inf_nan=False)
+    time_offset_sec: float = 0.
+    time_window_sec: float = Field(30., gt=0)
+
+
+@router.get('/results')
+def saved_results(session: Session = Depends(get_session)) -> dict:
+    """读取已经保存的分析结果；不重跑检测、视频解码、模型或外部查询。"""
+    warnings = []
+    def stored_object(raw, label):
+        if raw is None:
+            return None
+        try:
+            value = json.loads(raw) if isinstance(raw, str) else raw
+            if not isinstance(value, dict):
+                raise ValueError('expected object')
+            json.dumps(value, allow_nan=False)
+            return value
+        except (ValueError, TypeError):
+            warnings.append(f'{label}缓存无法读取，请重新运行对应分析。')
+            return None
+    parsed = stored_object(session.black_spots_json, '检测') if session.black_spots is not None else None
+    clusters = (parsed or {}).get('聚类详情') or []
+    if not isinstance(clusters, list):
+        clusters = []
+    black = None if parsed is None else {'result':parsed,
+        'cluster_fields':sorted(clusters[0]) if clusters and isinstance(clusters[0],dict) else []}
+    cross = stored_object(session.cross_validation, '交叉印证')
+    return {'analysis_revision':session.analysis_revision, 'results_revision':session.results_revision,
+        'black_spots':black, 'cross_validation':cross,
+        'comprehensive':stored_object(session.comprehensive_summary, '综合摘要'), 'warnings':warnings}
 
 
 @router.get("/summary")
@@ -45,10 +80,7 @@ def black_spots(session: Session = Depends(get_exclusive_session)) -> dict:
     cfg = session.analysis_config
     result_json, black = find_black_spots(session.df, cfg)
     if black is not None:
-        session.black_spots = black
-        session.black_spots_json = result_json
-        session.comprehensive_summary = None
-        session.captions = {}
+        session.set_detection(result_json, black)
 
     parsed = json.loads(result_json)
     if 'error' in parsed:
@@ -62,7 +94,7 @@ def black_spots(session: Session = Depends(get_exclusive_session)) -> dict:
 
 
 @router.post("/cross-validate")
-def cross_validate(payload: dict | None = None,
+def cross_validate(payload: CrossValidationRequest | None = None,
                    session: Session = Depends(get_exclusive_session)) -> dict:
     """视频-传感器交叉印证。
 
@@ -70,14 +102,14 @@ def cross_validate(payload: dict | None = None,
         time_offset_sec: 视频第 0 秒相对首条监测记录的时间偏移（正=视频滞后）
         time_window_sec: 匹配窗口宽度（秒）
     """
-    payload = payload or {}
+    payload = payload or CrossValidationRequest()
     if session.df is None or len(session.df) == 0:
         raise HTTPException(400, "数据未加载")
     if not session.video_frames:
         raise HTTPException(400, "未提取视频帧，请先上传视频")
 
-    offset = int(payload.get("time_offset_sec", 0) or 0)
-    window = int(payload.get("time_window_sec", 30) or 30)
+    offset = payload.time_offset_sec
+    window = payload.time_window_sec
 
     ws = session.water_quality_state()
     raw = cross_validate_video_with_monitoring(ws, offset, window)
@@ -85,7 +117,7 @@ def cross_validate(payload: dict | None = None,
     if "error" in result:
         raise HTTPException(400, result["error"])
 
-    session.cross_validation = result
+    session.set_cross_validation(result)
     return result
 
 

@@ -9,9 +9,13 @@
 from __future__ import annotations
 
 import logging
+import math
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from . import PROJECT_ROOT  # noqa: F401  —— 导入即完成 sys.path 与 .env 初始化
 from .routers import agent, analysis, charts, data, rag, river, stations, system, trace, projects, maps
@@ -26,6 +30,20 @@ app = FastAPI(
     description="把既有 Python 分析内核包装为 HTTP 服务，供 Vue 前端调用。",
     version="0.1.0",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    """NaN/Infinity等非法输入也必须返回有效JSON，不能在构造422时再次报500。"""
+    def finite(value):
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        if isinstance(value, dict):
+            return {key:finite(item) for key,item in value.items()}
+        if isinstance(value, list):
+            return [finite(item) for item in value]
+        return value
+    return JSONResponse(status_code=422, content={'detail':finite(jsonable_encoder(exc.errors()))})
 
 
 # ── 会话中间件 ────────────────────────────────────────────────────────────

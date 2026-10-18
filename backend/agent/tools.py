@@ -65,8 +65,8 @@ TOOLS: list[dict] = [
     _tool("cross_validate_video",
           "将视频帧视觉特征（Laplacian 方差/HSV）与走航监测数据（浊度/氨氮/DO/COD）"
           "交叉印证，计算 Pearson 相关系数与黑臭判定一致率",
-          {"time_offset_sec": {"type": "integer", "description": "视频第 0 秒相对首条记录的时间偏移（秒）"},
-           "time_window_sec": {"type": "integer", "description": "匹配窗口宽度（秒，默认 30）"}}),
+          {"time_offset_sec": {"type": "number", "description": "视频第 0 秒相对首条记录的时间偏移（秒）"},
+           "time_window_sec": {"type": "number", "exclusiveMinimum":0, "description": "匹配窗口宽度（秒，默认 30）"}}),
     _tool("get_comprehensive_summary",
           "获取综合分析摘要 JSON，聚合数据概览/黑臭检测/空间分析/交叉印证/河道模型"),
     _tool("search_treatment_cases",
@@ -122,10 +122,7 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 return "数据未加载", True
             raw, black = find_black_spots(session.df, cfg)
             if black is not None:
-                session.black_spots = black
-                session.black_spots_json = raw
-                session.comprehensive_summary = None
-                session.captions = {}
+                session.set_detection(raw, black)
             return raw, ("error" in raw)
 
         if name == "analyze_video":
@@ -139,11 +136,10 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 return json.dumps({"skipped": True, "reason": "未上传视频，跳过交叉印证"}, ensure_ascii=False), False
             ws = session.water_quality_state()
             raw = cross_validate_video_with_monitoring(
-                ws, int(args.get("time_offset_sec", 0) or 0),
-                int(args.get("time_window_sec", 30) or 30))
+                ws, args.get("time_offset_sec", 0), args.get("time_window_sec", 30))
             result = json.loads(raw) if isinstance(raw, str) else raw
             if "error" not in result:
-                session.cross_validation = result
+                session.set_cross_validation(result)
             return raw, ("error" in result)
 
         if name == "get_comprehensive_summary":
