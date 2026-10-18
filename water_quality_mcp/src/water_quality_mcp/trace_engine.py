@@ -139,6 +139,7 @@ def multi_source_trace(
 
     results_by_source: dict[str, list[dict]] = {}
     all_sources_flat: list[dict] = []
+    station_background = {}
 
     # ---- 数据源 1: 高德 POI ----
     if amap_key and "amap_poi" in config.enabled_sources:
@@ -195,12 +196,14 @@ def multi_source_trace(
     if "national_station" in config.enabled_sources:
         try:
             from .national_station import get_national_station_data as _station_data
-            # live=False 走离线数据库 (快速), live=True 走 Playwright 抓取
+            # 与技术页相同的 HTTP API，按已核实省份请求；实际回退状态随结果返回。
             stations_json = _station_data(
+                province=province or '',
                 lat=lat, lon=lon, radius_km=config.national_station_radius_km,
-                live=False,
+                live=True,
             )
             stations_data = json.loads(stations_json) if isinstance(stations_json, str) else stations_json
+            station_background = stations_data
             station_list = stations_data.get("站点列表", [])
             sources = []
             for st in station_list:
@@ -213,7 +216,7 @@ def multi_source_trace(
                     "置信度权重": config.source_weights.get("national_station", 0.25),
                 })
             results_by_source["国控站点"] = sources
-            all_sources_flat.extend(sources)
+            # 监测站点是背景资料，不参与排污企业候选排序。
         except Exception as e:
             logger.warning("国控站点查询失败: %s", e)
 
@@ -228,6 +231,7 @@ def multi_source_trace(
             "搜索中心": f"{lat:.6f}, {lon:.6f}",
             "搜索半径_m": config.search_radius_m,
             "已启用的数据源": config.enabled_sources,
+            "国控监测背景": station_background,
             "建议": "检查 AMAP_KEY 是否配置或扩大搜索半径",
         }, ensure_ascii=False)
 
@@ -235,6 +239,7 @@ def multi_source_trace(
         "搜索中心": f"{lat:.6f}, {lon:.6f}",
         "搜索半径_m": config.search_radius_m,
         "各数据源贡献": source_summary,
+        "国控监测背景": station_background,
         "数据源说明": {
             "排污许可证": "全国排污许可证管理信息平台 (permit.mee.gov.cn) — 环保部门官方数据, 权威性高",
             "国控站点": "国家水质自动监测实时数据发布平台 (szzdjc.cnemc.cn) — 环保部门官方监测网络",

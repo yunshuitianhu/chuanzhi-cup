@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query
 
 from water_quality_mcp.src.water_quality_mcp.national_station import get_national_station_data
 
-from ..deps import get_session
+from ..deps import get_exclusive_session
 from ..session import Session
 
 router = APIRouter(prefix="/stations", tags=["stations"])
@@ -40,7 +40,7 @@ def query(
     lat: float | None = Query(None),
     lon: float | None = Query(None),
     radius_km: int = Query(50),
-    session: Session = Depends(get_session),
+    session: Session = Depends(get_exclusive_session),
 ) -> dict:
     """查询国控站点。
 
@@ -52,6 +52,12 @@ def query(
         lat=lat, lon=lon, radius_km=radius_km, live=live,
     )
     data = json.loads(raw) if isinstance(raw, str) else raw
+    from datetime import datetime, timezone
+    data['查询条件'] = {'省份': province, '关键词': keyword, '实时请求': live,
+                        '纬度': lat, '经度': lon, '半径_km': radius_km}
+    data['本次查询时间'] = datetime.now(timezone.utc).isoformat()
+    session.national_station_result = data
+    session.tool_evidence['get_national_station_data'] = json.dumps(data, ensure_ascii=False)
     # 站点列表可能很长，前端一次展示不了那么多；保留前 50 条并告知总数
     stations = data.get("站点列表", []) or []
     return {

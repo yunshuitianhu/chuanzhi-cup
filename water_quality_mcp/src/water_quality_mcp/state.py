@@ -16,6 +16,7 @@ class WaterQualityState:
     black_spots: pd.DataFrame | None = None
     video_frames: list[dict] = field(default_factory=list)
     cross_validation_result: dict | None = None
+    national_station_result: dict | None = None
 
     def has_data(self) -> bool:
         return self.df is not None and len(self.df) > 0

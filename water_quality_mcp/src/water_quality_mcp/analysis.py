@@ -862,6 +862,13 @@ def build_comprehensive_summary(state, river_state=None, config=None):
         from .analysis_config import DEFAULT_CONFIG as config
 
     sections = {}
+    station_result = getattr(state, 'national_station_result', None)
+    if station_result:
+        sections['国控站点查询'] = {
+            k: station_result.get(k) for k in ('数据来源', '数据时效', '含实时监测值',
+                '查询条件', '本次查询时间', '站点数量')}
+        sections['国控站点查询']['使用说明'] = '监测背景参考；须核对查询省份、站点监测时间和当前走航日期，不是排污源或当前河段的直接实测值'
+        sections['国控站点查询']['监测时间样例'] = [s.get('时间') for s in station_result.get('站点列表', [])[:3]]
 
     # ---- 1. 数据概览 ----
     if state.df is not None and len(state.df) > 0:

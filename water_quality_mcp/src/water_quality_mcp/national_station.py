@@ -649,22 +649,16 @@ def _match_coordinates(station_name: str, province: str = "") -> dict | None:
         return None
 
     # 1. 精确匹配
-    if station_name in _STATION_INDEX:
-        return _STATION_INDEX[station_name]
+    candidates = [s for s in _NATIONAL_STATIONS_DB if not province
+                  or _PROVINCE_CODES.get(s.get('省份')) == _PROVINCE_CODES.get(province)
+                  and _PROVINCE_CODES.get(province) is not None]
+    exact = [s for s in candidates if s['站名'] == station_name]
+    if len(exact) == 1:
+        return exact[0]
+    # 仅在省份约束内唯一匹配时补充坐标，重名站点不猜测。
+    fuzzy = [s for s in candidates if s['站名'] in station_name or station_name in s['站名']]
+    return fuzzy[0] if len(fuzzy) == 1 else None
 
-    # 2. 去除省份前缀
-    for prov in ["广东省", "广西", "湖南省", "湖北省", "江苏省", "安徽省"]:
-        if station_name.startswith(prov):
-            short = station_name[len(prov):]
-            if short in _STATION_INDEX:
-                return _STATION_INDEX[short]
-
-    # 3. 子串匹配 (双向)
-    for db_name, db_entry in _STATION_INDEX.items():
-        if station_name in db_name or db_name in station_name:
-            return db_entry
-
-    return None
 
 
 def _search_static_db(
@@ -675,39 +669,16 @@ def _search_static_db(
     radius_km: int = 50,
 ) -> list[dict]:
     """从内置数据库搜索站点 (离线模式)。"""
-    results: list[dict] = []
-
+    results = [dict(s) for s in _NATIONAL_STATIONS_DB
+               if not province or _PROVINCE_CODES.get(province) == _PROVINCE_CODES.get(s['省份'])]
+    if keyword:
+        results = [s for s in results if any(keyword in s.get(k,'') for k in ('站名','流域','城市'))]
     if lat is not None and lon is not None:
-        nearby = []
-        for st in _NATIONAL_STATIONS_DB:
-            dist = _haversine_km(lat, lon, st["lat"], st["lon"])
-            if dist <= radius_km:
-                nearby.append({**st, "距离_km": round(dist, 1)})
-        nearby.sort(key=lambda x: x["距离_km"])
-        results = nearby
+        for s in results:
+            s['距离_km'] = round(_haversine_km(lat,lon,s['lat'],s['lon']),1)
+        results = sorted((s for s in results if s['距离_km'] <= radius_km), key=lambda s:s['距离_km'])
+    return results[:50]
 
-    if not results and province:
-        results = [st for st in _NATIONAL_STATIONS_DB
-                   if province in st.get("省份", "")]
-
-    if not results and keyword:
-        results = [st for st in _NATIONAL_STATIONS_DB
-                   if keyword in st.get("站名", "")
-                   or keyword in st.get("流域", "")
-                   or keyword in st.get("城市", "")]
-
-    if not results and lat is not None and lon is not None:
-        results = sorted(
-            _NATIONAL_STATIONS_DB,
-            key=lambda st: _haversine_km(lat, lon, st["lat"], st["lon"])
-        )[:10]
-
-    return results
-
-
-# ======================================================================
-# API 数据筛选与富化
-# ======================================================================
 
 def _filter_and_enrich_live_data(
     live_stations: list[dict],
@@ -734,8 +705,6 @@ def _filter_and_enrich_live_data(
                     if keyword in s.get("站名", "")
                     or keyword in s.get("流域", "")
                     or keyword in s.get("省份", "")]
-    if not filtered:
-        filtered = live_stations
 
     # 匹配坐标 + 计算距离
     results: list[dict] = []
@@ -756,6 +725,11 @@ def _filter_and_enrich_live_data(
                 entry["距离_km"] = round(dist, 1)
         else:
             entry["距离_km"] = "未知"
+
+        if lat is not None and lon is not None:
+            distance = entry.get('距离_km')
+            if not isinstance(distance, (int, float)) or distance > radius_km:
+                continue
 
         results.append(entry)
 
@@ -835,7 +809,7 @@ def get_national_station_data(
         live_stations = _fetch_live_via_api(
             area_id=area_id,
             river_id=river_id,
-            station_name=keyword,
+            station_name='',  # 缓存按省份存全量；关键词在本地筛选，避免缓存污染。
         )
 
         if live_stations:
@@ -854,7 +828,7 @@ def get_national_station_data(
             # API 失败 → 降级到离线模式
             logger.info("API 直连未返回数据, 降级到内置数据库")
             results = _search_static_db(province, keyword, lat, lon, radius_km)
-            data_source = "内置站点数据库 (API 直连暂不可用 — 请检查网络连接)"
+            data_source = "内置站点目录 (本次实时请求未取得可用数据，已回退)"
             freshness = "离线数据"
     else:
         # --- 离线模式: 内置数据库 ---
@@ -871,12 +845,16 @@ def get_national_station_data(
                 "半径_km": radius_km,
             },
             "数据来源": data_source,
+            "数据时效": freshness,
+            "含实时监测值": False,
+            "站点数量": 0,
+            "站点列表": [],
             "建议": "尝试更大搜索半径, 或使用 live=True 获取全部实时站点",
         }, ensure_ascii=False)
 
     # 构建返回
     has_live_values = any(
-        k in s for s in results
+        isinstance(s.get(k), (int, float)) and math.isfinite(s[k]) for s in results
         for k in ["pH", "溶解氧", "氨氮", "总磷", "总氮", "浊度", "高锰酸盐指数", "水温"]
     )
     has_coords = any("lat" in s and "lon" in s for s in results)

@@ -188,9 +188,16 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
             return multi_source_trace(lat, lon, amap_key, cfg), False
 
         if name == "get_national_station_data":
-            return get_national_station_data(
+            raw = get_national_station_data(
                 province=args.get("province", ""), keyword=args.get("keyword", ""),
-                live=bool(args.get("live", True))), False
+                live=bool(args.get("live", True)))
+            result = json.loads(raw) if isinstance(raw, str) else raw
+            from datetime import datetime, timezone
+            result['查询条件'] = {'省份': args.get('province', ''), '关键词': args.get('keyword', ''),
+                                  '实时请求': args.get('live', True)}
+            result['本次查询时间'] = datetime.now(timezone.utc).isoformat()
+            session.national_station_result = result
+            return json.dumps(result, ensure_ascii=False), False
 
         if name == "get_satellite_image":
             return get_satellite_image(args.get("lat"), args.get("lon"),
@@ -254,6 +261,7 @@ def _dispatch_validated(name: str, args: dict, session, api_key: str | None = No
         rule = props.get(key, {})
         kind = rule.get('type')
         valid = ((kind == 'string' and isinstance(value, str)) or
+                 (kind == 'object' and isinstance(value, dict)) or
                  (kind == 'boolean' and isinstance(value, bool)) or
                  (kind == 'integer' and type(value) is int) or
                  (kind == 'number' and type(value) in (int, float) and math.isfinite(value)))
@@ -328,6 +336,9 @@ SYSTEM_PROMPT_AUTO = (
     "先调用 get_data_summary、find_black_spots；调用 analyze_video，未上传视频时跳过视频相关步骤。\n"
     "取得有效聚类坐标后，再进行 reverse_geocode、search_nearby_pollution_sources；"
     "站点查询应使用已核实的省份；卫星查询仅在取得有效坐标后执行。\n"
+    "国控站点以本次工具返回的数据来源、含实时监测值、监测时间及查询条件为准。"
+    "离线回退只说明该次查询状态，不得推断实时接口普遍不可用；技术页查询也会进入综合摘要。"
+    "站点是监测背景，不能当作排污企业；当前站点数据不能冒充历史走航同日实测。\n"
     "视频可用时可调用 cross_validate_video，随后获取 get_comprehensive_summary，"
     "按实际污染物检索 search_treatment_cases，最后生成 generate_final_report。\n"
     "遇到工具失败需说明缺失项，不得捏造结果或宣称所有分析成功。"

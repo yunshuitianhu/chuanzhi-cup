@@ -46,6 +46,7 @@ class Session:
     black_spots_json: str | None = None      # find_black_spots 的原始 JSON
     cross_validation: dict | None = None
     comprehensive_summary: str | None = None
+    national_station_result: dict | None = None
 
     # ---- 图表说明（数据驱动生成的文字，供前端展示）----
     captions: dict[str, str] = field(default_factory=dict)
@@ -79,6 +80,7 @@ class Session:
         st.black_spots = self.black_spots
         st.video_frames = self.video_frames
         st.cross_validation_result = self.cross_validation
+        st.national_station_result = self.national_station_result
         return st
 
     def get_river_state(self):
@@ -94,6 +96,7 @@ class Session:
         self.black_spots_json = None
         self.cross_validation = None
         self.comprehensive_summary = None
+        self.national_station_result = None
         self.captions = {}
         self.tool_evidence = {}
         self.messages = []

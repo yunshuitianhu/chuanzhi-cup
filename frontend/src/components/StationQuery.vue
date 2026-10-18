@@ -11,7 +11,7 @@ import { api } from '../api/client'
 import { toastErr, toastOk } from '../composables/useToast'
 
 const provinces = ref([])
-const province = ref('广东省')
+const province = ref('')
 const keyword = ref('')
 const live = ref(true)
 const loading = ref(false)
@@ -60,6 +60,7 @@ function classColor(c) {
   <div class="wrap">
     <div class="bar">
       <select v-model="province" :disabled="loading">
+        <option value="">请选择查询省份</option>
         <option v-for="p in provinces" :key="p" :value="p">{{ p }}</option>
       </select>
       <input v-model="keyword" placeholder="站名/流域关键词（可选），如 珠江" :disabled="loading" />
