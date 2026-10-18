@@ -85,7 +85,6 @@ function render() {
       `<b>热点 ${c.id} — ${c.grade}</b><br>`
       + `采样点：${c.count} 个<br>`
       + `时空增强评分均值：${c.avg_score}<br>`
-      + `内梅罗均值：${c.avg_score}<br>`
       + `影响半径：${Math.round(c.radius_m)} m<br>`
       + `时间：${c.time_range[0].slice(11, 19)} ~ ${c.time_range[1].slice(11, 19)}<br>`
       + `氨氮均值：${c.ammonia_mean ?? '—'} mg/L<br>`
@@ -152,7 +151,7 @@ watch([showHeat, showClusters, showTop5], render)
       <div class="lg-title">相对 {{ data.target_water_class }} 类的综合污染指数</div>
       <div class="gradient"></div>
       <div class="ticks"><span v-for="v in [0,1,2,3,5,8]" :key="v" :style="{left:`${v/8*100}%`}">{{ v === 8 ? '≥8' : v }}</span></div>
-      <div class="lg-note">绿 → 黄 → 橙 → 红：程度逐渐加重<br>邻域平滑仅供展示，不代表未采样水域实测值</div>
+      <div class="lg-note">绿 → 黄 → 橙 → 红：程度逐渐加重<br>指数 ≥8 按上限色阶平滑，原始值见点位详情<br>邻域平滑仅供展示，不代表未采样水域实测值</div>
       <div class="lg-note">虚线圆 = 聚类范围 · 数字 = Top5 严重点位</div>
     </div>
   </div>
