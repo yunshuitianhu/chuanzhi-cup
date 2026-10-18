@@ -181,7 +181,7 @@ python tests/browser_session_regression.py
 | 服务 | 用途 | 是否必需 |
 |---|---|---|
 | DeepSeek | LLM 分析与报告生成 | **必需** |
-| 高德地图 | 逆地理编码、POI 搜索 | 推荐 |
+| 高德地图 | 官方静态底图、逆地理编码、POI 搜索（后端 `AMAP_KEY`，Web服务类型） | 推荐 |
 | 星图地球 | 卫星影像底图 | 可选 |
 
 ---
