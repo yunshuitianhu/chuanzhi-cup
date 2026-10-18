@@ -124,6 +124,8 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
             if black is not None:
                 session.black_spots = black
                 session.black_spots_json = raw
+                session.comprehensive_summary = None
+                session.captions = {}
             return raw, ("error" in raw)
 
         if name == "analyze_video":

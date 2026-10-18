@@ -47,6 +47,8 @@ def black_spots(session: Session = Depends(get_exclusive_session)) -> dict:
     if black is not None:
         session.black_spots = black
         session.black_spots_json = result_json
+        session.comprehensive_summary = None
+        session.captions = {}
 
     parsed = json.loads(result_json)
     if 'error' in parsed:

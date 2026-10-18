@@ -9,8 +9,8 @@ import cv2
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
-from sklearn.cluster import DBSCAN
 from .data_quality import measurement_error, assessment_mask, coordinate_text
+from .detection_support import temporal_support, spatial_support, cluster_black_samples, DETECTION_VERSION
 
 if TYPE_CHECKING:
     from .analysis_config import AnalysisConfig
@@ -239,7 +239,7 @@ def get_cluster_summary(cluster_df, cid, config=None):
         cid: 聚类 ID
         config: AnalysisConfig 或 None
     """
-    avg_score = round(float(cluster_df['black_score'].mean()), 2)
+    avg_score = round(float(cluster_df.get('nemerow_raw',cluster_df['black_score']).mean()), 2)
     # 黑臭等级: 取最严重成员点的等级 (与官方"任一指标不达标即判定"原则一致)
     _BO_LABEL = {'critical': '重度黑臭', 'severe': '重度黑臭', 'mild': '轻度黑臭', 'normal': '无黑臭'}
     sev_order = {'critical': 4, 'severe': 3, 'moderate': 2, 'mild': 1, 'normal': 0}
@@ -258,6 +258,7 @@ def get_cluster_summary(cluster_df, cid, config=None):
         "center_lat": round(float(cluster_df['latitude'].mean()), 6),
         "center_lon": round(float(cluster_df['longitude'].mean()), 6),
         "内梅罗指数_均值": avg_score,
+        "时空增强评分_均值": round(float(cluster_df['black_score'].mean()), 2),
         "内梅罗等级": nemerow_label,
         "黑臭等级": black_odor_level,
         "目标水质": f"GB3838-2002 {target_class}类",
@@ -294,10 +295,12 @@ def get_cluster_summary(cluster_df, cid, config=None):
     if 'datetime' in cluster_df.columns:
         times = cluster_df['datetime']
         info["持续超标时长_min"] = round((times.max() - times.min()).total_seconds() / 60.0, 1)
-        # 趋势判定: 基于 black_score 的线性回归斜率
+        info["首末观测跨度_min"] = info["持续超标时长_min"]
+        info["持续性说明"] = '首末观测间隔不代表全时段连续超标。'
+        # 趋势基于原始指数，不让变化的时空权重伪造恶化趋势。
         if len(cluster_df) >= 3:
             x = (times - times.min()).dt.total_seconds().values.astype(float)
-            y = cluster_df['black_score'].values.astype(float)
+            y = cluster_df.get('nemerow_raw',cluster_df['black_score']).values.astype(float)
             if np.std(x) > 0:
                 slope = np.polyfit(x, y, 1)[0]
                 per_hour = slope * 3600.0  # 每小时变化率
@@ -310,12 +313,16 @@ def get_cluster_summary(cluster_df, cid, config=None):
 
     if 'latitude' in cluster_df.columns and 'longitude' in cluster_df.columns:
         lats, lons = cluster_df['latitude'].values, cluster_df['longitude'].values
-        spatial_span = _haversine_distance_m(lats[0], lons[0], lats[-1], lons[-1])
+        farthest = int(np.argmax(_haversine_distance_m(lats[0],lons[0],lats,lons)))
+        spatial_span = np.max(_haversine_distance_m(lats[farthest],lons[farthest],lats,lons))
         info["空间跨度_m"] = round(float(spatial_span), 1)
+        info["空间跨度口径"] = '两次最远点距离估计，不是河道长度或污染影响范围。'
 
     # 超标倍数范围
     if 'black_score' in cluster_df.columns:
-        info["超标倍数范围"] = f"{cluster_df['black_score'].min():.1f} ~ {cluster_df['black_score'].max():.1f}"
+        raw = cluster_df.get('nemerow_raw',cluster_df['black_score'])
+        info["超标倍数范围"] = f"{raw.min():.1f} ~ {raw.max():.1f}"
+        info["增强评分范围"] = f"{cluster_df['black_score'].min():.1f} ~ {cluster_df['black_score'].max():.1f}"
     if 'nemerow_raw' in cluster_df.columns:
         info["原始内梅罗范围"] = f"{cluster_df['nemerow_raw'].min():.2f} ~ {cluster_df['nemerow_raw'].max():.2f}"
 
@@ -371,114 +378,22 @@ def _compute_exceedance_severity(pi_composite, config=None):
     pi = np.asarray(pi_composite, dtype=float)
     factor = np.ones_like(pi)
 
-    # 按阈值从高到低排序，确保高阈值优先匹配
-    sorted_thresholds = sorted(multipliers.items(), key=lambda x: x[0], reverse=True)
+    # 从低到高覆盖；否则高阈值的3.0会被后续1.5覆盖。
+    sorted_thresholds = sorted(multipliers.items(), key=lambda x: x[0])
     for threshold, multiplier in sorted_thresholds:
         factor[pi > threshold] = multiplier
 
     return factor
 
 
-def _compute_temporal_persistence(df, pi_composite, window_min=30, min_points=3):
-    """时间持续性评分。
-
-    滑动窗口内超标点占比 → 0~1 时间权重因子。
-    仅在窗口内超标点 >= min_points 时返回正值 (否则返回 0，表示孤立超标)。
-
-    Args:
-        df: 含 datetime 列的 DataFrame
-        pi_composite: 内梅罗综合指数 array
-        window_min: 时间窗口 (分钟)
-        min_points: 最少连续超标点数
-
-    Returns:
-        numpy array，0~1 的时间持续性因子
-    """
-    pi = np.asarray(pi_composite, dtype=float)
-    n = len(pi)
-    factors = np.zeros(n)
-
-    if n < min_points or 'datetime' not in df.columns:
-        return factors
-
-    is_exceed = (pi > 1.0).astype(float)  # Pi > 1 = 超标
-    times = df['datetime'].values
-    window_ns = pd.Timedelta(minutes=window_min).value  # 纳秒
-
-    for i in range(n):
-        t_center = np.datetime64(times[i])
-        t_lo = t_center - pd.Timedelta(minutes=window_min / 2)
-        t_hi = t_center + pd.Timedelta(minutes=window_min / 2)
-        mask = (times >= t_lo) & (times <= t_hi)
-        n_window = mask.sum()
-
-        if n_window < min_points:
-            continue
-
-        exceed_ratio = is_exceed[mask].sum() / n_window
-
-        # 时间持续因子 = 窗口内超标比例 (≥ min_points/n_window 才有效)
-        if is_exceed[mask].sum() >= min_points:
-            factors[i] = exceed_ratio
-
-    return factors
+def _compute_temporal_persistence(df, pi_composite, window_min=30, min_points=3, max_gap_min=5):
+    """观测支持的超目标时长/完整窗口；不把重复采样当持续证据。"""
+    return temporal_support(df, pi_composite, window_min, min_points, max_gap_min)
 
 
-def _compute_spatial_continuity(df, pi_composite, window_m=50, min_points=3):
-    """空间连续性评分。
-
-    基于 Haversine 距离，连续 N 个采样点超标才标记。
-    返回每个点的空间聚集因子 0~1。
-
-    Args:
-        df: 含 latitude, longitude 列的 DataFrame
-        pi_composite: 内梅罗综合指数 array
-        window_m: 空间窗口 (米)
-        min_points: 最少连续超标点数
-
-    Returns:
-        numpy array，0~1 的空间连续性因子
-    """
-    pi = np.asarray(pi_composite, dtype=float)
-    n = len(pi)
-    factors = np.zeros(n)
-
-    if n < min_points or 'latitude' not in df.columns or 'longitude' not in df.columns:
-        return factors
-
-    is_exceed = (pi > 1.0).astype(bool)
-    lats = df['latitude'].values
-    lons = df['longitude'].values
-
-    for i in range(n):
-        if not is_exceed[i]:
-            continue
-
-        # 向前和向后搜索连续超标段
-        start = i
-        while start > 0 and is_exceed[start - 1]:
-            dist = _haversine_distance_m(lats[start], lons[start], lats[start - 1], lons[start - 1])
-            if dist > window_m * 2:  # gap too large, break
-                break
-            start -= 1
-
-        end = i
-        while end < n - 1 and is_exceed[end + 1]:
-            dist = _haversine_distance_m(lats[end], lons[end], lats[end + 1], lons[end + 1])
-            if dist > window_m * 2:
-                break
-            end += 1
-
-        segment_len = end - start + 1
-        if segment_len >= min_points:
-            # 计算总空间跨度
-            total_dist = _haversine_distance_m(
-                lats[start], lons[start], lats[end], lons[end]
-            )
-            # 空间因子 = min(total_dist / window_m, 1.0)，跨度越大因子越高
-            factors[i] = min(float(total_dist) / window_m, 1.0) if window_m > 0 else 0.0
-
-    return factors
+def _compute_spatial_continuity(df, pi_composite, window_m=50, min_points=3, max_gap_min=5):
+    """有效相邻观测段的空间支持度，缺测、定位跳跃及长空档处断开。"""
+    return spatial_support(df, pi_composite, window_m, min_points, max_gap_min)
 
 
 def compute_black_score_enhanced(df, config=None):
@@ -508,17 +423,18 @@ def compute_black_score_enhanced(df, config=None):
 
     # 3. 时间持续性因子
     time_factor = _compute_temporal_persistence(
-        df, pi_composite, config.temporal_window_min, config.persistence_min_points
+        df, pi_composite, config.temporal_window_min, config.persistence_min_points, config.continuity_max_gap_min
     )
 
     # 4. 空间连续性因子
     spatial_factor = _compute_spatial_continuity(
-        df, pi_composite, config.spatial_window_m, config.persistence_min_points
+        df, pi_composite, config.spatial_window_m, config.persistence_min_points, config.continuity_max_gap_min
     )
 
     # 至少有一个维度有效 (Pi > 1) 时, 增强评分才生效
     # 复合加权: Pi × severity × (1 + time_factor) × (1 + spatial_factor)
-    enhanced = pi_composite * severity_factor * (1.0 + config.time_weight_factor * time_factor) * (1.0 + config.spatial_weight_factor * spatial_factor)
+    enhanced = np.where(pi_composite > 1, pi_composite * severity_factor
+        * (1.0 + config.time_weight_factor * time_factor) * (1.0 + config.spatial_weight_factor * spatial_factor), pi_composite)
 
     return enhanced
 
@@ -554,7 +470,7 @@ def find_black_spots(df, config=None):
       2. 《城市黑臭水体整治工作指南》(2015)
          — 黑臭等级判定 (is_black + severity_label)
 
-    孤立超标点 (无时空连续性) 在增强评分中被抑制。
+    时空支持充分时提高排序权重；孤立超标点仍保留点级预警。
 
     Args:
         df: 监测数据 DataFrame
@@ -572,9 +488,16 @@ def find_black_spots(df, config=None):
     error = measurement_error(df)
     if error:
         return json.dumps({'error': error}, ensure_ascii=False), None
-    valid = assessment_mask(df)
-    quality = {'有效判定点数': int(valid.sum()), '未判定点数': int((~valid).sum())}
-    temp = df.loc[valid].copy()
+    ordered = df.copy()
+    if 'datetime' in ordered:
+        ordered['__time_sort'] = pd.to_datetime(ordered['datetime'],errors='coerce',utc=True)
+        ordered = ordered.sort_values('__time_sort',kind='stable').drop(columns='__time_sort')
+    ordered['__sample_sequence'] = np.arange(len(ordered))
+    valid = assessment_mask(ordered)
+    quality = {'有效判定点数': int(valid.sum()), '未判定点数': int((~valid).sum()),
+        '算法版本':DETECTION_VERSION, '聚类提示':None,
+        '筛查口径':'仅用氨氮和DO的点级预警；缺少重复采样、透明度及ORP，不能作为完整水体定级或污染责任认定。'}
+    temp = ordered.loc[valid].copy()
     # 增强黑点评分 (超标倍数 × 严重度 × 时间持续性 × 空间连续性)
     temp['black_score'] = compute_black_score_enhanced(temp, config)
     # 传统内梅罗指数 (用于对比参考)
@@ -584,29 +507,26 @@ def find_black_spots(df, config=None):
     temp['severity'] = levels
     temp['severity_label'] = labels
     temp['severity_color'] = colors
-    # 黑点 = 任一关键指标超黑臭阈值 (保留传统判定 AND/OR 增强评分阈值)
+    # 点级预警只取关键指标阈值；排序分数不能替代黑臭筛查条件。
     temp['is_black'] = (temp['severity'] != 'normal')
 
-    # 标记时空增强识别的额外黑点: 增强评分 > 1.5 但传统判定为非黑臭的点
-    temp['spatiotemporal_black'] = (temp['black_score'] > 1.5) & (temp['severity'] == 'normal')
+    # 非黑臭但指数异常只是线索，不能因时空加权而晋升为黑臭结论。
+    temp['index_only_alert'] = (temp['nemerow_raw'] > 1) & (temp['severity'] == 'normal')
+    quality['非黑臭指数异常点数'] = int(temp['index_only_alert'].sum())
 
     black = temp[temp['is_black']].copy()
-    black['cluster_id'] = -1
-    if {'longitude', 'latitude'} <= set(black.columns):
-        coords = black[['longitude', 'latitude']].apply(pd.to_numeric, errors='coerce')
-        spatial_valid = (coords.longitude.between(-180, 180)
-                         & coords.latitude.between(-90, 90))
-        if spatial_valid.sum() >= 5:
-            black.loc[spatial_valid, 'cluster_id'] = DBSCAN(
-                eps=config.dbscan_eps, min_samples=config.dbscan_min_samples
-            ).fit_predict(coords.loc[spatial_valid])
+    try:
+        black['cluster_id'], quality['聚类参数'] = cluster_black_samples(black, config)
+    except ValueError as exc:
+        black['cluster_id'] = -1
+        quality['聚类提示'] = str(exc)
 
     if len(black) == 0:
         return json.dumps({
             "黑点总数": 0,
             "提示": f"在 {quality['有效判定点数']} 个有效判定点中未检出黑臭（仅依据氨氮和溶解氧）；{quality['未判定点数']} 个缺测点未判定，不能视作达标。",
             **quality,
-            "判定标准": {"污染指数": f"GB3838-2002 {target_class}类 + 增强时空评分", "黑臭判定": "《城市黑臭水体整治工作指南》(2015)"},
+            "判定标准": {"污染指数": f"参考GB3838-2002 {target_class}类限值的工程综合指数；增强评分仅用于排序", "黑臭判定": "参考《城市黑臭水体整治工作指南》(2015)的氨氮/DO阈值进行点级筛查"},
             "可用指标": _AVAILABLE_INDICATORS,
             "缺失指标": _MISSING_INDICATORS,
         }, ensure_ascii=False), black
@@ -619,19 +539,16 @@ def find_black_spots(df, config=None):
         clusters_info.append(get_cluster_summary(black[black['cluster_id'] == cid], cid, config))
 
     sev_dist = black['severity_label'].value_counts().to_dict()
-    # 时空增强识别的额外黑点数
-    n_extra = int(temp['spatiotemporal_black'].sum()) if 'spatiotemporal_black' in temp.columns else 0
-
     result = json.dumps({
         "判定标准": {
-            "污染指数": f"GB3838-2002 {target_class}类 + 增强时空评分 (超标倍数×严重度×时间持续性×空间连续性)",
-            "黑臭判定": "《城市黑臭水体整治工作指南》(2015)"
+            "污染指数": f"参考GB3838-2002 {target_class}类限值的工程综合指数；增强评分仅用于排序",
+            "黑臭判定": "参考《城市黑臭水体整治工作指南》(2015)的氨氮/DO阈值进行点级筛查"
         },
         "可用指标": _AVAILABLE_INDICATORS,
         **quality,
         "缺失指标": _MISSING_INDICATORS,
         "黑点总数": len(black),
-        "时空增强识别的额外黑点": n_extra,
+        "时空增强识别的额外黑点": 0,  # 兼容旧客户端；指数线索不计入黑臭点。
         "聚类热点数": nc,
         "黑臭等级分布": sev_dist,
         "增强评分最高": round(float(black['black_score'].max()), 2),
@@ -901,7 +818,8 @@ def build_comprehensive_summary(state, river_state=None, config=None):
             },
             "黑点总数": len(black),
             "黑臭等级分布": black['severity_label'].value_counts().to_dict(),
-            "内梅罗指数范围": f"{black['black_score'].min():.2f} ~ {black['black_score'].max():.2f}",
+            "内梅罗指数范围": f"{black.get('nemerow_raw',black['black_score']).min():.2f} ~ {black.get('nemerow_raw',black['black_score']).max():.2f}",
+            "时空增强评分范围": f"{black['black_score'].min():.2f} ~ {black['black_score'].max():.2f}",
             "氨氮峰值_mgL": round(float(black['ammonia_nitrogen'].max()), 2) if 'ammonia_nitrogen' in black.columns else None,
             "溶解氧最低_mgL": round(float(black['dissolved_oxygen'].min()), 2) if 'dissolved_oxygen' in black.columns else None,
         }
@@ -923,7 +841,8 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                 "排名": i,
                 "时间": str(row['datetime']),
                 "经纬度": coordinate_text(row),
-                "内梅罗指数": round(float(row['black_score']), 2),
+                "内梅罗指数": round(float(row.get('nemerow_raw',row['black_score'])), 2),
+                "时空增强评分": round(float(row['black_score']), 2),
                 "黑臭等级": row['severity_label'],
                 "氨氮_mgL": round(float(row['ammonia_nitrogen']), 2) if pd.notna(row.get('ammonia_nitrogen')) else None,
                 "溶解氧_mgL": round(float(row['dissolved_oxygen']), 2) if pd.notna(row.get('dissolved_oxygen')) else None,

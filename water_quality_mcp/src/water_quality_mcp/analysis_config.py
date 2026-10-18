@@ -85,23 +85,32 @@ class AnalysisConfig:
 
     # ---- DBSCAN 聚类参数 ----
     dbscan_eps: float = 0.0003
-    """DBSCAN 空间邻域半径 (度), ~33m @ 23°N。"""
+    """旧配置的角半径（度）；换算为球面距离约33.36m，不再以经纬度平面计算。"""
 
     dbscan_min_samples: int = 5
     """DBSCAN 最小成簇点数。"""
 
+    dbscan_eps_m: float | None = None
+    """米制邻域半径。None时把旧dbscan_eps按球面角距离转换，兼容旧配置。"""
+
+    dbscan_time_gap_min: float | None = 30.
+    """热点相邻观测最大时间差；None表示仅空间聚类。工程门限，需按任务核实。"""
+
+    continuity_max_gap_min: float = 5.
+    """时空支持度不跨越的观测空档（分钟），不是仪器校准参数。"""
+
     # ---- 时空维度黑点检测参数 ----
     temporal_window_min: int = 30
-    """时间持续性窗口 (分钟)。滑动窗口内统计超标点占比。"""
+    """观测支持度窗口（分钟）；按超目标时长占完整窗口的比例计权。"""
 
     spatial_window_m: int = 50
     """空间连续性窗口 (米)。基于 Haversine 距离判定连续超标段。"""
 
     persistence_min_points: int = 3
-    """最少连续超标点数。孤立的 1-2 个超标点不计入黑点。"""
+    """支持度所需的最少观测数；不足时不加权，但保留点级阈值预警。"""
 
     time_weight_factor: float = 1.5
-    """时间持续性加权系数。持续超标时长超过窗口一半时施加的乘数。"""
+    """时间支持度加权系数；时间乘数为1+该系数×支持度。"""
 
     spatial_weight_factor: float = 1.5
     """空间连续性加权系数。连续 N 个点超标时施加的乘数。"""
@@ -186,9 +195,15 @@ class AnalysisConfig:
             "target_water_class": self.target_water_class,
             "dbscan_eps": self.dbscan_eps,
             "dbscan_min_samples": self.dbscan_min_samples,
+            "dbscan_eps_m": self.dbscan_eps_m,
+            "dbscan_time_gap_min": self.dbscan_time_gap_min,
+            "continuity_max_gap_min": self.continuity_max_gap_min,
             "temporal_window_min": self.temporal_window_min,
             "spatial_window_m": self.spatial_window_m,
             "persistence_min_points": self.persistence_min_points,
+            "time_weight_factor": self.time_weight_factor,
+            "spatial_weight_factor": self.spatial_weight_factor,
+            "exceedance_severity_multipliers": self.exceedance_severity_multipliers,
             "search_radius_m": self.search_radius_m,
             "expand_radius_m": self.expand_radius_m,
             "upstream_search_m": self.upstream_search_m,

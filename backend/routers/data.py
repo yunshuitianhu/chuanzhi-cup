@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Query
 from starlette.concurrency import run_in_threadpool
 
 from water_quality_mcp.src.water_quality_mcp.loaders import extract_video, load_data
+from water_quality_mcp.src.water_quality_mcp.detection_support import DETECTION_VERSION
 
 from ..deps import get_session, get_exclusive_session
 from ..session import Session
@@ -94,6 +95,13 @@ def status(session: Session = Depends(get_session)) -> dict:
     }
     if df is not None and len(df) > 0:
         out["time_range"] = [str(df["datetime"].min()), str(df["datetime"].max())]
+    try:
+        evidence = json.loads(session.black_spots_json or '{}')
+        version = evidence.get('算法版本') if isinstance(evidence,dict) else None
+    except (ValueError,TypeError):
+        version = None
+    out['detection_algorithm_version'] = version
+    out['detection_outdated'] = session.black_spots is not None and version != DETECTION_VERSION
     return out
 
 

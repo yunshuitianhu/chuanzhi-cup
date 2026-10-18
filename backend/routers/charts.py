@@ -104,7 +104,7 @@ def time_series(session: Session = Depends(get_session)) -> dict:
     if black is not None and len(black) > 0:
         b = black.iloc[_downsample(len(black))] if len(black) > MAX_POINTS else black
         for _, r in b.iterrows():
-            _, label, color = get_severity_info(float(r["black_score"]), session.analysis_config)
+            _, label, color = get_severity_info(float(r.get('nemerow_raw',r['black_score'])), session.analysis_config)
             spots.append({
                 "t": str(r["datetime"]),
                 "ammonia": _clean(r.get("ammonia_nitrogen")),
@@ -154,7 +154,8 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
             continue
         c = black[black["cluster_id"] == cid]
         avg = float(c["black_score"].mean())
-        _, sev_label, sev_color = get_severity_info(avg, session.analysis_config)
+        raw_avg = float(c.get('nemerow_raw',c['black_score']).mean())
+        _, sev_label, sev_color = get_severity_info(raw_avg, session.analysis_config)
         clat, clon, radius = get_cluster_extent(c)
         clusters.append({
             "id": int(cid),
@@ -171,7 +172,7 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
 
     top5 = []
     for i, (_, r) in enumerate((black.nlargest(5, "black_score") if len(black) else black).iterrows(), 1):
-        _, label, color = get_severity_info(float(r["black_score"]), session.analysis_config)
+        _, label, color = get_severity_info(float(r.get('nemerow_raw',r['black_score'])), session.analysis_config)
         top5.append({
             "rank": i,
             "coord": [_clean(r["latitude"]), _clean(r["longitude"])],
