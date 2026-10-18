@@ -38,9 +38,34 @@ ROUTES = {
                 [184,228],[184,262],[183,303],[180,345],[179,389],[177,429],
                 [178,468],[177,506],[184,550],[185,591],[181,635]])}
 
+# v2：从实际卫星瓦片可见水面重新定线。原v1静态街道图描线没有完成水面配准，
+# 不再用于地理演示。下列坐标为zoom16、256px瓦片拼图中的像素，不是实测断面。
+ROUTES['nanjing'].update(name='南京外秦淮河卫星选段',
+    trace_frame=dict(zoom=16,world_origin=[13922304,6810880],coordinate_system='WGS84'),
+    pixels=[[1010,40],[1030,120],[1050,200],[1070,280],[1085,360],[1080,440],
+            [1060,520],[1060,600],[1075,680],[1075,760],[1070,840],[1055,920],
+            [1035,1000],[1015,1080],[995,1160],[970,1240]])
+ROUTES['chengdu'].update(name='成都南河卫星选段',
+    trace_frame=dict(zoom=16,world_origin=[13237504,6886656],coordinate_system='WGS84'),
+    pixels=[[750,153],[850,177],[950,191],[1050,210],[1150,224],[1250,221],
+            [1350,221],[1450,269],[1550,338],[1650,386],[1750,445],[1850,489]])
+ROUTES['hangzhou'].update(name='杭州瓶窑镇河道卫星选段（河名未核实）',
+    trace_frame=dict(zoom=16,world_origin=[13978880,6900736],coordinate_system='WGS84'),
+    pixels=[[470,40],[505,100],[525,160],[525,220],[500,280],[465,340],[425,400],[405,430]])
+
 
 def route_coordinates(spec):
-    """900×760、zoom15 高德静态地图像素中心 -> GCJ-02 -> WGS84。"""
+    """从明确的瓦片坐标框架生成WGS84；兼容旧的静态地图输入定义。"""
+    if 'trace_frame' in spec:
+        frame=spec['trace_frame']
+        if frame['coordinate_system'] != 'WGS84':
+            raise ValueError('卫星定线须显式声明WGS84框架')
+        world=256*2**frame['zoom']
+        ox,oy=frame['world_origin']
+        points=np.array([[(ox+px)/world*360-180,
+            math.degrees(math.atan(math.sinh(math.pi*(1-2*(oy+py)/world))))]
+            for px,py in spec['pixels']])
+        return points, _route_distances(points)
     lat, lon = spec['center']
     world = 256 * 2 ** 15
     cx = (lon + 180) / 360 * world
@@ -52,11 +77,15 @@ def route_coordinates(spec):
         wlat, wlon = gcj02_to_wgs84(glat, glon)
         points.append([wlon, wlat])
     points = np.asarray(points)
+    return points, _route_distances(points)
+
+
+def _route_distances(points):
     a, b = np.radians(points[:-1]), np.radians(points[1:])
     delta = b - a
     dist = 6371008.8 * 2 * np.arcsin(np.sqrt(np.sin(delta[:,1]/2)**2 +
         np.cos(a[:,1])*np.cos(b[:,1])*np.sin(delta[:,0]/2)**2))
-    return points, np.r_[0., np.cumsum(dist)]
+    return np.r_[0., np.cumsum(dist)]
 
 
 def scenarios():
@@ -84,9 +113,10 @@ def generate(output):
     output.mkdir(parents=True)
     (output/'真值与配置').mkdir()
     # 用于第三方复现，不把答案写进走航表。
-    manifest = dict(schema_version=1, status='SYNTHETIC_NOT_FIELD_DATA', seed_base=20261018,
-        coordinate_system='WGS84', geometry_source='高德静态地图目视近似描线；非测绘中心线',
-        geometry_source_url='https://www.amap.com', geometry_digitization_uncertainty_m=30,
+    manifest = dict(schema_version=2, status='SYNTHETIC_NOT_FIELD_DATA', seed_base=20261018,
+        coordinate_system='WGS84', geometry_source='星图卫星可见水面人工近似定线；非测绘中心线',
+        geometry_source_url='https://open.geovisearth.com/support/document?docId=59&sid=183',
+        supersedes='v1地图描线存在水面配准错误，不再用于地理验证；旧测试计数不适用于本版',
         flow_direction='按折线顶点顺序假定；不是当地真实流向', cases=[])
     for index, case in enumerate(scenarios(), 1):
         spec = ROUTES[case['route']]
@@ -155,7 +185,7 @@ def generate(output):
                  number(battery[i],1),number(turbidity[i],2)] for i in range(len(times))]
         expected = (clean_n>8.) | (clean_o<2.)
         expected_target = (clean_n>2.) | (clean_o<2.)
-        name = f"{case['id']}_仿真_{case['label']}"
+        name = f"{case['id']}_仿真V2_{case['label']}"
         truth_path = output/'真值与配置'/f'{case["id"]}_逐点真值.csv'
         with truth_path.open('w',encoding='utf-8-sig',newline='') as stream:
             writer=csv.writer(stream)
@@ -185,7 +215,8 @@ def generate(output):
             missing_reason='未建立这些组分的独立模型；COD不能用CBOD替代。pH、水温、浊度、电量为经验辅助场。',
             config=asdict(config),model_params=result.params,
             physical_source_count=len(set(e['source_id'] for e in events)),emission_event_count=len(events),
-            source_location_uncertainty='最近断面离散误差见各事件；地图描线约30m，非测绘真值',
+            source_location_uncertainty='最近断面离散误差见各事件；卫星水面人工定线未经测绘验证，未承诺精度',
+            trace_frame=spec['trace_frame'],trace_pixels=spec['pixels'],dataset_version=2,
             alert_definition='仅受控阈值 NH3>8 或 DO<2；不是人工黑臭标签。目标V类超标另以 NH3>2 或 DO<2 记录。',
             intended_test='数据导入、时空筛查、多河段迁移和误报压力；不以热点数等同污染源数；多源反演尚未上线',
             stats=dict(true_nh3_min=float(clean_n.min()),true_nh3_max=float(clean_n.max()),
@@ -196,14 +227,15 @@ def generate(output):
         # 原始输入中不含源坐标、负荷或逐点真值，仅明确它是仿真数据。
         payload=dict(id=case['id'],name=name,headers=HEADERS,rows=rows,notes=[
             ['数据性质','纯仿真走航数据，非当地监测结果'],['地点',spec['name']],
-            ['坐标系','WGS84；地图描线近似误差约30米'],['记录数',len(rows)],['采样间隔','5秒'],
+            ['坐标系','WGS84；卫星水面人工近似定线，未经测绘验证'],['记录数',len(rows)],['采样间隔','5秒'],
             ['采样时间',absolute[0]+' 至 '+absolute[-1]],['路线','假定方向的沿河往返走航'],
             ['物理输出','氨氮、溶解氧：恒定流守恒对流—扩散—反应，逐点时空采样'],
             ['辅助字段','水温、pH、浊度、电量：经验设定，未经过现场率定'],
             ['未模拟字段','电导率、COD、总有机碳留空；COD未用CBOD冒充'],
             ['真值用途','独立保存供评估，检测输入不包含污染源答案'],
             ['使用限制','可验证受控场景行为，不能据此证明真实河流准确率'],
-            ['地理参考','高德地图 https://www.amap.com；非测绘中心线']])
+            ['版本','V2：替代未正确贴合水面的V1路线；所有污染与水力仍为仿真设定'],
+            ['地理参考','星图卫星影像 https://www.geovisearth.com；人工近似定线']])
         (output/f'{case["id"]}_workbook_payload.json').write_text(json.dumps(payload,ensure_ascii=False),encoding='utf-8')
         manifest['cases'].append({k:detail[k] for k in ('case_id','label','river','row_count','physical_source_count',
             'emission_event_count','stats') } | dict(workbook=name+'.xlsx'))
