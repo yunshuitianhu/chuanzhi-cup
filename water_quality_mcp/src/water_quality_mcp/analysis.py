@@ -987,6 +987,12 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                     "污染物": pollutant,
                     "排放量_kg": w.params.get('load_kg', '?'),
                     "排放桩号_m": w.params.get('chainage_m', '?'),
+                    "排放开始_h": w.params.get('source_start_h'),
+                    "排放持续_min": w.params.get('duration_min'),
+                    "实际注入量_kg": w.params.get('mass_balance', {}).get(pollutant, {}).get('injected_kg'),
+                    "实际计算桩号_m": w.params.get('source_effective_chainage_m'),
+                    "源位置离散距离_m": w.params.get('source_snap_distance_m'),
+                    "输出时间点数": len(w.t),
                     "模拟时长_h": w.t[-1],
                     "反应模型": w.params.get('reaction_model', {}),
                     "反应核算": w.params.get('reaction_diagnostics', {}),
@@ -995,7 +1001,7 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                 if pollutant in ('ammonia', 'cbod') and concentration is not None:
                     river['水质模拟'].update({
                         "峰值浓度_mgL": round(float(concentration.max()), 2),
-                        "峰值时刻_h": round(float(w.t[np.unravel_index(concentration.argmax(), concentration.shape)[0]]), 1),
+                        "峰值时刻_h": round(float(w.t[np.unravel_index(concentration.argmax(), concentration.shape)[0]]), 4),
                     })
                 else:
                     river['水质模拟']['数据状态'] = '缺少有效污染物组分，不生成峰值结论'

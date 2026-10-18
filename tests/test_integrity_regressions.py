@@ -179,6 +179,29 @@ class RiverApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertNotIn('结果可信度', response.json())
 
+    def test_release_timing_is_validated_and_forwarded(self):
+        with patch.object(river_tools, 'tool_river_pollution_event', return_value='{}') as solve:
+            response = self.client.post('/api/river/pollution', headers=self.headers,
+                json={'source_start_h': .25, 'duration_min': 7., 'output_interval_s': 30.})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(solve.call_args.kwargs['source_start_h'], .25)
+        self.assertEqual(solve.call_args.kwargs['duration_min'], 7.)
+        self.assertEqual(solve.call_args.kwargs['output_interval_s'], 30.)
+        for body in ({'source_start_h': -1}, {'source_start_h': '1'}, {'output_interval_s': 0}):
+            with self.subTest(body=body):
+                self.assertEqual(self.client.post('/api/river/pollution', headers=self.headers,
+                                                  json=body).status_code, 422)
+
+    def test_profile_interpolates_and_rejects_outside_time_range(self):
+        st = self.session.get_river_state()
+        st.wq_result = WQResult(t=np.array([0., 1.]), chainage=st.hydro_result.chainage,
+                               ammonia=np.array([[1., 2., 3.], [3., 4., 5.]]))
+        r = self.client.get('/api/river/profile?time_h=0.25', headers=self.headers)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['时刻_h'], .25)
+        self.assertEqual(r.json()['最大浓度_mgL'], 3.5)
+        self.assertEqual(self.client.get('/api/river/profile?time_h=2', headers=self.headers).status_code, 400)
+
 
 class AgentCompletionTests(unittest.TestCase):
     def setUp(self):

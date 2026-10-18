@@ -30,6 +30,8 @@ const form = ref({
   tidal_amplitude_m: 0,     // 默认恒定流；潮汐工况有已知缺陷
   duration_h: 6,
   load_kg: 50,
+  source_start_h: 0,
+  duration_min: 30,
   chainage_m: 1600,
   pollutant_type: 'ammonia',
 })
@@ -111,6 +113,8 @@ async function runPollution() {
       chainage_m: form.value.chainage_m,
       pollutant_type: form.value.pollutant_type,
       load_kg: form.value.load_kg,
+      source_start_h: form.value.source_start_h,
+      duration_min: form.value.duration_min,
       simulation_hours: form.value.duration_h,
     })
     if (revision !== store.status.analysis_revision) return
@@ -291,6 +295,8 @@ const pollutionCompare = computed(() => {
           </label>
           <label>排放量 kg<input v-model.number="form.load_kg" type="number" step="10" /></label>
           <label>污染源桩号 m<input v-model.number="form.chainage_m" type="number" step="100" /></label>
+          <label>排放开始 h<input v-model.number="form.source_start_h" type="number" min="0" step="0.1" /></label>
+          <label>排放持续 min<input v-model.number="form.duration_min" type="number" min="0.1" step="1" /></label>
         </div>
         <button
           class="mini primary"
@@ -308,7 +314,10 @@ const pollutionCompare = computed(() => {
             <span>峰值浓度 <b>{{ pollutionResult['峰值浓度_mgL'] }} mg/L</b></span>
             <span>峰值时刻 <b>{{ pollutionResult['峰值时刻_h'] }} h</b></span>
             <span>超标倍数 <b>{{ pollutionResult['超标倍数'] }}</b></span>
+            <span>本时段实际注入 <b>{{ pollutionResult['实际注入量_kg']?.toFixed(3) ?? '—' }} kg</b></span>
+            <span>输出时间点 <b>{{ pollutionResult['输出时间点数'] }}</b></span>
           </div>
+          <p class="hint">排放开始时间相对模拟起点计算；本时段仅计入与排放时段重叠的负荷。源位置取最近断面，实际计算桩号 {{ pollutionResult['源位置离散']?.['实际计算桩号_m'] ?? '—' }} m。</p>
           <p class="cred">{{ pollutionResult['提示'] }}</p>
           <div v-if="pollutionResult['反应模型']?.version" class="reaction-info">
             <p>本次计算包含硝化耗氧、低氧限制及硝态氮转化。</p>

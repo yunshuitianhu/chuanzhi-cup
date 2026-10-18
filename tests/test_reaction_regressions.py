@@ -103,13 +103,18 @@ class ReactionTests(unittest.TestCase):
         h=still_hydro([0.,100.,200.])
         w=WQResult(t=np.array([0.,1.]),chainage=h.chainage,
                    cbod=np.array([[3.,4.,5.],[6.,7.,8.]]),ammonia=np.ones((2,3)),
-                   params={'pollutant_type':'cbod','reaction_model':{'parameter_status':'未经率定'}})
+                   params={'pollutant_type':'cbod','reaction_model':{'parameter_status':'未经率定'},
+                           'source_start_h': .4, 'duration_min': 10., 'source_effective_chainage_m':100.,
+                           'source_snap_distance_m':20., 'mass_balance':{'cbod':{'injected_kg':.6}}})
         st=RiverModelState(hydro_result=h,wq_result=w)
         summary=json.loads(build_comprehensive_summary(WaterQualityState(),st))
         model=summary['河道模型']['水质模拟']
         self.assertEqual(model['峰值浓度_mgL'],8.)
         self.assertEqual(model['峰值时刻_h'],1.)
         self.assertEqual(model['反应模型']['parameter_status'],'未经率定')
+        self.assertEqual(model['排放开始_h'], .4)
+        self.assertEqual(model['实际注入量_kg'], .6)
+        self.assertEqual(model['源位置离散距离_m'], 20.)
         self.assertIn('情景模拟',model['结论限制'])
 
 

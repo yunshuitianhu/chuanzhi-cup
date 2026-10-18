@@ -288,6 +288,8 @@ def tool_river_pollution_event(
     simulation_hours: float = 24.0,
     target_water_class: str = 'V',
     monitoring_data=None,
+    source_start_h: float = 0.0,
+    output_interval_s: float = 60.0,
 ) -> str:
     """在雅瑶水道指定位置模拟污染事件。"""
     if not state.has_hydro():
@@ -312,6 +314,8 @@ def tool_river_pollution_event(
             duration_min=duration_min,
             simulation_hours=simulation_hours,
             dt_s=60.0,
+            source_start_h=source_start_h,
+            output_interval_s=output_interval_s,
         )
     except Exception as e:
         return json.dumps({"error": f"水质模拟失败: {str(e)}"}, ensure_ascii=False)
@@ -319,7 +323,7 @@ def tool_river_pollution_event(
     result.params.update(hydro_run_id=state.hydro_result.params.get('run_id'),
                          hydro_tidal_amplitude_m=state.hydro_result.params.get('tidal_amplitude_m', 0))
     state.wq_result = result
-    scenario_name = f"{pollutant_type}_{load_kg}kg_{chainage_m}m"
+    scenario_name = f"{pollutant_type}_{load_kg}kg_{chainage_m}m_start{source_start_h}h_dur{duration_min}min"
     state.scenarios[scenario_name] = result.params
 
     # 每张图独立生成；某张失败不会阻止其余图，也不会把旧文件列作新结果。
@@ -410,9 +414,18 @@ def tool_river_pollution_event(
         "排放量_kg": load_kg,
         "排放位置_m": chainage_m,
         "排放时长_min": duration_min,
+        "排放开始_h": source_start_h,
+        "实际注入量_kg": result.params.get('mass_balance', {}).get(pollutant_type, {}).get('injected_kg'),
+        "源位置离散": {
+            "实际计算桩号_m": result.params.get('source_effective_chainage_m'),
+            "与请求位置距离_m": result.params.get('source_snap_distance_m'),
+            "说明": "负荷注入最近断面；断面间距限制源位置分辨率",
+        },
+        "输出时间点数": len(result.t),
+        "输出间隔_s": output_interval_s,
         "模拟时长_h": simulation_hours,
         "峰值浓度_mgL": round(peak_c, 2),
-        "峰值时刻_h": round(peak_time_h, 1),
+        "峰值时刻_h": round(peak_time_h, 4),
         "超标倍数": round(peak_c / std_limit, 1) if std_limit > 0 else 0,
         # 两个口径分别标注基准，避免被读成互相矛盾
         "相对标准限值": {
@@ -474,9 +487,11 @@ def tool_river_concentration_profile(
     if data is None:
         return json.dumps({"error": f"组分 {constituent} 数据不可用"}, ensure_ascii=False)
 
-    t_idx = int(np.argmin(np.abs(wq.t - time_h)))
-    t_idx = min(t_idx, len(wq.t) - 1)
-    profile = data[t_idx, :]
+    from .observations import sample_water_quality
+    try:
+        profile = sample_water_quality(wq, np.full(len(wq.chainage), time_h), wq.chainage, constituent)
+    except ValueError as exc:
+        return json.dumps({'error': str(exc)}, ensure_ascii=False)
     chainage = wq.chainage
 
     # 超标断面
@@ -487,7 +502,8 @@ def tool_river_concentration_profile(
     ]
 
     return json.dumps({
-        "时刻_h": round(float(wq.t[t_idx]), 1),
+        "时刻_h": float(time_h),
+        "取值方法": "在模型已保存的时间点间线性插值；超出模拟范围时拒绝查询",
         "组分": constituent,
         "标准限值_mgL": std,
         "目标水质": target_water_class,

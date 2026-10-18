@@ -68,6 +68,8 @@ class PollutionRequest(ModelRequest):
     load_kg: FiniteFloat = Field(50, ge=0)
     duration_min: FiniteFloat = Field(30, gt=0)
     simulation_hours: FiniteFloat = Field(6, ge=.5, le=48)
+    source_start_h: FiniteFloat = Field(0, ge=0)
+    output_interval_s: FiniteFloat = Field(60, ge=1, le=3600)
 
 
 @router.get("/params")

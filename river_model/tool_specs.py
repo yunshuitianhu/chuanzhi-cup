@@ -29,6 +29,9 @@ RIVER_TOOL_SPECS = [
         'pollutant_type': {'type': 'string', 'enum': ['ammonia', 'cbod']},
         'load_kg': {'type': 'number', 'minimum': 0},
         'duration_min': {'type': 'number', 'exclusiveMinimum': 0},
+        'source_start_h': {'type': 'number', 'minimum': 0,
+                           'description': '相对模拟起点的排放开始时刻，单位小时'},
+        'output_interval_s': {'type': 'number', 'minimum': 1, 'maximum': 3600},
         'simulation_hours': {'type': 'number', 'minimum': 0.5, 'maximum': 48},
     }),
     _spec('get_concentration_profile', '查询模拟结果在指定时刻的沿程浓度。', {
