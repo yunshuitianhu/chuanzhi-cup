@@ -259,7 +259,7 @@ const pollutionCompare = computed(() => {
 
     <div v-if="!store.status.has_data" class="empty">未加载走航数据时可手工配置并运行情景模型；自动参数建议和轨迹动画需上传对应数据。</div>
 
-    <template>
+    <div class="river-workspace">
       <!-- 参数自动检测 -->
       <section class="block">
         <h3 class="st">① 河道参数自动检测</h3>
@@ -299,10 +299,10 @@ const pollutionCompare = computed(() => {
           <label>下游水位 m<input v-model.number="form.high_water_mean_m" type="number" step="0.1" /></label>
           <label>初始氨氮 mg/L<input v-model.number="form.ammonia_nh3_mgL" type="number" min="0" step="0.1" /></label>
           <label>初始 DO mg/L<input v-model.number="form.dissolved_oxygen_mgL" type="number" min="0" step="0.1" /></label>
-          <label>断面数<input v-model.number="form.n_cross_sections" type="number" min="20" max="100" /></label>
+          <label>断面数<input v-model.number="form.n_cross_sections" type="number" min="3" max="100" /></label>
           <label>曼宁糙率<input v-model.number="form.mannings_n" type="number" step="0.001" /></label>
           <label>上游流量 m³/s<input v-model.number="form.upstream_flow_m3s" type="number" step="0.1" /></label>
-          <label>模拟时长 h<input v-model.number="form.duration_h" type="number" min="1" max="24" /></label>
+          <label>模拟时长 h<input v-model.number="form.duration_h" type="number" min="0.5" max="48" step="0.5" /></label>
         </div>
 
         <details class="hint">
@@ -399,7 +399,7 @@ const pollutionCompare = computed(() => {
           </p>
         </template>
       </section>
-    </template>
+    </div>
   </Panel>
 </template>
 
