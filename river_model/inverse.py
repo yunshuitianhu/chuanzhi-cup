@@ -24,6 +24,8 @@ def fit_single_source(config, hydro, times_h, chainages_m, concentrations_mgL,
             or not np.all(np.isfinite([times, locations, observed, sigma]))
             or np.any(observed < 0) or np.any(sigma <= 0) or np.any(times < 0)):
         raise ValueError('至少需要四个有效配对观测，误差标准差须为正有限数')
+    if len(np.unique(np.column_stack((times, locations)), axis=0)) != len(times):
+        raise ValueError('重复时空观测不能视为独立证据；请先合并并确认观测误差')
     low, high = load_bounds_kg
     if not np.all(np.isfinite([low, high])) or not 0 <= low < high:
         raise ValueError('质量搜索界限须满足 0 <= lower < upper')
@@ -60,13 +62,35 @@ def fit_single_source(config, hydro, times_h, chainages_m, concentrations_mgL,
     best = ranked[0]
     plausible = [r for r in ranked if r['weighted_sse'] <= best['weighted_sse'] + 2.]
     signal = baseline_cost - best['weighted_sse']
+    weighted_rmse = float(np.sqrt(best['weighted_sse']/len(times)))
     boundary = min(abs(best['load_kg']-low), abs(best['load_kg']-high)) < 1e-3
-    status = ('unidentifiable' if signal < 9 else 'bound_limited' if boundary else
+    # 改善量很大仍可能是错误物理参数下的坏拟合。工程残差门槛不是概率/置信区间。
+    status = ('unidentifiable' if signal < 9 else 'model_mismatch' if weighted_rmse > 2. else 'bound_limited' if boundary else
               'ambiguous' if len(plausible) > 1 else 'identified_in_scenario')
-    return {'status': status, 'estimate': best if signal >= 9 else None,
+    load_probes = []
+    if status == 'identified_in_scenario':
+        # 检查数据是否能区分最优负荷与相差20%的负荷；不是负荷误差保证或置信区间。
+        for factor in (.8, 1.2):
+            probe = best['load_kg']*factor
+            delta = (float(np.sum(((predict(best['source_m'],probe)-observed)/sigma)**2))
+                     - best['weighted_sse']) if low <= probe <= high else None
+            load_probes.append({'load_kg': probe, 'sse_increase': delta})
+        if any(p['sse_increase'] is None or p['sse_increase'] < 9. for p in load_probes):
+            status = 'load_unresolved'
+    reasons = {'unidentifiable': '相对无源情景的信号改善不足',
+        'model_mismatch': '残差超过观测误差尺度的两倍，需检查参数、边界、单源假设或误差设定',
+        'bound_limited': '最优负荷触及搜索边界', 'ambiguous': '存在多个近优源候选',
+        'load_unresolved': '数据未能清楚区分相差20%的负荷，或搜索范围不足以检查',
+        'identified_in_scenario': '通过给定候选和固定参数情景内的筛查，不代表现场来源已确认'}
+    return {'status': status, 'reason': reasons[status],
+        'estimate': best if status == 'identified_in_scenario' else None,
         'candidate_fits': ranked, 'near_best_sources_m': [r['source_m'] for r in plausible],
         'baseline_weighted_sse': baseline_cost, 'signal_improvement': signal,
+        'diagnostics': {'observation_count': len(times), 'weighted_rmse': weighted_rmse,
+            'weighted_rmse_limit': 2., 'signal_improvement_min': 9., 'near_best_sse_delta': 2.,
+            'load_relative_probe': .2, 'load_probe_sse_increase_min': 9., 'load_probes': load_probes,
+            'interpretation': '独立观测及给定误差尺度下的工程筛查；不输出统计置信度'},
         'source_grid_min_spacing_m': float(np.diff(hydro.chainage).min()),
         'assumptions': {'source_start_h': source_start_h, 'duration_min': duration_min,
             'load_bounds_kg': [low, high], 'fixed_parameters': '水动力、排放时段、反应参数和边界均视为已知'},
-        'limitation': '单源恒定流情景试验；近优候选不是置信区间；参数失配和多源情况需另验，不对应现场责任认定'}
+        'limitation': '单源恒定流情景试验；近优候选不是置信区间；小残差不能排除流量与负荷等参数混淆，不对应现场责任认定'}

@@ -173,6 +173,23 @@ class HeatMapTests(unittest.TestCase):
 
 
 class InverseGuardsTests(unittest.TestCase):
+    def test_duplicate_time_location_pairs_do_not_inflate_evidence(self):
+        from river_model.inverse import fit_single_source
+        from test_transport_regressions import still_hydro
+        with self.assertRaisesRegex(ValueError,'重复时空观测'):
+            fit_single_source(RiverConfig(),still_hydro([0.,100.,200.]),
+                [.1]*4,[100.]*4,[1.]*4,.01,[100.])
+
+    def test_large_residual_cannot_report_a_successful_source(self):
+        from river_model.inverse import fit_single_source
+        from test_transport_regressions import still_hydro
+        cfg=RiverConfig(ammonia_nh3_mgL=0.,bod_cbod_mgL=0.)
+        result=fit_single_source(cfg,still_hydro([0.,100.,200.]),
+            [.01,.02,.03,.04],[100.]*4,[100.,0.,100.,0.],.01,[100.],(0.,20.))
+        self.assertEqual(result['status'],'model_mismatch')
+        self.assertIsNone(result['estimate'])
+        self.assertGreater(result['diagnostics']['weighted_rmse'],2.)
+
     def test_unobserved_or_no_signal_case_does_not_claim_a_source(self):
         from river_model.inverse import fit_single_source
         from test_transport_regressions import still_hydro
