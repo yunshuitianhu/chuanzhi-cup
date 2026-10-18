@@ -62,7 +62,7 @@ def plot_discharge_profile(hydro: HydroResult, output_path: str = "river_dischar
         ax.plot(hydro.chainage, hydro.discharge[idx, :],
                 color=c, linewidth=1.5, label=f"t = {hydro.t[idx]:.1f} h")
     ax.set_xlabel("桩号 (m)", fontproperties=_fp())
-    ax.set_ylabel("流量 (m³/s)", fontproperties=_fp())
+    ax.set_ylabel("流量 (m$^3$/s)", fontproperties=_fp())
     ax.set_title("雅瑶水道 — 沿程流量剖面", fontproperties=_fp(), fontsize=13)
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
@@ -118,8 +118,12 @@ def plot_concentration_contour(wq: WQResult, constituent: str = "ammonia",
     X, Y = np.meshgrid(wq.chainage, wq.t)
     levels = np.linspace(np.nanmin(data), np.nanmax(data), 40)
     cf = ax.contourf(X, Y, data, levels=levels, cmap="YlOrRd", extend="max")
-    cbar = fig.colorbar(cf, ax=ax, label=label)
-    ax.axhline(y=wq.t[-1] * 0.1, color='blue', linestyle='--', alpha=0.5)  # 源位置标记
+    cbar = fig.colorbar(cf, ax=ax)
+    cbar.set_label(label, fontproperties=_fp())
+    source_m = wq.params.get('source_effective_chainage_m')
+    if source_m is not None:
+        ax.axvline(x=source_m, color='blue', linestyle='--', alpha=0.5, label='排放断面')
+        ax.legend(prop=_fp(), fontsize=8)
 
     ax.set_xlabel("桩号 (m)", fontproperties=_fp())
     ax.set_ylabel("时间 (h)", fontproperties=_fp())
@@ -236,7 +240,8 @@ def plot_hydro_wq_dashboard(hydro: HydroResult, wq: WQResult,
         levels = np.linspace(np.nanmin(wq.ammonia), np.nanmax(wq.ammonia), 30)
         cf = axes[0, 1].contourf(X, Y, wq.ammonia, levels=levels,
                                   cmap="YlOrRd", extend="max")
-        fig.colorbar(cf, ax=axes[0, 1], label="氨氮 (mg/L)")
+        cbar = fig.colorbar(cf, ax=axes[0, 1])
+        cbar.set_label("氨氮 (mg/L)", fontproperties=_fp())
     axes[0, 1].set_xlabel("桩号 (m)", fontproperties=_fp())
     axes[0, 1].set_ylabel("时间 (h)", fontproperties=_fp())
     axes[0, 1].set_title("氨氮时空分布", fontproperties=_fp())
