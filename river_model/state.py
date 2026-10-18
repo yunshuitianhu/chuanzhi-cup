@@ -12,7 +12,7 @@ from .cross_sections import CrossSection
 @dataclass
 class HydroResult:
     """一次水动力模拟的结果。"""
-    t: np.ndarray                     # 时间序列 (s), shape (nt,)
+    t: np.ndarray                     # 相对模拟起点的时间 (h), shape (nt,)
     chainage: np.ndarray             # 桩号 (m), shape (ncs,)
     water_level: np.ndarray          # 水位 (m), shape (nt, ncs)
     discharge: np.ndarray            # 流量 (m³/s), shape (nt, ncs)
@@ -24,7 +24,7 @@ class HydroResult:
 @dataclass
 class WQResult:
     """一次水质模拟的结果。"""
-    t: np.ndarray                    # 时间序列 (s), shape (nt,)
+    t: np.ndarray                    # 相对模拟起点的时间 (h), shape (nt,)
     chainage: np.ndarray            # 桩号 (m), shape (ncs,)
     cbod: Optional[np.ndarray] = None    # (nt, ncs)
     ammonia: Optional[np.ndarray] = None # (nt, ncs)

@@ -200,18 +200,24 @@ def solve_water_quality(
     duration_min: float = 30.0,
     simulation_hours: float = 24.0,
     dt_s: float = 60.0,
+    source_start_h: float = 0.0,
+    output_interval_s: float = 60.0,
+    output_times_h: Optional[np.ndarray] = None,
 ) -> WQResult:
     """运行水质 ADR 模拟 (含污染事件)。
 
     Args:
         config: 雅瑶水道配置
         hydro: 水动力结果 (由 solve_hydrodynamics 产出)
-        pollutant_type: "ammonia" | "cbod" | "cod" | "conservative"
+        pollutant_type: "ammonia" | "cbod"
         load_kg: 污染物总质量 (kg)
         chainage_m: 污染源位置 (m, 从上游起算)
         duration_min: 排放持续时间 (min)
         simulation_hours: 模拟总时长 (h)
         dt_s: 水质时间步长 (s), 建议 ≤ 水动力步长
+        source_start_h: 相对模拟起点的排放开始时刻 (h)，允许晚于模拟终点
+        output_interval_s: 默认输出间隔 (s)，独立于积分步长
+        output_times_h: 指定观测输出时刻 (h)，替代默认等间隔输出；另保留首尾及排放边界
 
     Returns:
         WQResult 包含各组分浓度时间序列
@@ -221,15 +227,25 @@ def solve_water_quality(
     if (hydro.params.get('engine') == 'pure_python_preissmann'
             and hydro.params.get('tidal_amplitude_m', 0)):
         raise ValueError('当前纯 Python 潮汐水动力未通过水量守恒验收，不能用于水质计算')
-    values = (load_kg, chainage_m, duration_min, simulation_hours, dt_s)
-    if not all(np.isfinite(value) for value in values) or load_kg < 0 or min(duration_min, simulation_hours, dt_s) <= 0:
-        raise ValueError('负荷须非负，时长和步长须为正有限数')
+    values = (load_kg, chainage_m, duration_min, simulation_hours, dt_s, source_start_h, output_interval_s)
+    if (not all(np.isfinite(value) for value in values) or min(load_kg, source_start_h) < 0
+            or min(duration_min, simulation_hours, dt_s, output_interval_s) <= 0):
+        raise ValueError('负荷和排放开始时刻须非负，时长和步长须为正有限数')
     if not hydro.chainage[0] <= chainage_m <= hydro.chainage[-1]:
         raise ValueError('污染源桩号超出当前河道范围')
     n_cs = len(hydro.chainage)
     chainage = hydro.chainage
     t_hydro = hydro.t * 3600.0  # 转为秒
     duration_sec = duration_min * 60.0
+    source_start_sec = source_start_h * 3600.0
+    source_end_sec = source_start_sec + duration_sec
+    total_seconds = simulation_hours * 3600.0
+    if (t_hydro.ndim != 1 or not len(t_hydro) or not np.all(np.isfinite(t_hydro))
+            or t_hydro[0] != 0 or np.any(np.diff(t_hydro) <= 0)):
+        raise ValueError('水动力时间轴须从 0 开始且严格递增，单位为小时')
+    # 单帧结果明示为恒定场；多帧场不可静默延长到其边界数据以外。
+    if len(t_hydro) > 1 and t_hydro[-1] < total_seconds - 1e-7:
+        raise ValueError('水动力时间范围未覆盖水质模拟，请先延长水动力模拟')
 
     # ---- 查找污染源位置 (最近断面) ----
     source_idx = int(np.argmin(np.abs(chainage - chainage_m)))
@@ -292,9 +308,23 @@ def solve_water_quality(
         raise ValueError('各组分初始浓度须为非负有限数')
 
     # ---- 控制体积质量推进；源项 = 质量速率 × 实际覆盖时长 / 单元水体体积 ----
-    total_seconds = simulation_hours * 3600.0
     total_steps = int(np.ceil(total_seconds / dt_s))
-    output_interval = max(total_steps // max(total_steps // 60, 1), 1)
+    if output_times_h is None:
+        if np.ceil(total_seconds / output_interval_s) > 10000:
+            raise ValueError('输出时间点过多，请增大输出间隔（最多 10000 个区间）')
+        output_seconds = np.arange(0., total_seconds, output_interval_s)
+    else:
+        requested = np.asarray(output_times_h, dtype=float)
+        if (requested.ndim != 1 or len(requested) > 10000
+                or not np.all(np.isfinite(requested))
+                or np.any((requested < 0) | (requested > simulation_hours))):
+            raise ValueError('输出时刻须为模拟范围内的有限一维数组，最多 10000 项')
+        output_seconds = requested * 3600.0
+    release_edges = [s for s in (source_start_sec, source_end_sec) if 0 < s < total_seconds]
+    output_seconds = np.unique(np.r_[0., output_seconds, release_edges, total_seconds])
+    # 在输出及排放边界处分步，避免提前排放、跨边界摊平，或把邻帧当作观测时刻。
+    step_edges = np.unique(np.r_[np.arange(total_steps) * dt_s, output_seconds])
+    output_set = set(output_seconds)
     components = np.stack([cbod, nh3, do_, nitrate])
     upstream, downstream = components[:, 0].copy(), components[:, -1].copy()
     initial_area = hydro.area[0] if hydro.area is not None else np.full(n_cs, config.width_avg_m * config.depth_avg_m)
@@ -309,9 +339,7 @@ def solve_water_quality(
     times, snapshots = [0.0], [components.copy()]
     max_stability = 0.0
 
-    for step in range(1, total_steps + 1):
-        t0 = (step - 1) * dt_s
-        t1 = min(step * dt_s, total_seconds)
+    for t0, t1 in zip(step_edges[:-1], step_edges[1:]):
         step_dt = t1 - t0
         if len(t_hydro) > 1:
             position = np.interp((t0 + t1) / 2, t_hydro, np.arange(len(t_hydro)))
@@ -336,7 +364,7 @@ def solve_water_quality(
 
         for sub in range(n_sub):
             sub_t0 = t0 + sub * sub_dt
-            overlap = max(0., min(sub_t0 + sub_dt, duration_sec) - sub_t0)
+            overlap = max(0., min(sub_t0 + sub_dt, source_end_sec) - max(sub_t0, source_start_sec))
             added = mass_rate_gs * overlap
             components[source_component, source_idx] += added / volume[source_idx]
             injected[source_component] += added
@@ -354,7 +382,7 @@ def solve_water_quality(
             components[3] += before_nh3 - components[1]
             reaction_change += (components * volume).sum(axis=1) - before_reaction
 
-        if step % output_interval == 0 or step == total_steps:
+        if t1 in output_set:
             times.append(t1 / 3600)
             snapshots.append(components.copy())
 
@@ -381,6 +409,13 @@ def solve_water_quality(
             "load_kg": load_kg,
             "chainage_m": chainage_m,
             "source_section_id": source_idx,
+            "source_effective_chainage_m": float(chainage[source_idx]),
+            "source_snap_distance_m": float(abs(chainage[source_idx] - chainage_m)),
+            "source_start_h": source_start_h,
+            "output_interval_s": output_interval_s if output_times_h is None else None,
+            "output_sampling": "指定时刻" if output_times_h is not None else "等间隔及排放边界",
+            "time_unit": "h",
+            "hydro_time_mode": "stationary_single_frame" if len(t_hydro) == 1 else "time_interpolation",
             "mass_balance": balance,
             "max_transport_stability": max_stability,
             "reaction_model": {
