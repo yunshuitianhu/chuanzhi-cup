@@ -28,15 +28,35 @@ test('色标上限在插值前应用，极端值不会制造最高色阶平台',
   assert.notDeepEqual(Array.from(extreme.slice((20*41+20)*4,(20*41+20)*4+3)),severityColor(8))
 })
 
-test('边缘透明度连续淡出，无原来的大面积硬平台', () => {
+test('中心清晰、边缘连续淡出，不形成圆形硬边', () => {
   const raster=severityRaster([[30,30,3]],61,61,24)
   const alpha=x=>raster[(30*61+x)*4+3]
-  assert.equal(alpha(30),220)
+  assert.equal(alpha(30),240)
   assert.equal(alpha(54),0)
   for(let x=30;x<54;x++) assert.ok(alpha(x)>=alpha(x+1))
-  assert.ok(alpha(31)<alpha(30))
+  assert.ok(alpha(38)<alpha(30))
   assert.ok(alpha(53)<=2)
   assert.throws(()=>severityRaster([],1,1,0),RangeError)
+})
+
+test('可调透明度只改变显示强度，不改变严重程度颜色',()=>{
+  const a=severityRaster([[10,10,3]],21,21,10,1)
+  const b=severityRaster([[10,10,3]],21,21,10,.5)
+  const center=(10*21+10)*4
+  assert.deepEqual(a.slice(center,center+3),b.slice(center,center+3))
+  assert.equal(a[center+3],255)
+  assert.equal(b[center+3],128)
+  assert.throws(()=>severityRaster([],1,1,2,2),RangeError)
+})
+
+test('收窄色带保留中心颜色，减少离轨区域覆盖',()=>{
+  const points=Array.from({length:60},(_,i)=>[i+10,30,3])
+  const wide=severityRaster(points,80,61,24),narrow=severityRaster(points,80,61,12)
+  const center=(30*80+40)*4,edge=(10*80+40)*4
+  assert.deepEqual(wide.slice(center,center+3),narrow.slice(center,center+3))
+  assert.ok(wide[edge+3]>0)
+  assert.equal(narrow[edge+3],0)
+  for(let x=15;x<65;x++)assert.equal(narrow[(30*80+x)*4+3],240)
 })
 
 test('高低值之间有足够的中间色，远距离缺测仍保持透明', () => {

@@ -1,7 +1,7 @@
 import L from 'leaflet'
 import { severityRaster } from './severityHeat'
 
-export function severityLayer(points) {
+export function severityLayer(points, { radius = 26, opacity = .94 } = {}) {
   const Layer = L.Layer.extend({
     onAdd(map) {
       this.map = map
@@ -15,7 +15,7 @@ export function severityLayer(points) {
       this.canvas.remove()
     },
     redraw() {
-      const size = this.map.getSize(), scale = 2
+      const size = this.map.getSize(), scale = 1
       const width = Math.ceil(size.x/scale), height = Math.ceil(size.y/scale)
       if (!width || !height) return
       const canvas = this.canvas
@@ -31,7 +31,7 @@ export function severityLayer(points) {
       source.width = width; source.height = height
       const sourceContext = source.getContext('2d')
       const img = sourceContext.createImageData(width, height)
-      img.data.set(severityRaster(projected, width, height, 48/scale))
+      img.data.set(severityRaster(projected, width, height, radius/scale, opacity))
       sourceContext.putImageData(img, 0, 0)
       const context = canvas.getContext('2d')
       context.imageSmoothingEnabled = true

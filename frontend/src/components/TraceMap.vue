@@ -25,13 +25,24 @@ const el = ref(null)
 const data = ref(null)
 const loading = ref(false)
 const showHeat = ref(true), showClusters = ref(false), showTop5 = ref(true)
+const showTrack = ref(false), heatRadius = ref(26), heatOpacity = ref(.94)
+const wrapper = ref(null), fullscreen = ref(false)
 let map = null
 let layerGroup = null
 let baseLayer = null, resizeObserver = null, disposed = false, loadVersion = 0, sourceVersion = 0
-const provider = ref(store.config.keys.amap ? 'amap' : 'esri')
+const provider = ref(store.config.keys.starcloud ? 'starcloud' : store.config.keys.amap ? 'amap' : 'esri')
 const baseState = ref('loading'), baseMessage = ref('正在加载底图…'), fallbackReason = ref('')
 const tried = new Set()
-const sourceNames = {amap:'高德街道图', esri:'Esri 卫星图', osm:'OSM 街道图'}
+const sourceNames = {starcloud:'星图卫星影像', amap:'高德街道图', esri:'Esri 卫星图', osm:'OSM 街道图'}
+const sourceMaxZoom = source => source === 'amap' ? 17 : source === 'starcloud' ? 18 : 19
+
+function updateFullscreen() { fullscreen.value = document.fullscreenElement === wrapper.value }
+async function toggleFullscreen() {
+  try {
+    if (fullscreen.value) await document.exitFullscreen()
+    else await wrapper.value?.requestFullscreen()
+  } catch { toastErr('当前窗口不支持全屏，请使用浏览器全屏模式。') }
+}
 
 function selectSource(source, automatic = false) {
   if (!map) return
@@ -45,15 +56,16 @@ function selectSource(source, automatic = false) {
   baseLayer?.remove()
   provider.value = source
   tried.add(source)
-  map.setMaxZoom(source === 'amap' ? 17 : 19)
-  map.setView(center, Math.min(map.getZoom(), source === 'amap' ? 17 : 19), {animate:false})
+  map.setMaxZoom(sourceMaxZoom(source))
+  map.setView(center, Math.min(map.getZoom(), sourceMaxZoom(source)), {animate:false})
   baseState.value = 'loading'; baseMessage.value = `正在加载${sourceNames[source]}…`
   let successes = 0, failures = 0, fallbackQueued = false
   const report = (state, message) => {
     if (disposed || version !== sourceVersion) return
     baseState.value = state; baseMessage.value = message
     if (state !== 'error' || fallbackQueued) return
-    const next = ['amap','esri','osm'].find(s => !tried.has(s) && (s !== 'amap' || store.config.keys.amap))
+    const next = ['starcloud','amap','esri','osm'].find(s => !tried.has(s)
+      && (s !== 'amap' || store.config.keys.amap) && (s !== 'starcloud' || store.config.keys.starcloud))
     if (next) {
       fallbackQueued = true
       fallbackReason.value = `${sourceNames[source]}加载失败：${message}；已尝试备用底图。`
@@ -62,11 +74,13 @@ function selectSource(source, automatic = false) {
   }
   if (source === 'amap') baseLayer = amapStaticLayer(api.amapStaticMap, report)
   else {
-    const osm = source === 'osm'
-    baseLayer = L.tileLayer(osm
+    const osm = source === 'osm', satellite = source === 'starcloud'
+    baseLayer = L.tileLayer(satellite ? '/api/maps/starcloud/{z}/{x}/{y}' : osm
       ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
       : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom:19, attribution:osm ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' : 'Esri',
+      maxZoom:sourceMaxZoom(source), keepBuffer:1,
+      attribution:satellite ? '&copy; <a href="https://www.geovisearth.com/">星图地球</a>'
+        : osm ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' : 'Esri',
     })
     baseLayer.on('tileload', () => { successes++; report('ready', `${sourceNames[source]}已加载`) })
     baseLayer.on('tileerror', () => {
@@ -98,15 +112,17 @@ function render(fit = false) {
 
   // 轨迹
   if (d.track?.length) {
-    const line = L.polyline(d.track, { color: '#2ea3f2', weight: 2, opacity: .75 })
-    line.addTo(layerGroup)
-    line.bindPopup(`走航轨迹 · ${d.track.length} 个点`)
+    const line = L.polyline(d.track, { color: '#a4dcff', weight: 1, opacity: .6 })
+    if (showTrack.value) {
+      line.addTo(layerGroup)
+      line.bindPopup(`走航轨迹 · ${d.track.length} 个点`)
+    }
     if (fit) map.fitBounds(line.getBounds(), { padding: [24, 24], maxZoom:17 })
   }
 
   // 邻域平均严重程度；密集采样不累加成更严重的颜色。
   if (showHeat.value && d.heat?.length) {
-    severityLayer(d.heat).addTo(layerGroup)
+    severityLayer(d.heat, {radius:heatRadius.value, opacity:heatOpacity.value}).addTo(layerGroup)
   }
 
   // 聚类热点
@@ -170,70 +186,98 @@ async function load() {
   }
 }
 
-onMounted(() => { initMap(); load() })
-onBeforeUnmount(() => { disposed = true; loadVersion++; sourceVersion++; resizeObserver?.disconnect(); map?.remove(); map = null; layerGroup = null })
+onMounted(() => { initMap(); load(); document.addEventListener('fullscreenchange', updateFullscreen) })
+onBeforeUnmount(() => {
+  disposed = true; loadVersion++; sourceVersion++; resizeObserver?.disconnect()
+  document.removeEventListener('fullscreenchange', updateFullscreen)
+  map?.remove(); map = null; layerGroup = null
+})
 
 watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision], load)
-watch([showHeat, showClusters, showTop5], () => render())
-watch(() => store.config.keys.amap, (ready) => { if (ready && !tried.has('amap')) selectSource('amap') })
+watch([showHeat, showClusters, showTop5, showTrack, heatRadius, heatOpacity], () => render())
+watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, amap]) => {
+  if (starcloud && !tried.has('starcloud')) selectSource('starcloud')
+  else if (amap && !tried.has('amap') && !tried.has('starcloud')) selectSource('amap')
+})
 </script>
 
 <template>
-  <div class="wrap">
+  <div ref="wrapper" class="wrap">
     <div class="basemap-options">
       <label>地图底图
         <select :value="provider" @change="selectSource($event.target.value)">
+          <option value="starcloud">星图卫星影像{{ store.config.keys.starcloud ? '' : '（需配置 Token）' }}</option>
           <option value="amap">高德街道图{{ store.config.keys.amap ? '' : '（需配置 Web服务 Key）' }}</option>
           <option value="esri">Esri 卫星图</option>
           <option value="osm">OSM 街道图</option>
         </select>
       </label>
       <button type="button" @click="selectSource(provider)">重试底图</button>
+      <button type="button" @click="toggleFullscreen">{{ fullscreen ? '退出全屏' : '全屏查看' }}</button>
       <span role="status" :class="{ 'map-error':baseState === 'error' }">{{ baseMessage }}</span>
     </div>
     <p v-if="fallbackReason" class="map-warning">{{ fallbackReason }}</p>
     <p v-if="baseState === 'error'" class="map-warning">底图暂不可用，轨迹与热力图仍可查看。请检查网络或切换底图。</p>
     <div class="layer-options">
       <label><input v-model="showHeat" type="checkbox" />严重程度热力图</label>
+      <label><input v-model="showTrack" type="checkbox" />走航轨迹</label>
       <label><input v-model="showClusters" type="checkbox" />聚类范围</label>
       <label><input v-model="showTop5" type="checkbox" />Top5 点位</label>
+      <details class="heat-settings">
+        <summary>热力显示</summary>
+        <div class="heat-sliders">
+          <label>色带宽度<input v-model.number="heatRadius" aria-label="热力显示半径" type="range" min="12" max="42" step="1" /><span>{{ heatRadius }} px</span></label>
+          <label>颜色强度<input v-model.number="heatOpacity" aria-label="热力不透明度" type="range" min="0.4" max="1" step="0.02" /><span>{{ Math.round(heatOpacity*100) }}%</span></label>
+        </div>
+      </details>
     </div>
     <div v-if="!store.status.has_data" class="tip">
       上传走航数据后显示严重程度热力图；完成黑臭检测后叠加热点和严重点位。
     </div>
-    <div ref="el" class="map"></div>
-    <div v-if="data" class="legend">
+    <div class="map-shell">
+      <div ref="el" class="map"></div>
+      <div v-if="data" class="legend">
       <div class="lg-title">相对 {{ data.target_water_class }} 类的综合污染指数</div>
       <div class="gradient"></div>
       <div class="ticks"><span v-for="v in [0,1,2,3,5,8]" :key="v" :style="{left:`${v/8*100}%`}">{{ v === 8 ? '≥8' : v }}</span></div>
-      <div class="lg-note">绿 → 黄 → 橙 → 红：程度逐渐加重<br>指数 ≥8 按上限色阶平滑，原始值见点位详情<br>邻域平滑仅供展示，不代表未采样水域实测值</div>
-      <div class="lg-note">虚线圆 = 聚类范围 · 数字 = Top5 严重点位</div>
+        <div class="lg-note">绿 → 黄 → 橙 → 红 · 数字为 Top5</div>
+      </div>
     </div>
+    <p class="map-footnote">沿线颜色表示相对 {{ data?.target_water_class || store.status.target_water_class }} 类的污染指数；横向晕染仅供显示，不表示污染范围。≥8 使用上限色，原始值见点位详情。</p>
   </div>
 </template>
 
 <style scoped>
 .wrap { position: relative; }
+.map-shell { position:relative; }
+.wrap:fullscreen { background:#111d29; padding:16px; overflow:auto; }
+.wrap:fullscreen .map { height:calc(100dvh - 160px); min-height:350px; }
 .basemap-options { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:10px; color:var(--c-sub); font-size:12px; }
 .basemap-options label { display:flex; align-items:center; gap:8px; }
 .basemap-options select,.basemap-options button { background:var(--c-bg); color:var(--c-text); border:1px solid var(--c-border); border-radius:5px; padding:6px 9px; }
 .map-warning,.map-error { color:#f0bc67; font-size:12px; }
-.layer-options { display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; color:var(--c-sub); font-size:12px; }
+.layer-options { display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin-bottom:12px; color:var(--c-sub); font-size:12px; }
 .layer-options label { display:flex; align-items:center; gap:5px; cursor:pointer; }
-.map { height: 460px; border-radius: 8px; overflow: hidden; z-index: 0; }
+.map { height:clamp(460px,65vh,640px); border-radius: 8px; overflow: hidden; z-index: 0; }
+.map-footnote { color:var(--c-sub); font-size:11px; line-height:1.6; margin:10px 0 0; }
+.heat-settings { margin-left:auto; position:relative; }
+.heat-settings summary { cursor:pointer; }
+.heat-sliders { position:absolute; right:0; top:24px; z-index:600; width:270px; padding:12px; border:1px solid var(--c-border); border-radius:7px; background:#182634; box-shadow:0 5px 20px #0005; }
+.heat-sliders label { display:flex; gap:10px; margin:5px 0; }
+.heat-sliders input { width:110px; }
 .tip { padding: 40px; text-align: center; color: var(--c-sub); font-size: 13px; }
 
 .legend {
   position: absolute; left: 10px; bottom: 10px; z-index: 500;
   background: rgba(23,33,43,.94); border: 1px solid var(--c-border);
-  border-radius: 7px; padding: 8px 11px; font-size: 11px; line-height: 1.7;
+  border-radius: 7px; padding: 7px 10px; font-size: 10px; line-height: 1.6;
   pointer-events: none;
 }
 .lg-title { font-weight: 600; margin-bottom: 3px; }
 .lg-item { display: flex; align-items: center; gap: 6px; color: var(--c-sub); }
 .lg-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .lg-note { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--c-border); color: var(--c-sub); }
-.gradient { width: 235px; height: 12px; border-radius: 4px; background: linear-gradient(to right,#2e8b57 0%,#66be5a 12.5%,#ffc83c 25%,#ff7323 37.5%,#dc233c 62.5%,#780023 100%); }
+.gradient { width:205px; height:9px; border-radius:4px; background:linear-gradient(to right,#17a05c 0%,#58d352 12.5%,#ffd91e 25%,#ff7b18 37.5%,#ef2825 62.5%,#ac002d 100%); }
 .ticks { position:relative; height:20px; color:var(--c-sub); }
 .ticks span { position:absolute; transform:translateX(-50%); }
 </style>
