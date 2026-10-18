@@ -6,16 +6,14 @@ Streamlit 把会话状态挂在服务端的一个 session_state 里；换成 HTT
 每个请求是独立的，必须显式携带会话标识。这里用内存字典按 session_id
 隔离，语义与原 session_state 一一对应，便于对照移植。
 
-局限（已知，当前可接受）
-------------------------
-- 进程内存储：多 worker 部署时需换成 Redis 等共享存储
-- 无过期淘汰：长时间运行会累积（单人自用场景影响可忽略）
-两者都是部署层面的事，已在 README 中标注。
+临时会话保留在进程内；已保存项目通过SQLite索引与版本快照恢复。
+运行中任务仍只支持单worker，磁盘项目保存使用版本冲突检查。
 """
 
 from __future__ import annotations
 
 import threading
+import sqlite3
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -31,6 +29,9 @@ class Session:
     """单个会话的全部状态。字段与原 app.py 的 session_state 对应。"""
 
     id: str
+    project_id: str = ''
+    project_revision: int = 0
+    restore_error: str = ''
 
     # ---- 数据 ----
     df: pd.DataFrame | None = None
@@ -66,6 +67,7 @@ class Session:
 
     # ---- 河道模型 ----
     river_state: Any = None                  # 惰性创建 RiverModelState
+    river_ui: dict = field(default_factory=dict)
 
     @property
     def analysis_config(self) -> AnalysisConfig:
@@ -87,6 +89,9 @@ class Session:
         if self.river_state is None:
             from river_model.state import RiverModelState
             self.river_state = RiverModelState()
+        if not self.river_state.output_dir:
+            from .projects import runtime_directory
+            self.river_state.output_dir = runtime_directory()
         return self.river_state
 
     def reset_analysis(self) -> None:
@@ -105,6 +110,7 @@ class Session:
         self.analysis_status = 'idle'
         self.analysis_steps = {}
         self.river_state = None
+        self.river_ui = {}
 
     def clear_all(self) -> None:
         """加载新数据时调用 —— 与原 app.py 的「重置所有分析状态」一致。"""
@@ -133,10 +139,16 @@ class SessionStore:
             return self.create()
         with self._lock:
             s = self._sessions.get(session_id)
-            if s is None:
-                s = Session(id=session_id)
-                self._sessions[session_id] = s
+        if s is not None:
             return s
+        from .projects import restore_saved_session
+        from .project_codec import ProjectError
+        try:
+            s = restore_saved_session(session_id) or Session(id=session_id)
+        except (ProjectError, OSError, sqlite3.Error) as exc:
+            s = Session(id=session_id, restore_error=f'已保存项目恢复失败：{exc}')
+        with self._lock:
+            return self._sessions.setdefault(session_id,s)
 
     def drop(self, session_id: str) -> None:
         with self._lock:

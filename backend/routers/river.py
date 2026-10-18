@@ -141,7 +141,9 @@ def init_model(payload: InitRequest | None = None,
         kwargs["amap_key"] = resolve_api_key("AMAP_KEY")
         kwargs["cloud_token"] = resolve_api_key("CLOUD_TOKEN")
 
+    session.river_ui = {'form':session.river_ui.get('form',{})}
     result = _json(tool_river_init(session.get_river_state(), **kwargs))
+    session.river_ui['init'] = result
     return {**result, "局限说明": MODEL_CAVEAT}
 
 
@@ -156,7 +158,10 @@ def hydro(payload: HydroRequest | None = None,
     if not getattr(st, "model_initialized", False):
         raise HTTPException(400, "请先调用 /api/river/init 初始化模型")
 
+    session.river_ui.pop('hydro',None)
+    session.river_ui.pop('pollution',None)
     result = _json(tool_river_hydro_simulation(st, **payload.model_dump(exclude_none=True)))
+    session.river_ui['hydro'] = result
     amp = payload.tidal_amplitude_m
     return {
         **result,
@@ -178,8 +183,10 @@ def pollution(payload: PollutionRequest | None = None,
 
     kwargs = payload.model_dump(exclude_none=True)
     kwargs.setdefault('chainage_m', float((st.hydro_result.chainage[0] + st.hydro_result.chainage[-1]) / 2))
+    session.river_ui.pop('pollution',None)
     result = _json(tool_river_pollution_event(st, **kwargs, target_water_class=session.target_water_class,
                                             monitoring_data=session.df))
+    session.river_ui['pollution'] = result
     return result
 
 

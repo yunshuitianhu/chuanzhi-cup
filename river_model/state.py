@@ -45,6 +45,7 @@ class RiverModelState:
     engine_type: str = "pure_python"
     model_initialized: bool = False
     geometry_revision: int = 0
+    output_dir: str = field(default='', repr=False, metadata={'persist':False})
 
     def invalidate_hydro(self):
         self.hydro_result = None

@@ -7,6 +7,7 @@ import json
 import os
 import uuid
 import tempfile
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -27,19 +28,25 @@ from .visualization import (
 from .wq_engine import solve_water_quality
 from .standards import constituent_limit
 
+_PLOT_LOCK = threading.Lock()  # matplotlib有全局状态；不同项目绘图也应互斥。
 
-def _generate_files(jobs):
+
+def _generate_files(jobs, output_dir=None):
     """只发布本次成功生成的文件，旧文件不能冒充本次输出。"""
     generated, warnings = [], []
+    directory = Path(output_dir) if output_dir else Path.cwd()
+    directory.mkdir(parents=True, exist_ok=True)
     for filename, generate in jobs:
         try:
-            with tempfile.TemporaryDirectory(prefix='.river-output-', dir=os.getcwd()) as tmp:
+            with tempfile.TemporaryDirectory(prefix='.river-output-', dir=directory) as tmp:
                 candidate = Path(tmp) / filename
-                generate(str(candidate))
+                with _PLOT_LOCK:
+                    generate(str(candidate))
                 if not candidate.is_file() or candidate.stat().st_size == 0:
                     raise ValueError('生成器未写入有效文件')
-                os.replace(candidate, filename)
-            generated.append(filename)
+                destination = directory / filename
+                os.replace(candidate, destination)
+            generated.append(str(destination) if output_dir else filename)
         except Exception as exc:
             warnings.append({'文件': filename, '原因': str(exc)})
     return generated, warnings
@@ -235,7 +242,7 @@ def tool_river_hydro_simulation(
     files, warnings = _generate_files([
         ('river_hydro_profile.png', lambda path: plot_water_level_profile(result, state.config, path)),
         ('river_discharge_profile.png', lambda path: plot_discharge_profile(result, path)),
-    ])
+    ], state.output_dir)
 
     # 统计摘要
     wl_max = float(np.max(result.water_level))
@@ -339,7 +346,7 @@ def tool_river_pollution_event(
                                      source_chainage_m=chainage_m, output_path=path, max_frames=40)
 
     jobs.append(('river_pollution_animation.html', generate_animation))
-    files, warnings = _generate_files(jobs)
+    files, warnings = _generate_files(jobs, state.output_dir)
 
     # 分析影响
     if pollutant_type == "ammonia" and result.ammonia is not None:
@@ -570,7 +577,7 @@ def tool_river_export_data(
         if wq.nitrate is not None:
             export["nitrate_n_mgL"] = wq.nitrate.tolist()
 
-        out_path = "river_model_export.json"
+        out_path = str(Path(state.output_dir) / 'river_model_export.json') if state.output_dir else 'river_model_export.json'
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(export, f, ensure_ascii=False, indent=2)
         return json.dumps({
@@ -582,7 +589,7 @@ def tool_river_export_data(
 
     elif format == "csv":
         import pandas as pd
-        out_path = "river_model_export.csv"
+        out_path = str(Path(state.output_dir) / 'river_model_export.csv') if state.output_dir else 'river_model_export.csv'
         rows = []
         for ti in range(len(wq.t)):
             for ci in range(len(wq.chainage)):

@@ -235,7 +235,18 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 hydro = st.hydro_result
                 if hydro is not None and hydro.params.get("tidal_amplitude_m", 0):
                     return json.dumps({"error": "潮汐结果未通过质量守恒验收，请先运行恒定流模拟"}, ensure_ascii=False), True
-            return fn(st, **kwargs), False
+            ui_key = {'init_river_model':'init','run_hydrodynamic_simulation':'hydro',
+                      'simulate_pollution_event':'pollution'}.get(name)
+            if ui_key:
+                for key in ({'init':('init','hydro','pollution'),'hydro':('hydro','pollution'),
+                             'pollution':('pollution',)}[ui_key]):
+                    session.river_ui.pop(key,None)
+            raw = fn(st, **kwargs)
+            if ui_key:
+                result = json.loads(raw)
+                if 'error' not in result:
+                    session.river_ui[ui_key] = result
+            return raw, False
 
         return f"未知工具: {name}", True
 

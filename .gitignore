@@ -1,5 +1,6 @@
 # ---------- 密钥（绝不提交）----------
 .env
+frontend/.env*.local
 .mcp.json
 
 # ---------- Python ----------
@@ -61,3 +62,4 @@ data/external/terrain/terrain_cache.json
 ~$*
 *.tmp
 work/
+data/projects/
