@@ -5,10 +5,11 @@
  * 整合高德 POI、排污许可证、国控站点三路真实数据源，加权融合去重。
  * 未给坐标时自动取黑点最密集的聚类中心（已排除 DBSCAN 噪声簇 -1）。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
+import { traceRequest } from '../utils/traceRequest'
 
 const store = useSessionStore()
 const lat = ref(null)
@@ -16,17 +17,20 @@ const lon = ref(null)
 const radius = ref(500)
 const loading = ref(false)
 const data = ref(null)
+const requestState = computed(() => traceRequest(lat.value,lon.value,radius.value))
+const canRun = computed(() => !requestState.value.error && (requestState.value.manual || store.status.has_data))
+watch(() => store.status.analysis_revision, () => { data.value=null })
 
 async function run() {
+  const request=requestState.value
+  if (request.error) { toastErr(request.error);return }
+  const revision=store.status.analysis_revision
   loading.value = true
   try {
-    const payload = { radius_m: radius.value }
-    if (lat.value !== null && lon.value !== null) {
-      payload.lat = Number(lat.value)
-      payload.lon = Number(lon.value)
-    }
-    data.value = await api.multiSource(payload)
-    toastOk(`溯源完成：发现 ${(data.value['综合污染源列表'] || []).length} 个疑似污染源`)
+    const result = await api.multiSource(request.payload)
+    if (revision !== store.status.analysis_revision) return
+    data.value = result
+    toastOk(`查询完成：返回 ${(result['综合污染源列表'] || []).length} 条候选线索`)
   } catch (e) {
     toastErr(`溯源失败：${e.message}`)
   } finally {
@@ -59,14 +63,15 @@ const centerText = computed(() => {
     <div class="bar">
       <label>纬度<input v-model.number="lat" type="number" step="0.000001" placeholder="留空自动" /></label>
       <label>经度<input v-model.number="lon" type="number" step="0.000001" placeholder="留空自动" /></label>
-      <label>半径 m<input v-model.number="radius" type="number" step="100" /></label>
-      <button :disabled="!store.status.has_black_spots || loading" @click="run">
+      <label>半径 m<input v-model.number="radius" type="number" min="50" max="50000" step="50" /></label>
+      <button :disabled="!canRun || loading || store.chatRunning" @click="run">
         {{ loading ? '溯源中…' : '运行多渠道溯源' }}
       </button>
     </div>
-    <p class="tip">
+    <p v-if="requestState.error" class="tip note warn">{{ requestState.error }}</p>
+    <p v-else class="tip">
       <template v-if="!store.status.has_black_spots">
-        建议先运行「黑臭检测」以定位搜索中心；也可手动输入坐标。
+        未检出黑点也可查询：留空使用走航轨迹代表采样点；或手动填写WGS-84坐标。结果仅作周边背景线索。
       </template>
       <template v-else>坐标留空时自动使用黑点最密集的聚类中心。</template>
     </p>
@@ -81,6 +86,8 @@ const centerText = computed(() => {
       </div>
 
       <p class="note warn">{{ data['坐标系说明'] }}</p>
+      <p class="note">搜索中心来源：{{ data['搜索中心来源'] || '当前查询坐标' }}</p>
+      <p class="note warn">{{ data['查询用途'] }}</p>
       <p v-if="data['状态']" class="note">{{ data['状态'] }} —— {{ data['建议'] }}</p>
 
       <div v-if="(data['综合污染源列表'] || []).length" class="table-wrap">

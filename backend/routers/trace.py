@@ -8,8 +8,12 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
+
+import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, model_validator
 
 from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
 from water_quality_mcp.src.water_quality_mcp.geo_tools import reverse_geocode
@@ -44,24 +48,53 @@ def _default_center(session: Session) -> tuple[float, float] | None:
     return float(c["latitude"].mean()), float(c["longitude"].mean())
 
 
+def _track_center(session: Session) -> tuple[float, float] | None:
+    """取真实有效记录，不用弯曲河段的经纬度均值构造岸上查询点。"""
+    if session.df is None or not {'latitude', 'longitude'} <= set(session.df.columns):
+        return None
+    coords = session.df[['latitude', 'longitude']].apply(pd.to_numeric, errors='coerce')
+    valid = coords[coords.latitude.between(-90, 90) & coords.longitude.between(-180, 180)]
+    if valid.empty:
+        return None
+    point = valid.iloc[len(valid) // 2]
+    return float(point.latitude), float(point.longitude)
+
+
+class TraceRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True, allow_inf_nan=False)
+    lat: FiniteFloat | None = Field(None, ge=-90, le=90)
+    lon: FiniteFloat | None = Field(None, ge=-180, le=180)
+    radius_m: int = Field(500, ge=50, le=50000)
+
+    @model_validator(mode='after')
+    def coordinates_are_paired(self):
+        if (self.lat is None) != (self.lon is None):
+            raise ValueError('手动查询须同时提供纬度和经度')
+        return self
+
+
 @router.post("/multi-source")
-def multi_source(payload: dict | None = None,
+def multi_source(payload: TraceRequest | None = None,
                  session: Session = Depends(get_session)) -> dict:
     """多渠道污染溯源：高德 POI + 排污许可证 + 国控站点，加权融合去重。
 
     未传坐标时自动取黑点最密集的聚类中心。
     """
-    payload = payload or {}
-    lat, lon = payload.get("lat"), payload.get("lon")
+    payload = payload or TraceRequest()
+    lat, lon = payload.lat, payload.lon
+    origin = '手动输入坐标'
     if lat is None or lon is None:
         c = _default_center(session)
+        origin = '黑点最密集聚类中心'
         if c is None:
-            raise HTTPException(400, "未提供坐标，且当前会话没有可用于推断的黑点聚类")
+            c = _track_center(session)
+            origin = '走航轨迹代表采样点（无有效黑点聚类）'
+        if c is None:
+            raise HTTPException(400, "没有有效搜索坐标；请加载含经纬度的数据，或同时手动填写纬度和经度")
         lat, lon = c
 
-    cfg = session.analysis_config
-    if payload.get("radius_m"):
-        cfg.search_radius_m = int(payload["radius_m"])
+    # 本次查询半径不隐式改写会话分析配置。
+    cfg = replace(session.analysis_config, search_radius_m=payload.radius_m)
 
     raw = multi_source_trace(lat, lon, resolve_api_key("AMAP_KEY"), cfg)
     data = json.loads(raw) if isinstance(raw, str) else raw
@@ -74,6 +107,8 @@ def multi_source(payload: dict | None = None,
         **data,
         "搜索中心": [lat, lon],           # 数组形式，覆盖内核的字符串版本
         "搜索中心文本": data.get("搜索中心", ""),   # 内核原值仍保留
+        "搜索中心来源": origin,
+        "查询用途": "周边背景线索查询；候选资料不表示本次已检出污染，亦不构成源识别或责任认定。",
         "坐标系说明": COORD_NOTE,
     }
 
