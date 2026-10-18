@@ -34,5 +34,6 @@ export function displayTrace(data, useGcj) {
     heat: data.heat?.map(([lat, lon, ...rest]) => [...wgsToGcj([lat, lon]), ...rest]),
     clusters: data.clusters?.map(c => ({...c, center:wgsToGcj(c.center)})),
     top5: data.top5?.map(p => ({...p, coord:wgsToGcj(p.coord)})),
+    samples: data.samples?.map(p => ({...p, coord:wgsToGcj(p.coord)})),
   }
 }

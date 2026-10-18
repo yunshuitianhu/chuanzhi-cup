@@ -152,6 +152,7 @@ export const api = {
   riverHydro: (payload) => request('/river/hydro', { method: 'POST', body: payload || {} }),
   riverPollution: (payload) => request('/river/pollution', { method: 'POST', body: payload || {} }),
   riverProfile: (timeH, constituent) => request(`/river/profile?time_h=${timeH}&constituent=${constituent}`),
+  riverPlayback: (constituent = 'ammonia', signal) => request(`/river/playback?constituent=${encodeURIComponent(constituent)}`, {signal}),
 }
 
 export { ApiError }

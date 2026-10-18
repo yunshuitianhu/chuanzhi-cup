@@ -2,10 +2,16 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
+import { createSSRApp, h } from 'vue'
+import { renderToString } from '@vue/server-renderer'
+import { createPinia } from 'pinia'
 
 const server=await createServer({
   server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test',
-  resolve:{alias:{leaflet:fileURLToPath(new URL('./fixtures/mapLayerStub.js',import.meta.url))}},
+  resolve:{alias:[
+    {find:'leaflet/dist/leaflet.css',replacement:fileURLToPath(new URL('./fixtures/mapLayerStub.js',import.meta.url))},
+    {find:/^leaflet$/,replacement:fileURLToPath(new URL('./fixtures/mapLayerStub.js',import.meta.url))},
+  ]},
 })
 test.after(async()=>{await server.close()})
 const {amapStaticLayer}=await server.ssrLoadModule('/src/utils/amapStaticLayer.js')
@@ -86,4 +92,27 @@ test('服务错误和图片解码错误可传给界面，临时图片会清理',
   assert.equal(images[0].removed,true)
   assert.deepEqual(revoked,['blob:bad'])
   decode.onRemove(map)
+})
+
+test('模拟地图渲染浓度图例，不把模拟浓度标作实测污染指数',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:TraceMap}=await server.ssrLoadModule('/src/components/TraceMap.vue')
+  const app=createSSRApp(TraceMap,{simulation:{label:'氨氮',color_scale:{min:0,max:2,inverse:false},
+    mapping:{positions:[[23,113],[23.001,113]],reason:'当前项目轨迹示意'},notice:'恒定流情景',
+    concentrations:[[0,2]],times:[0],chainage:[0,100],source:{}}})
+  app.use(createPinia())
+  const html=await renderToString(app)
+  assert.match(html,/模拟氨氮/)
+  assert.match(html,/本次模拟全时段统一色标/)
+  assert.doesNotMatch(html,/相对.*类的综合污染指数/)
+})
+test('没有模拟结果时播放器显示操作入口，不呈现伪造扩散',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:Player}=await server.ssrLoadModule('/src/components/PollutionPlayback.vue')
+  const app=createSSRApp(Player);app.use(createPinia())
+  app.component('RouterLink',{props:['to'],setup(props,{slots}){return()=>h('a',{href:props.to},slots.default?.())}})
+  const html=await renderToString(app)
+  assert.match(html,/当前项目还没有污染扩散模拟结果/)
+  assert.match(html,/href="\/river"/)
+  assert.doesNotMatch(html,/aria-label="污染扩散时间轴"/)
 })

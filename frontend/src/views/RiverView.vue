@@ -14,6 +14,7 @@ import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import EChart from '../components/EChart.vue'
+import PollutionPlayback from '../components/PollutionPlayback.vue'
 import { restoreRiverWorkspace } from '../utils/projectRestore'
 
 const store = useSessionStore()
@@ -393,6 +394,8 @@ const pollutionCompare = computed(() => {
             <p class="hint">{{ pollutionResult['反应模型'].parameter_status }}。{{ pollutionResult['反应模型'].simplifications }}。</p>
           </div>
           <EChart v-if="pollutionCompare" :option="pollutionCompare" :height="150" />
+          <h3 class="st">④ 污染扩散演示</h3>
+          <PollutionPlayback :revision="pollutionResult" />
           <p class="hint">
             两个口径的基准不同，故结论未必一致：左为「是否超 GB3838 限值」，
             右为「本次排放相对监测基线的增量影响」。

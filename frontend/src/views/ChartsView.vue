@@ -12,6 +12,7 @@ import EChart from '../components/EChart.vue'
 import Panel from '../components/Panel.vue'
 import TraceMap from '../components/TraceMap.vue'
 import CrossValidation from '../components/CrossValidation.vue'
+import PollutionPlayback from '../components/PollutionPlayback.vue'
 import { toastErr } from '../composables/useToast'
 
 const store = useSessionStore()
@@ -154,6 +155,9 @@ const caption = computed(() => store.status.has_data
       <TraceMap />
     </Panel>
 
+    <Panel title="污染扩散演示" subtitle="当前项目模拟结果 · 时间轴播放 · 沿程浓度与卫星地图同步">
+      <PollutionPlayback />
+    </Panel>
     <Panel title="视频-传感器交叉印证" subtitle="需要先上传巡航视频">
       <CrossValidation />
     </Panel>

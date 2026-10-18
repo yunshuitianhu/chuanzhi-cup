@@ -10,7 +10,7 @@
  *
  * 高德官方静态底图经后端取图；显示坐标转GCJ-02，原始数据保持WGS-84。
  */
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { severityLayer } from '../utils/severityLayer'
@@ -19,6 +19,10 @@ import { displayTrace, wgsToGcj, gcjToWgs } from '../utils/mapCoordinates'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr } from '../composables/useToast'
+import { nearestSamples, sampleMetrics, numberText } from '../utils/mapInteraction'
+import { simulationColor } from '../utils/playback'
+
+const props = defineProps({simulation:{type:Object,default:null}, frameIndex:{type:Number,default:0}})
 
 const store = useSessionStore()
 const el = ref(null)
@@ -33,6 +37,10 @@ let baseLayer = null, resizeObserver = null, disposed = false, loadVersion = 0, 
 const provider = ref(store.config.keys.starcloud ? 'starcloud' : store.config.keys.amap ? 'amap' : 'esri')
 const baseState = ref('loading'), baseMessage = ref('正在加载底图…'), fallbackReason = ref('')
 const tried = new Set()
+const selectedId = ref(null), nearbyIds = ref([])
+const selectedSample = computed(() => data.value?.samples?.find(s=>s.id === selectedId.value))
+const sampleRows = computed(() => sampleMetrics.map(([key,label,unit])=>({key,label,unit,
+  value:selectedSample.value?.values?.[key], interpolated:selectedSample.value?.interpolated?.[key], source:selectedSample.value?.sources?.[key]})))
 const sourceNames = {starcloud:'星图卫星影像', amap:'高德街道图', esri:'Esri 卫星图', osm:'OSM 街道图'}
 const sourceMaxZoom = source => source === 'amap' ? 17 : source === 'starcloud' ? 18 : 19
 
@@ -99,14 +107,47 @@ function initMap() {
   map = L.map(el.value, { zoomControl: true, attributionControl: true, minZoom:1, worldCopyJump:true })
   layerGroup = L.layerGroup().addTo(map)
   map.setView([30, 105], 3)   // 中性初始视角；有数据后 fitBounds
+  map.on('click', onMapClick)
   selectSource(provider.value)
   resizeObserver = new ResizeObserver(() => map?.invalidateSize())
   resizeObserver.observe(el.value)
 }
 
+function onMapClick(event) {
+  if (props.simulation || !data.value) return
+  const d = displayTrace(data.value, provider.value === 'amap')
+  nearbyIds.value = nearestSamples(d.samples, event.containerPoint || map.latLngToContainerPoint(event.latlng),
+    coord=>map.latLngToContainerPoint(coord), Math.max(heatRadius.value,14))
+  selectedId.value = nearbyIds.value[0] ?? null
+}
+
+function renderSimulation(fit) {
+  const sim = props.simulation
+  const coordinates = sim.mapping.positions.map(p=>provider.value === 'amap' ? wgsToGcj(p) : p)
+  const values = sim.concentrations[props.frameIndex]
+  if (!coordinates.length || !values) return
+  for (let i=0;i<coordinates.length;i++) {
+    const color=simulationColor(values[i],sim.color_scale)
+    if (i) L.polyline([coordinates[i-1],coordinates[i]], {color,weight:10,opacity:.85,interactive:false}).addTo(layerGroup)
+    L.circleMarker(coordinates[i],{radius:5,color:'#ffffff',weight:1,fillColor:color,fillOpacity:1})
+      .addTo(layerGroup).bindPopup(`模拟断面 · 桩号 ${numberText(sim.chainage[i],1)} m<br>`
+        + `T+${numberText(sim.times[props.frameIndex])} h<br>浓度 ${numberText(values[i])} mg/L`)
+  }
+  const source=sim.source.source_effective_chainage_m ?? sim.source.chainage_m
+  if (source != null) {
+    let nearest=0
+    for(let i=1;i<sim.chainage.length;i++) if(Math.abs(sim.chainage[i]-source)<Math.abs(sim.chainage[nearest]-source))nearest=i
+    L.circleMarker(coordinates[nearest],{radius:10,color:'#fff',weight:3,fillColor:'#222',fillOpacity:.8})
+      .addTo(layerGroup).bindPopup(`情景排放点 · 实际计算桩号 ${numberText(sim.chainage[nearest],1)} m<br>`
+        + `T+${numberText(sim.times[props.frameIndex])} h · 浓度 ${numberText(values[nearest])} mg/L`)
+  }
+  if (fit) map.fitBounds(L.latLngBounds(coordinates),{padding:[35,35],maxZoom:17})
+}
+
 function render(fit = false) {
   if (!map || !layerGroup) return
   layerGroup.clearLayers()
+  if (props.simulation) { renderSimulation(fit); return }
   const d = displayTrace(data.value, provider.value === 'amap')
   if (!d) return
 
@@ -168,10 +209,23 @@ function render(fit = false) {
       + `浊度：${p.turbidity ?? '—'} NTU`,
     )
   }
+  const selected=d.samples?.find(s=>s.id === selectedId.value)
+  if (selected) {
+    const node=document.createElement('div')
+    node.style.whiteSpace='pre-line'
+    node.textContent=[`采样点 #${selected.id+1} · ${selected.grade}`, selected.time || '时间未提供',
+      ...sampleMetrics.map(([key,label,unit])=>`${label}：${numberText(selected.values[key])} ${unit}`
+        + (selected.values[key] == null && selected.interpolated[key] != null ? `（缺测；插值参考 ${numberText(selected.interpolated[key])}）` : '')),
+      `原始综合指数：${numberText(selected.raw_score)}`].join('\n')
+    L.circleMarker(selected.coord,{radius:8,color:'#fff',weight:3,fillColor:'#159aff',fillOpacity:1})
+      .addTo(layerGroup).bindPopup(node,{maxWidth:310}).openPopup()
+  }
 }
 
 async function load() {
   const version = ++loadVersion
+  selectedId.value = null; nearbyIds.value = []
+  if (props.simulation) { data.value=null;render(true);return }
   if (!store.status.has_data) { data.value = null; loading.value = false; render(); return }
   loading.value = true
   try {
@@ -195,6 +249,9 @@ onBeforeUnmount(() => {
 
 watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision], load)
 watch([showHeat, showClusters, showTop5, showTrack, heatRadius, heatOpacity], () => render())
+watch(selectedId,()=>render())
+watch(()=>props.simulation,load)
+watch(()=>props.frameIndex,()=>render())
 watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, amap]) => {
   if (starcloud && !tried.has('starcloud')) selectSource('starcloud')
   else if (amap && !tried.has('amap') && !tried.has('starcloud')) selectSource('amap')
@@ -218,7 +275,7 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
     </div>
     <p v-if="fallbackReason" class="map-warning">{{ fallbackReason }}</p>
     <p v-if="baseState === 'error'" class="map-warning">底图暂不可用，轨迹与热力图仍可查看。请检查网络或切换底图。</p>
-    <div class="layer-options">
+    <div v-if="!simulation" class="layer-options">
       <label><input v-model="showHeat" type="checkbox" />严重程度热力图</label>
       <label><input v-model="showTrack" type="checkbox" />走航轨迹</label>
       <label><input v-model="showClusters" type="checkbox" />聚类范围</label>
@@ -231,7 +288,8 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
         </div>
       </details>
     </div>
-    <div v-if="!store.status.has_data" class="tip">
+    <p v-if="!simulation && data?.samples?.length" class="click-hint">点击污染色带查看最近采样点；同位置多条记录可按时间切换。</p>
+    <div v-if="!store.status.has_data && !simulation" class="tip">
       上传走航数据后显示严重程度热力图；完成黑臭检测后叠加热点和严重点位。
     </div>
     <div class="map-shell">
@@ -242,13 +300,40 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
       <div class="ticks"><span v-for="v in [0,1,2,3,5,8]" :key="v" :style="{left:`${v/8*100}%`}">{{ v === 8 ? '≥8' : v }}</span></div>
         <div class="lg-note">绿 → 黄 → 橙 → 红 · 数字为 Top5</div>
       </div>
+      <div v-else-if="simulation" class="legend">
+        <div class="lg-title">模拟{{ simulation.label }} · mg/L</div>
+        <div class="gradient" :class="{'inverse-gradient':simulation.color_scale.inverse}"></div>
+        <div class="sim-ticks"><span>{{ numberText(simulation.color_scale.min) }}</span><span>{{ numberText(simulation.color_scale.max) }}</span></div>
+        <div class="lg-note">本次模拟全时段统一色标 · 点位可点击</div>
+      </div>
     </div>
-    <p class="map-footnote">沿线颜色表示相对 {{ data?.target_water_class || store.status.target_water_class }} 类的污染指数；横向晕染仅供显示，不表示污染范围。≥8 使用上限色，原始值见点位详情。</p>
+    <section v-if="selectedSample && !simulation" class="sample-detail" aria-label="采样点水质详情">
+      <div class="sample-heading"><b>采样点 #{{ selectedSample.id+1 }} · {{ selectedSample.grade }}</b><button type="button" @click="selectedId=null">关闭</button></div>
+      <p>{{ selectedSample.time || '时间未提供' }} · WGS-84 {{ numberText(selectedSample.coord[0],6) }}, {{ numberText(selectedSample.coord[1],6) }}</p>
+      <label v-if="nearbyIds.length>1">附近记录（{{ nearbyIds.length }} 条）
+        <select v-model.number="selectedId"><option v-for="id in nearbyIds" :key="id" :value="id">#{{ id+1 }} · {{ data.samples.find(s=>s.id===id)?.time }}</option></select>
+      </label>
+      <div class="sample-metrics"><div v-for="row in sampleRows" :key="row.key"><span>{{ row.label }}</span><b>{{ numberText(row.value) }} {{ row.unit }}</b><small v-if="row.value == null && row.interpolated != null">缺测 · 插值参考 {{ numberText(row.interpolated) }}</small><small v-else>{{ row.value == null ? '缺测' : row.source === 'observed' ? '原始观测' : '记录值（无插值标记）' }}</small></div></div>
+      <p>原始综合污染指数：{{ numberText(selectedSample.raw_score) }}</p>
+    </section>
+    <p v-if="!simulation" class="map-footnote">沿线颜色表示相对 {{ data?.target_water_class || store.status.target_water_class }} 类的污染指数；横向晕染仅供显示，不表示污染范围。≥8 使用上限色，原始值见点位详情。</p>
+    <p v-else class="map-footnote">{{ simulation.mapping.reason }} {{ simulation.notice }}</p>
   </div>
 </template>
 
 <style scoped>
 .wrap { position: relative; }
+.click-hint { color:var(--c-sub);font-size:12px;margin:6px 0 10px; }
+.sample-detail { margin-top:12px;padding:14px;background:#1b2c3c;border:1px solid #3f718f;border-radius:8px;font-size:12px; }
+.sample-detail p { color:var(--c-sub);line-height:1.6; }
+.sample-heading { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+.sample-heading button { color:var(--c-sub);background:transparent;border:0;cursor:pointer; }
+.sample-detail select { max-width:100%;background:#14222f;color:var(--c-text);padding:5px;border:1px solid var(--c-border); }
+.sample-metrics { display:flex;flex-wrap:wrap;gap:10px;margin-top:12px; }
+.sample-metrics>div { display:grid;gap:5px;min-width:105px;flex:1;background:#132330;padding:10px;border-radius:5px; }
+.sample-metrics small { color:var(--c-sub); }
+.sim-ticks { display:flex;justify-content:space-between;margin-top:3px; }
+.inverse-gradient { transform:scaleX(-1); }
 .map-shell { position:relative; }
 .wrap:fullscreen { background:#111d29; padding:16px; overflow:auto; }
 .wrap:fullscreen .map { height:calc(100dvh - 160px); min-height:350px; }
