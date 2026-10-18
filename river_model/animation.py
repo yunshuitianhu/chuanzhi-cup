@@ -103,7 +103,7 @@ def build_pollution_map_animation(
     gps_mapping: dict,
     wq: WQResult,
     constituent: str = "ammonia",
-    source_chainage_m: float = 1600.0,
+    source_chainage_m: float | None = None,
     output_path: str = "river_pollution_animation.html",
     max_frames: int = 60,
 ) -> str:
@@ -112,6 +112,8 @@ def build_pollution_map_animation(
     使用纯 JavaScript 动画 — 不依赖 HeatMapWithTime CDN。
     每帧更新 CircleMarker 颜色, 展示污染物羽流沿河道随时间扩散。
     """
+    if source_chainage_m is None:
+        source_chainage_m = wq.params.get('chainage_m', float((wq.chainage[0]+wq.chainage[-1])/2))
     std = _STANDARDS.get(constituent, _STANDARDS["ammonia"])
     std_name = std["name"]
 
@@ -189,7 +191,7 @@ def build_pollution_map_animation(
 
     # 河道轨迹
     track_coords = get_gps_track_coords(gps_mapping)
-    PolyLine(track_coords, weight=5, color="#0066CC", opacity=0.8, name="雅瑶水道").add_to(m)
+    PolyLine(track_coords, weight=5, color="#0066CC", opacity=0.8, name="当前走航轨迹").add_to(m)
 
     # 起止标记
     Marker(track_coords[0], popup="上游: 北村水闸方向",
@@ -411,7 +413,7 @@ def build_dual_view_animation(
     gps_mapping: dict,
     wq: WQResult,
     constituent: str = "ammonia",
-    source_chainage_m: float = 1600.0,
+    source_chainage_m: float | None = None,
     output_path: str = "river_dual_view_animation.html",
     max_frames: int = 60,
 ) -> str:

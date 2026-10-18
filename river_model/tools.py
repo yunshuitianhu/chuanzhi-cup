@@ -12,8 +12,8 @@ from typing import Optional
 
 import numpy as np
 
-from .config import YayaoConfig, DEFAULT_CONFIG
-from .cross_sections import generate_yayao_cross_sections
+from .config import RiverConfig, DEFAULT_CONFIG
+from .cross_sections import generate_cross_sections
 from .hydro_engine import run_hydrodynamic, get_engine_info
 from .state import RiverModelState
 from .visualization import (
@@ -56,25 +56,12 @@ def tool_river_init(
     auto_detect_gps_mapping: dict = None,
     amap_key: str = None,
     cloud_token: str = None,
+    parameters: dict | None = None,
 ) -> str:
-    """初始化一维水动力-水质模型。
+    """初始化通用河段模型。
 
-    支持两种模式:
-      1. 自动检测模式 (auto_detect=True):
-         从监测数据或 GPS 映射自动推断所有河道参数 (长度、宽度、糙率、坡度等),
-         替换硬编码的雅瑶水道默认值。
-      2. 传统模式 (auto_detect=False):
-         使用 YayaoConfig 默认值 (雅瑶水道 3.2km/55m宽/0.028糙率)。
-
-    Args:
-        state: 河道模型状态
-        n_cross_sections: 断面数量 (50 或 30)
-        mannings_n: 曼宁糙率 (仅在传统模式下使用, 自动模式忽略)
-        auto_detect: 是否启用自动参数检测
-        auto_detect_data: 走航监测数据 DataFrame (自动模式需要)
-        auto_detect_gps_mapping: GPS mapping 字典 (自动模式备选, 如无 DataFrame)
-        amap_key: 高德 API Key (可选, 提升自动检测精度)
-        cloud_token: 星图地球 Cloud Token (可选, 提升宽度估计精度)
+    parameters 为用户情景参数；auto_detect 可从当前 DataFrame/GPS 给出初始建议。
+    缺失 GPS 或参数估计失败时报错，不自动套用其它河道参数；无输入时使用明确的理想模板。
     """
     if not 3 <= n_cross_sections <= 100 or (mannings_n is not None and not 0 < mannings_n <= .2):
         return json.dumps({'error': '断面数须为 3~100，糙率须在 (0, 0.2]'}, ensure_ascii=False)
@@ -102,19 +89,13 @@ def tool_river_init(
                 )
                 source_info = f"自动检测 (来自 {auto_detect_gps_mapping.get('point_count', '?')} 个GPS点)"
             else:
-                # 无数据, 降级为默认配置
-                config = YayaoConfig(
-                    n_cross_sections=n_cross_sections,
-                    param_sources={"__all__": "default"},
-                    param_confidence={"__all__": 0.1},
-                )
-                source_info = "默认参数 (无自动检测数据)"
+                raise ValueError('缺少参数估计数据，请提供走航 GPS 或使用手工河段配置')
 
             # 如果用户指定了 mannings_n, 覆盖自动检测值
             if mannings_n is not None:
                 config.mannings_n = mannings_n
-                config.param_sources["mannings_n"] = "user"
-                config.param_confidence["mannings_n"] = 1.0
+                config.param_sources["mannings_n"] = "user_scenario"
+                config.param_confidence.pop('mannings_n', None)
 
             # 使用检测到的参数
             n_cs = n_cross_sections
@@ -124,20 +105,11 @@ def tool_river_init(
             bw_m = getattr(config, "bottom_width_m", config.width_avg_m * 0.73)
 
         except Exception as e:
-            # 自动检测失败, 降级为默认配置
-            config = YayaoConfig(n_cross_sections=n_cross_sections)
-            if mannings_n is not None:
-                config.mannings_n = mannings_n
-            n_cs = n_cross_sections
-            length_m = config.length_m
-            slope = config.longitudinal_slope
-            bed_el = config.bed_elevation_avg_m
-            bw_m = 40.0
-            source_info = f"默认参数 (自动检测失败: {e})"
+            return json.dumps({'error': f'参数估计失败: {e}；请核实 GPS 或使用手工配置'}, ensure_ascii=False)
 
     else:
         # ---- 传统模式 ----
-        config = YayaoConfig(
+        config = RiverConfig(
             n_cross_sections=n_cross_sections,
             mannings_n=mannings_n if mannings_n is not None else 0.028,
         )
@@ -146,16 +118,29 @@ def tool_river_init(
         slope = config.longitudinal_slope
         bed_el = config.bed_elevation_avg_m
         bw_m = getattr(config, "bottom_width_m", 40.0)
-        source_info = "默认参数 (雅瑶水道)"
+        source_info = "通用情景模板，未经现场率定"
+
+    try:
+        from .parameters import configure_river
+        config = configure_river(config, parameters)
+        n_cs, length_m, slope, bed_el, bw_m = (n_cross_sections, config.length_m,
+            config.longitudinal_slope, config.bed_elevation_avg_m, config.bottom_width_m)
+        config.n_cross_sections = n_cs
+        if parameters:
+            source_info = '用户设置的河段情景参数，未经现场率定'
+    except (ValueError, TypeError) as exc:
+        return json.dumps({'error': str(exc)}, ensure_ascii=False)
 
     # 生成断面
-    cs_list = generate_yayao_cross_sections(
+    cs_list = generate_cross_sections(
         n_total=n_cs,
         channel_length_m=length_m,
         bed_elevation_avg_m=bed_el,
         bed_slope=slope,
         bottom_width_m=bw_m,
         mannings_n=config.mannings_n,
+        bank_elevation_m=config.bank_elevation_m,
+        side_slope=config.side_slope,
     )
     state.config = config
     state.cross_sections = cs_list
@@ -172,7 +157,7 @@ def tool_river_init(
 
     # 参数来源摘要 (自动检测模式)
     extra_info = {}
-    if auto_detect and config.param_sources:
+    if config.param_sources:
         extra_info["参数来源"] = source_info
         extra_info["参数置信度"] = config.param_confidence
 
@@ -230,7 +215,7 @@ def tool_river_hydro_simulation(
     if downstream_stage_m is None:
         downstream_stage_m = cfg.high_water_mean_m
     if tidal_amplitude_m is None:
-        tidal_amplitude_m = cfg.tidal_range_m / 2.0
+        tidal_amplitude_m = 0.0
     if tidal_period_h is None:
         tidal_period_h = cfg.m2_period_h
 
@@ -281,7 +266,7 @@ def tool_river_hydro_simulation(
 
 def tool_river_pollution_event(
     state: RiverModelState,
-    chainage_m: float = 1600.0,
+    chainage_m: float | None = None,
     pollutant_type: str = "ammonia",
     load_kg: float = 50.0,
     duration_min: float = 30.0,
@@ -291,7 +276,7 @@ def tool_river_pollution_event(
     source_start_h: float = 0.0,
     output_interval_s: float = 60.0,
 ) -> str:
-    """在雅瑶水道指定位置模拟污染事件。"""
+    """在当前河段指定位置模拟污染事件。"""
     if not state.has_hydro():
         return json.dumps({
             "error": "请先运行 run_hydrodynamic_simulation",
@@ -303,6 +288,8 @@ def tool_river_pollution_event(
         return json.dumps({"error": f"无效污染物类型。可选: {valid_types}"}, ensure_ascii=False)
 
     state.wq_result = None
+    if chainage_m is None:
+        chainage_m = float(np.mean([state.hydro_result.chainage[0], state.hydro_result.chainage[-1]]))
     try:
         std_limit = constituent_limit(pollutant_type, target_water_class)
         result = solve_water_quality(
@@ -647,7 +634,7 @@ def tool_river_map_animation(
     # 推断污染源桩号
     wq = state.wq_result
     if source_chainage_m is None and wq.params:
-        source_chainage_m = wq.params.get("chainage_m", 1600.0)
+        source_chainage_m = wq.params.get("chainage_m", float((wq.chainage[0]+wq.chainage[-1])/2))
 
     try:
         from .geo_mapping import build_chainage_gps_mapping

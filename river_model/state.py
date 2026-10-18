@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from .config import YayaoConfig
+from .config import RiverConfig
 from .cross_sections import CrossSection
 
 
@@ -37,7 +37,7 @@ class WQResult:
 @dataclass
 class RiverModelState:
     """河道模型全局状态。"""
-    config: YayaoConfig = field(default_factory=YayaoConfig)
+    config: RiverConfig = field(default_factory=RiverConfig)
     cross_sections: List[CrossSection] = field(default_factory=list)
     hydro_result: Optional[HydroResult] = None
     wq_result: Optional[WQResult] = None

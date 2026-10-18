@@ -110,28 +110,12 @@ else:
 
 
 # ======================================================================
-section("2. HEC-RAS 桩号：必须跟随河道长度，不能写死")
-# ======================================================================
-# 为什么这样测：几何文件按 config.length_m 生成，若边界桩号写死 3200，
-# 河长不是 3200 m 时边界会落在错误位置 —— 这是静默的几何错误。
-
-src = open(os.path.join("river_model", "hecras_bridge.py"), encoding="utf-8").read()
-
-# 找出 .u01 模板里的 Boundary Location
-bl = re.findall(r'Boundary Location=([^\n"]*)', src)
-hard = [b for b in bl if re.match(r'^[\d.]+$', b.strip())]
-check("2.边界桩号不是裸数字常量", not hard,
-      f"发现写死值: {hard}" if hard else f"{len(bl)} 处边界行均为变量拼接")
-
-# .f01 的 RM 行同理
-rm = re.findall(r'River Rch & RM=[^\n"]*?,\s*(\d+)\s*\\n', src)
-check("2.f01 的 RM 不是裸数字常量", not rm, f"发现写死值: {rm}" if rm else "未发现写死")
-
-# 几何与边界必须来自同一个来源
-uses_len = src.count("config.length_m")
-check("2.几何与边界共用 config.length_m", uses_len >= 3,
-      f"config.length_m 出现 {uses_len} 次（几何 1 处 + 边界 2 处）")
-
+section("2. 可移植引擎与通用河段")
+from river_model.hydro_engine import detect_engine, run_hydrodynamic
+from river_model.config import RiverConfig
+check("2.无需本机商业软件", detect_engine() == 'pure_python')
+check("2.运行入口无 COM 桥接", 'hecras_bridge' not in run_hydrodynamic.__code__.co_names)
+check("2.模板不伪造真实位置", RiverConfig().center_lat is None and RiverConfig().catchment_area_km2 is None)
 
 # ======================================================================
 section("3. 纵向离散系数：必须随河道属性变化")

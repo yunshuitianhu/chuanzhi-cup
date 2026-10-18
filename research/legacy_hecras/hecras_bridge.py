@@ -19,9 +19,9 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-from .config import YayaoConfig
-from .cross_sections import CrossSection
-from .state import HydroResult
+from river_model.config import YayaoConfig
+from river_model.cross_sections import CrossSection
+from river_model.state import HydroResult
 
 
 # HEC-RAS 工程内的河名/河段名。几何文件、非恒定流边界文件、稳态流文件

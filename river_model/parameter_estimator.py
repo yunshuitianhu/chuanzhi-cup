@@ -1,16 +1,4 @@
-"""河道参数自发现编排器。
-
-从走航监测数据自动推断所有河道模型参数。
-使用多层降级策略:
-  Layer 1: GPS 直接提取 (长度、坐标范围)
-  Layer 2: Amap 逆地理编码 (河道名称、地址)
-  Layer 3: OSM Overpass 查询 (水道类型、名称、宽度标签)
-  Layer 4: 卫星影像宽度估计 (实验性)
-  Layer 5: 区域默认值查表 (Manning's n, 坡降, 水深)
-  Layer 6: 监测数据推断 (水质基线、污染源位置)
-
-每层失败时自动降级到下一层, 确保始终能返回可用的参数集。
-"""
+"""通用河段参数建议：使用当前输入，区分数据、经验假设和待核实参数，不代表自动率定。"""
 
 import json
 import logging
@@ -21,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .config import YayaoConfig
+from .config import RiverConfig
 from .geo_mapping import build_chainage_gps_mapping, _haversine
 from .regional_defaults import (
     DEFAULT_CATCHMENT_KM2,
@@ -95,9 +83,12 @@ class RiverParameterEstimator:
     df 必须包含经度/纬度列 (或经度/纬度 / longitude/latitude)。
     """
 
-    def __init__(self, amap_key: str = None, cloud_token: str = None):
+    def __init__(self, amap_key: str = None, cloud_token: str = None, use_reference_database: bool = False,
+                 enable_satellite: bool = False):
         self.amap_key = amap_key
         self.cloud_token = cloud_token
+        self.use_reference_database = use_reference_database
+        self.enable_satellite = enable_satellite
         self._sources: Dict[str, str] = {}      # {param_name: data_source}
         self._confidence: Dict[str, float] = {}  # {param_name: 0.0~1.0}
 
@@ -105,23 +96,25 @@ class RiverParameterEstimator:
     # 主入口
     # ==================================================================
 
-    def estimate(self, df: pd.DataFrame) -> YayaoConfig:
-        """从监测数据 DataFrame 推断完整 YayaoConfig。
+    def estimate(self, df: pd.DataFrame) -> RiverConfig:
+        """从监测数据 DataFrame 推断完整 RiverConfig。
 
         Args:
             df: 走航监测数据 DataFrame (含 GPS 列)
 
         Returns:
-            完整填充的 YayaoConfig
+            完整填充的 RiverConfig
         """
         self._sources.clear()
         self._confidence.clear()
 
         # ---- Layer 1: GPS 直接提取 ----
         gps_info = self._extract_gps_info(df)
-        gps_length = gps_info.get("total_length_m", 3200.0)
-        center_lat = gps_info.get("center_lat", 23.11)
-        center_lon = gps_info.get("center_lon", 113.14)
+        if not gps_info:
+            raise ValueError('至少需要三个有效 GPS 点，无法凭空确定河段位置和长度')
+        gps_length = gps_info['total_length_m']
+        center_lat = gps_info['center_lat']
+        center_lon = gps_info['center_lon']
         gps_width = gps_info.get("estimated_width_m")
         gps_mapping = gps_info.get("gps_mapping")
 
@@ -132,7 +125,7 @@ class RiverParameterEstimator:
         river_location = river_identity.get("location", "")
 
         # ---- Layer 2.5: 查询已知河道库 ----
-        known = lookup_known_river(river_name)
+        known = lookup_known_river(river_name) if self.use_reference_database else None
         if known:
             self._sources["__all__"] = "known_river_database"
             self._confidence["__all__"] = 0.95
@@ -142,7 +135,7 @@ class RiverParameterEstimator:
 
         # ---- Layer 4: 卫星宽度估计 (在 OSM 无宽度时尝试) ----
         sat_width_info = None
-        if osm_width is None and gps_width is None and self.cloud_token and gps_mapping:
+        if self.enable_satellite and osm_width is None and gps_width is None and self.cloud_token and gps_mapping:
             try:
                 from .satellite_width import estimate_width_from_satellite
                 sat_width_info = estimate_width_from_satellite(
@@ -185,6 +178,8 @@ class RiverParameterEstimator:
         if depth_m is None:
             depth_m = estimate_depth_from_width(width_m, river_type)
 
+        # 派生流量须使用实际返回的情景几何与糙率，避免分别舍入造成自相矛盾。
+        width_m, depth_m, mannings_n = round(width_m, 1), round(depth_m, 1), round(mannings_n, 3)
         # 流量
         discharge_m3s = (known or {}).get("discharge_m3s")
         discharge_source = "known_river_database" if discharge_m3s else "estimated"
@@ -193,8 +188,10 @@ class RiverParameterEstimator:
             # 已知河道库中没有 discharge_m3s 时才会走到这里。
             # 集水面积同样取不到时用占位值 —— 这是**经验估算而非推断**,
             # 置信度已在下方标为 0.40, 调用方不应把它当成实测值。
-            catchment = (known or {}).get("catchment_area_km2") or DEFAULT_CATCHMENT_KM2
-            discharge_m3s = estimate_discharge(catchment)
+            area = width_m * depth_m
+            radius = area / (width_m + 2*depth_m)
+            discharge_m3s = area * radius**(2/3) * np.sqrt(max(0., slope)) / mannings_n
+            discharge_source = 'manning_geometry_estimate'
 
         # 潮汐边界
         tidal_amp = (known or {}).get("tidal_amplitude_m")
@@ -207,14 +204,14 @@ class RiverParameterEstimator:
             tidal_amp = TIDAL_AMPLITUDE_DEFAULT_M if is_tidal else 0.0
 
         # 水位基准
-        high_water = (known or {}).get("high_water_mean_m", 0.83)
-        low_water = (known or {}).get("low_water_mean_m", -0.52)
+        high_water = (known or {}).get("high_water_mean_m", depth_m)
+        low_water = (known or {}).get("low_water_mean_m", high_water)
         downstream_stage = (known or {}).get("downstream_stage_m", high_water)
 
         # ---- Layer 6: 监测数据推断 ----
         monitoring_info = self._infer_from_monitoring(df)
 
-        # ---- 构建 YayaoConfig ----
+        # ---- 构建 RiverConfig ----
         # 记录来源和置信度
         self._sources.update({
             "river_name": river_identity.get("name_source", "osm"),
@@ -243,13 +240,13 @@ class RiverParameterEstimator:
         bottom_width_m = width_m * 0.73
 
         # 床面高程: 区域典型值
-        bed_elevation = (known or {}).get("bed_elevation_avg_m", -2.0)
+        bed_elevation = (known or {}).get("bed_elevation_avg_m", 0.0)
 
-        config = YayaoConfig(
+        config = RiverConfig(
             # 河道基本信息
             river_name=river_name or "未知河道",
             location=river_location or "未知位置",
-            catchment_area_km2=(known or {}).get("catchment_area_km2", 122.8),
+            catchment_area_km2=(known or {}).get("catchment_area_km2"),
 
             # 几何参数
             length_km=round(gps_length / 1000.0, 2),
@@ -298,7 +295,7 @@ class RiverParameterEstimator:
         # 提取坐标数组
         lats, lons = self._get_coords(df)
         if len(lats) < 3:
-            return {"total_length_m": 3200.0, "center_lat": 23.11, "center_lon": 113.14}
+            return {}
 
         center_lat = float(np.mean(lats))
         center_lon = float(np.mean(lons))
@@ -309,27 +306,17 @@ class RiverParameterEstimator:
             distances = _haversine(lons[:-1], lats[:-1], lons[1:], lats[1:])
             total_length_m = float(np.sum(distances))
         else:
-            total_length_m = 3200.0
+            raise ValueError('有效 GPS 点不足')
 
         # GPS 横向展宽法估计河宽
         # 平滑中心线 + 计算原始点到中心线的垂直距离
         estimated_width = self._estimate_width_from_gps_spread(lats, lons, total_length_m)
 
-        # 尝试构建 gps_mapping (需要先保存到临时文件)
+        # 仅使用当前会话的 DataFrame，不读取固定样本或其它会话的上传文件。
         gps_mapping = None
         try:
-            # 如果有 _uploaded_data.xlsx, 用它; 否则尝试用原始数据路径
-            excel_candidates = [
-                "_uploaded_data.xlsx",
-                "苗圃杯/无人船智能水质监测分析和因果溯源样本数据/河道巡航走航样本数据.xlsx",
-            ]
-            for excel_path in excel_candidates:
-                if os.path.exists(excel_path):
-                    gps_mapping = build_chainage_gps_mapping(excel_path, smoothing_sigma=3.0)
-                    if gps_mapping:
-                        total_length_m = gps_mapping.get("total_length_m", total_length_m)
-                    break
-        except Exception:
+            gps_mapping = build_chainage_gps_mapping(df, smoothing_sigma=3.0)
+        except (ValueError, KeyError, TypeError):
             pass
 
         return {
@@ -794,58 +781,9 @@ class RiverParameterEstimator:
         Returns:
             "省名+城市名" 格式的位置字符串, 或 None
         """
-        # ---- 第1层: 河流名称校准 ----
-        # 如果河流名称明确指向某一地区, 使用该地区的城市
-        _RIVER_REGION_HINTS: dict[str, str] = {
-            "长江": "湖北省武汉市/重庆市/江苏省南京市",
-            "汉江": "湖北省武汉市",
-            "湘江": "湖南省长沙市",
-            "赣江": "江西省南昌市",
-            "黄河": "河南省/山东省",
-            "珠江": "广东省广州市",
-            "淮河": "安徽省/江苏省",
-            "松花江": "黑龙江省哈尔滨市",
-            "辽河": "辽宁省",
-            "海河": "天津市/河北省",
-            "钱塘江": "浙江省杭州市",
-            "闽江": "福建省福州市",
-            "嘉陵江": "重庆市",
-            "岷江": "四川省乐山市/宜宾市",
-            "乌江": "贵州省/重庆市",
-            "雅砻江": "四川省",
-            "怒江": "云南省",
-            "澜沧江": "云南省",
-            "雅鲁藏布江": "西藏自治区",
-        }
-        # 完整匹配
-        if river_name in _RIVER_REGION_HINTS:
-            return _RIVER_REGION_HINTS[river_name]
-        # 部分匹配 (如 "长江干流武汉段" → 匹配到 "长江")
-        if river_name:
-            for rn, loc in _RIVER_REGION_HINTS.items():
-                if rn in river_name:
-                    return loc
-
-        # ---- 第2层: GPS 坐标推断省份 ----
-        # 表已提到模块级 PROVINCE_COORDS（trace_engine 也要用同一份，
-        # 避免两处各存一份而逐渐不一致）
-
-
-        for lat_min, lat_max, lon_min, lon_max, province, cities in PROVINCE_COORDS:
-            if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
-                return f"{province}{cities}"
-
-        # ---- 第3层: 粗略大区推断 ----
-        if lat >= 40.0:
-            return "东北/华北地区"
-        elif lat >= 30.0:
-            return "华中/华东地区"
-        elif lat >= 22.0:
-            return "华南地区"
-        elif lat >= 18.0:
-            return "华南/西南地区"
-        else:
-            return None
+        matches = {province for lat_min, lat_max, lon_min, lon_max, province, _ in PROVINCE_COORDS
+                   if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max}
+        return next(iter(matches)) + '（坐标范围估计，待核实）' if len(matches) == 1 else None
 
     @staticmethod
     def _resolve_width(
@@ -892,7 +830,7 @@ def estimate_config_from_data(
     df: pd.DataFrame,
     amap_key: str = None,
     cloud_token: str = None,
-) -> YayaoConfig:
+) -> RiverConfig:
     """从监测数据自动推断河道配置的便捷函数。
 
     Args:
@@ -901,142 +839,16 @@ def estimate_config_from_data(
         cloud_token: 星图地球 Cloud Token (可选, 用于卫星宽度估计)
 
     Returns:
-        完整填充的 YayaoConfig
+        完整填充的 RiverConfig
     """
     estimator = RiverParameterEstimator(amap_key=amap_key, cloud_token=cloud_token)
     return estimator.estimate(df)
 
 
-def estimate_config_from_gps(
-    gps_mapping: dict,
-    amap_key: str = None,
-    cloud_token: str = None,
-) -> YayaoConfig:
-    """从 GPS 映射字典自动推断河道配置。
-
-    适用于已有 gps_mapping 但无完整 DataFrame 的场景。
-
-    Args:
-        gps_mapping: geo_mapping.build_chainage_gps_mapping() 返回的字典
-        amap_key: 高德 API Key
-        cloud_token: 星图地球 Cloud Token
-
-    Returns:
-        YayaoConfig (使用 GPS 长度, 其余参数用默认值)
-    """
-    estimator = RiverParameterEstimator(amap_key=amap_key, cloud_token=cloud_token)
-
-    total_length = gps_mapping.get("total_length_m", 3200.0)
-    center_lat = float(np.mean(gps_mapping.get("lat_raw", [23.11])))
-    center_lon = float(np.mean(gps_mapping.get("lon_raw", [113.14])))
-
-    # 从 gps_mapping 推断河宽
-    lats = gps_mapping.get("lat_raw", np.array([]))
-    lons = gps_mapping.get("lon_raw", np.array([]))
-    if len(lats) > 10:
-        gps_width = estimator._estimate_width_from_gps_spread(
-            np.array(lats), np.array(lons), total_length
-        )
-    else:
-        gps_width = None
-
-    # 河道识别 —— 把 GPS 轨迹一并传入。
-    # 原来这里传 None，导致 _identify_river 取不到坐标点，
-    # 「已知河道坐标库」与「OSM 轨迹匹配」两层被整层跳过：
-    # 明明手上就有 gps_mapping 的全部轨迹点，却只能退回单点查询。
-    river_identity = estimator._identify_river(
-        None, center_lat, center_lon,
-        gps_coords=(np.asarray(lats, dtype=float), np.asarray(lons, dtype=float)),
-    )
-    river_type = river_identity.get("waterway_type", "river")
-
-    # 已知河道库查表（命中时其参数置信度最高，见下方 *_src 取值）
-    known = lookup_known_river(river_identity.get("name", ""))
-
-    # 解算宽度
-    width_m, width_src, width_conf = estimator._resolve_width(
-        osm_width=river_identity.get("osm_width_m"),
-        gps_width=gps_width,
-        sat_width_info=None,
-        river_type=river_type,
-        known=known,
-    )
-
-    # ---- 以下各项的取值优先级与 estimate() 路径保持一致：----
-    #      已知河道库标定值 > 区域/类型默认值
-    # 本函数原先只在算宽度时查已知库，糙率/坡降/水深/流量/潮汐全部走通用
-    # 默认值 —— 同样输入下与 estimate() 路径给出两套不同参数。现补齐。
-    region = classify_region(center_lat, center_lon)
-
-    depth_m = (known or {}).get("depth_avg_m")
-    depth_src = "known_river_database" if depth_m else "estimated_from_width"
-    if depth_m is None:
-        depth_m = estimate_depth_from_width(width_m, river_type)
-
-    mannings_n = (known or {}).get("mannings_n")
-    mannings_src = "known_river_database" if mannings_n else "regional_defaults"
-    if mannings_n is None:
-        mannings_n = lookup_mannings_n(river_type)
-
-    slope = (known or {}).get("slope")
-    slope_src = "known_river_database" if slope else "regional_defaults"
-    if slope is None:
-        slope = lookup_slope(region, river_type)
-
-    discharge = (known or {}).get("discharge_m3s")
-    discharge_src = "known_river_database" if discharge else "estimated"
-    if discharge is None:
-        # 集水面积未知 -> 用占位值。这是经验估算而非推断，置信度见下。
-        discharge = estimate_discharge(DEFAULT_CATCHMENT_KM2)
-
-    is_tidal = river_identity.get("is_tidal", True)
-    tidal_amp = (known or {}).get("tidal_amplitude_m")
-    tidal_src = "known_river_database" if tidal_amp else "regional_defaults"
-    if tidal_amp is None:
-        # 与 estimate() 路径共用同一个默认值，避免两处各自硬编码。
-        # 注: TIDAL_AMPLITUDE_BY_REGION 的具体河口键当前不可达，
-        #     详见 regional_defaults 中该表的说明。
-        tidal_amp = TIDAL_AMPLITUDE_DEFAULT_M if is_tidal else 0.0
-
-    return YayaoConfig(
-        river_name=river_identity.get("name", "未知河道"),
-        location=river_identity.get("location", ""),
-        length_km=round(total_length / 1000, 2),
-        length_m=round(total_length, 1),
-        width_avg_m=round(width_m, 1),
-        depth_avg_m=round(depth_m, 1),
-        bottom_width_m=round(width_m * 0.73, 1),
-        mannings_n=round(mannings_n, 3),
-        longitudinal_slope=slope,
-        avg_discharge_m3s=round(discharge, 1),
-        tidal_range_m=round(tidal_amp * 2, 1),
-        center_lat=round(center_lat, 4),
-        center_lon=round(center_lon, 4),
-        # 来源标签按实际取值动态填写 —— 原来这几项写死为区域默认值，
-        # 即使命中了已知河道库也照报"regional_defaults"，UI 上的置信度
-        # 色标（🟢≥80% 🟡≥50% 🟠≥30% 🔴<30%）因此始终显示低置信度。
-        # 同时补齐 river_name / location / avg_discharge_m3s / tidal_range_m
-        # 三项原先缺失的标签（UI 上显示为空白）。
-        param_sources={
-            "river_name": river_identity.get("name_source", "unknown"),
-            "location": river_identity.get("location_source", "unknown"),
-            "length_m": "gps",
-            "width_avg_m": width_src,
-            "depth_avg_m": depth_src,
-            "mannings_n": mannings_src,
-            "longitudinal_slope": slope_src,
-            "avg_discharge_m3s": discharge_src,
-            "tidal_range_m": tidal_src,
-        },
-        param_confidence={
-            "river_name": river_identity.get("name_confidence", 0.0),
-            "location": river_identity.get("location_confidence", 0.0),
-            "length_m": 0.95,
-            "width_avg_m": width_conf,
-            "depth_avg_m": 0.90 if depth_src == "known_river_database" else 0.50,
-            "mannings_n": 0.90 if mannings_src == "known_river_database" else 0.50,
-            "longitudinal_slope": 0.85 if slope_src == "known_river_database" else 0.50,
-            "avg_discharge_m3s": 0.85 if discharge_src == "known_river_database" else 0.40,
-            "tidal_range_m": 0.90 if tidal_src == "known_river_database" else 0.50,
-        },
-    )
+def estimate_config_from_gps(gps_mapping: dict, amap_key=None, cloud_token=None) -> RiverConfig:
+    """GPS 与 DataFrame 入口共享同一估计管道；缺失坐标时拒绝伪造位置。"""
+    lats, lons = gps_mapping.get('lat_raw', []), gps_mapping.get('lon_raw', [])
+    if len(lats) != len(lons) or len(lats) < 3:
+        raise ValueError('GPS 映射需要至少三个成对的原始坐标')
+    return estimate_config_from_data(pd.DataFrame({'latitude': lats, 'longitude': lons}),
+                                     amap_key=amap_key, cloud_token=cloud_token)

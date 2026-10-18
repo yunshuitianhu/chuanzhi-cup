@@ -25,14 +25,19 @@ const busy = ref('')
 
 const form = ref({
   n_cross_sections: 50,
-  mannings_n: 0.028,
-  upstream_flow_m3s: 6.9,
+  mannings_n: 0.03,
+  river_name: '自定义河段', length_m: 1000, width_avg_m: 30, depth_avg_m: 2,
+  longitudinal_slope: .0001, bed_elevation_avg_m: 0, high_water_mean_m: 2,
+  ammonia_nh3_mgL: 3, dissolved_oxygen_mgL: 2,
+  bod_cbod_mgL: 20, water_temp_C: 25, k_nitrification: .15, k_cbod_decay: .25,
+  k_sediment_oxygen_demand: 1, do_saturation_mgL: 8.25,
+  upstream_flow_m3s: 6,
   tidal_amplitude_m: 0,     // 默认恒定流；潮汐工况有已知缺陷
   duration_h: 6,
   load_kg: 50,
   source_start_h: 0,
   duration_min: 30,
-  chainage_m: 1600,
+  chainage_m: 500,
   pollutant_type: 'ammonia',
 })
 
@@ -45,17 +50,35 @@ watch(() => store.status.analysis_revision, () => {
   busy.value = ''
   detectParams()
 })
+watch(() => ['river_name','length_m','width_avg_m','depth_avg_m','longitudinal_slope',
+  'bed_elevation_avg_m','mannings_n','n_cross_sections','ammonia_nh3_mgL','dissolved_oxygen_mgL',
+  'bod_cbod_mgL','water_temp_C','k_nitrification','k_cbod_decay','k_sediment_oxygen_demand','do_saturation_mgL']
+  .map(k => form.value[k]), () => {
+    initResult.value = hydroResult.value = pollutionResult.value = null
+})
+watch(() => [form.value.upstream_flow_m3s, form.value.high_water_mean_m, form.value.duration_h], () => {
+  hydroResult.value = pollutionResult.value = null
+})
 
 async function detectParams() {
   if (!store.status.has_data) return
+  const formSnapshot = JSON.stringify(form.value)
   const revision = store.status.analysis_revision
   busy.value = 'params'
   try {
     const result = await api.riverParams()
     if (revision !== store.status.analysis_revision) return
     params.value = result
-    form.value.upstream_flow_m3s = params.value.avg_discharge_m3s || 6.9
-    form.value.mannings_n = params.value.mannings_n || 0.028
+    if (JSON.stringify(form.value) !== formSnapshot) {
+      toastOk('参数建议已返回，已保留你正在编辑的手工参数')
+      return
+    }
+    for (const key of ['river_name', 'length_m', 'width_avg_m', 'depth_avg_m', 'longitudinal_slope',
+      'bed_elevation_avg_m', 'high_water_mean_m', 'ammonia_nh3_mgL', 'dissolved_oxygen_mgL', 'mannings_n']) {
+      if (params.value[key] != null) form.value[key] = params.value[key]
+    }
+    form.value.upstream_flow_m3s = params.value.avg_discharge_m3s ?? 6
+    form.value.chainage_m = form.value.length_m / 2
     toastOk(`识别到河道：${params.value.river_name}`)
   } catch (e) {
     toastErr(`参数检测失败：${e.message}`)
@@ -71,8 +94,12 @@ async function runInit() {
   try {
     const result = await api.riverInit({
       n_cross_sections: form.value.n_cross_sections,
-      mannings_n: form.value.mannings_n,
-      auto_detect: true,
+      auto_detect: false,
+      parameters: Object.fromEntries(['river_name', 'length_m', 'width_avg_m', 'depth_avg_m',
+        'longitudinal_slope', 'bed_elevation_avg_m', 'high_water_mean_m', 'ammonia_nh3_mgL',
+        'dissolved_oxygen_mgL', 'mannings_n', 'bod_cbod_mgL','water_temp_C','k_nitrification',
+        'k_cbod_decay','k_sediment_oxygen_demand','do_saturation_mgL'].map(k => [k, form.value[k]]).concat([
+        ['avg_discharge_m3s', form.value.upstream_flow_m3s]])),
     })
     if (revision !== store.status.analysis_revision) return
     initResult.value = result
@@ -91,6 +118,7 @@ async function runHydro() {
   try {
     const result = await api.riverHydro({
       upstream_flow_m3s: form.value.upstream_flow_m3s,
+      downstream_stage_m: form.value.high_water_mean_m,
       tidal_amplitude_m: form.value.tidal_amplitude_m,
       duration_h: form.value.duration_h,
     })
@@ -138,6 +166,8 @@ const CONF_LABEL = {
   amap_reverse_geocode: ['🟡 高德逆地理', 'mid'],
   default: ['🔴 默认值', 'bad'],
   unknown: ['🔴 未知', 'bad'],
+  user_scenario: ['🟠 用户情景输入', 'low'],
+  manning_geometry_estimate: ['🟠 几何与曼宁公式估计', 'low'],
 }
 
 const paramRows = computed(() => {
@@ -192,34 +222,25 @@ const pollutionCompare = computed(() => {
 </script>
 
 <template>
-  <Panel title="水动力-水质模型" subtitle="一维 Saint-Venant 方程 + ADR 对流扩散反应模型">
+  <Panel title="水动力-水质模型" subtitle="一维简化水动力 + 守恒输移与耦合反应（恒定流情景）">
     <!-- 局限说明：固定展示，不可关闭 -->
     <div class="caveat">
-      <div class="cv-title">⚠️ 已知局限（请务必阅读）</div>
-      <p>
-        本模型的<b>非恒定（潮汐）工况存在已确认的数值缺陷</b>：连续性方程遗漏水面宽
-        <code>B_mid</code>，导致质量不守恒（实测残差达蓄水率的 103%）。
-      </p>
-      <p>
-        · <b>恒定流工况</b>（潮汐振幅 = 0）仅作情景分析，真实河道仍需校准<br />
-        · <b>潮汐工况</b>的结果不可作为结论依据，当前不用于水质计算
-      </p>
-      <p class="cv-foot">
-        详见 <code>docs/代码审计与修改方案.md</code> 第 2.8 节。演示与文档中不应把「潮汐模拟」作为宣传点。
-      </p>
+      <div class="cv-title">模型适用范围</div>
+      <p>项目自带求解器，无需安装商业水动力软件。支持自定义河段的一维恒定流情景分析。</p>
+      <p>几何、边界和反应参数仍需现场核实与率定；潮汐、支汊及二维回流暂不支持，不能据此认定污染责任。</p>
     </div>
 
-    <div v-if="!store.status.has_data" class="empty">请先在左侧上传并加载走航数据。</div>
+    <div v-if="!store.status.has_data" class="empty">未加载走航数据时可手工配置并运行情景模型；自动参数建议和轨迹动画需上传对应数据。</div>
 
-    <template v-else>
+    <template>
       <!-- 参数自动检测 -->
       <section class="block">
         <h3 class="st">① 河道参数自动检测</h3>
         <p class="desc">
-          6 层检测管道：已知河道坐标库 → OSM → 高德逆地理 → 卫星影像 → 区域默认值 → 监测数据推断。
-          坐标落在已知河道范围内时可读取河道库参考参数，无需联网；来源置信度不等于现场率定精度。
+          GPS 与地名识别提供位置和长度建议；缺失的水力参数以经验关系生成初始情景，需手工核实。
+          参数建议不等于实测断面。缺少 GPS 时请直接手工配置；不自动套用任何特定河流的几何或流量。
         </p>
-        <button class="mini" :disabled="!!busy || store.chatRunning" @click="detectParams">
+        <button class="mini" :disabled="!!busy || store.chatRunning || !store.status.has_data" @click="detectParams">
           {{ busy === 'params' ? '检测中…' : '重新检测' }}
         </button>
 
@@ -240,18 +261,35 @@ const pollutionCompare = computed(() => {
       <!-- 模拟参数与运行 -->
       <section class="block">
         <h3 class="st">② 运行模拟</h3>
+        <p class="desc">以下参数均可编辑。初始模板仅用于情景分析；水位与河底须使用同一高程基准。修改后重新初始化，才会进入本次计算。</p>
         <div class="grid">
+          <label>河段名称<input v-model="form.river_name" /></label>
+          <label>河段长度 m<input v-model.number="form.length_m" type="number" min="10" /></label>
+          <label>参考水面宽 m<input v-model.number="form.width_avg_m" type="number" min="0.5" /></label>
+          <label>参考水深 m<input v-model.number="form.depth_avg_m" type="number" min="0.1" step="0.1" /></label>
+          <label>河底坡降<input v-model.number="form.longitudinal_slope" type="number" min="0" step="0.0001" /></label>
+          <label>平均河底高程 m<input v-model.number="form.bed_elevation_avg_m" type="number" step="0.1" /></label>
+          <label>下游水位 m<input v-model.number="form.high_water_mean_m" type="number" step="0.1" /></label>
+          <label>初始氨氮 mg/L<input v-model.number="form.ammonia_nh3_mgL" type="number" min="0" step="0.1" /></label>
+          <label>初始 DO mg/L<input v-model.number="form.dissolved_oxygen_mgL" type="number" min="0" step="0.1" /></label>
           <label>断面数<input v-model.number="form.n_cross_sections" type="number" min="20" max="100" /></label>
           <label>曼宁糙率<input v-model.number="form.mannings_n" type="number" step="0.001" /></label>
           <label>上游流量 m³/s<input v-model.number="form.upstream_flow_m3s" type="number" step="0.1" /></label>
-          <label>
-            潮汐振幅 m
-            <input v-model.number="form.tidal_amplitude_m" type="number" step="0.1" min="0" />
-            <small v-if="form.tidal_amplitude_m > 0" class="warn-text">非零即进入已知缺陷工况</small>
-          </label>
           <label>模拟时长 h<input v-model.number="form.duration_h" type="number" min="1" max="24" /></label>
         </div>
 
+        <details class="hint">
+          <summary>反应情景参数（未经现场率定，可按河段修改）</summary>
+          <p>CBOD 不由 COD 直接换算；饱和氧需结合温度、盐度和气压核实。修改后重新初始化。</p>
+          <div class="grid">
+            <label>初始 CBOD mg/L<input v-model.number="form.bod_cbod_mgL" type="number" min="0" /></label>
+            <label>水温 °C<input v-model.number="form.water_temp_C" type="number" min="0" max="45" /></label>
+            <label>硝化速率 d⁻¹<input v-model.number="form.k_nitrification" type="number" min="0" step="0.01" /></label>
+            <label>CBOD 衰减 d⁻¹<input v-model.number="form.k_cbod_decay" type="number" min="0" step="0.01" /></label>
+            <label>底泥耗氧 g/m²/d<input v-model.number="form.k_sediment_oxygen_demand" type="number" min="0" step="0.1" /></label>
+            <label>饱和 DO mg/L<input v-model.number="form.do_saturation_mgL" type="number" min="0.1" step="0.1" /></label>
+          </div>
+        </details>
         <div class="btn-row">
           <button class="mini" :disabled="!!busy || store.chatRunning" @click="runInit">
             {{ busy === 'init' ? '初始化中…' : '初始化模型' }}

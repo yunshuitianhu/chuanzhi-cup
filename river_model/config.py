@@ -1,58 +1,51 @@
-"""雅瑶水道 (Yayao Waterway) 静态参数配置。
-
-数据来源：《佛山市雅瑶水道建模资料汇总报告》(2026-05-26)
-- 南海区政府官网、广东省交通运输厅、南方+、珠江水利科学研究院等
-
-支持自动检测模式：通过 YayaoConfig.from_monitoring_data(df) 从走航监测数据
-自动推断所有参数，实现任意河道的自动建模。
-"""
+"""通用一维河段配置。默认值是情景模板；真实应用须提供并核实几何、边界及水质参数。"""
 
 from dataclasses import dataclass, field
 from typing import Dict, Tuple
 
 
 @dataclass
-class YayaoConfig:
-    """雅瑶水道水动力+水质模型配置。"""
+class RiverConfig:
+    """通用河段配置；默认是未率定的理想情景，不对应任何真实河流。"""
 
     # ---- 河道基本信息 ----
-    river_name: str = "雅瑶水道"
-    location: str = "广东省佛山市南海区"
-    water_system: str = "北村水系"
-    catchment_area_km2: float = 122.8
+    river_name: str = "未命名河段（情景模板）"
+    location: str = "未提供"
+    water_system: str = "未提供"
+    catchment_area_km2: float | None = None
 
     # ---- 几何参数 ----
-    length_km: float = 3.2
-    length_m: float = 3200.0
-    width_avg_m: float = 55.0
-    width_range_m: Tuple[float, float] = (50.0, 220.0)
+    length_km: float = 1.0
+    length_m: float = 1000.0
+    width_avg_m: float = 30.0
+    width_range_m: Tuple[float, float] = (20.0, 40.0)
     depth_avg_m: float = 2.0
     depth_range_m: Tuple[float, float] = (1.8, 2.5)
-    depth_max_m: float = 6.0
-    cross_section_area_range_m2: Tuple[float, float] = (160.0, 200.0)
-    bed_elevation_avg_m: float = -2.0
-    bed_elevation_range_m: Tuple[float, float] = (-2.5, -1.5)
-    bank_elevation_m: float = 1.5
+    depth_max_m: float | None = None
+    cross_section_area_range_m2: Tuple[float, float] | None = None
+    bed_elevation_avg_m: float = 0.0
+    bed_elevation_range_m: Tuple[float, float] | None = None
+    bank_elevation_m: float = 5.0
 
     # ---- 水力学参数 ----
     mannings_n: float = 0.028
     mannings_n_range: Tuple[float, float] = (0.025, 0.035)
-    design_discharge_m3s: float = 138.26
-    avg_discharge_m3s: float = 6.9
-    discharge_range_m3s: Tuple[float, float] = (6.3, 7.5)
-    velocity_avg_ms: float = 0.06
-    velocity_range_ms: Tuple[float, float] = (0.05, 0.07)
+    design_discharge_m3s: float | None = None
+    avg_discharge_m3s: float = 6.0
+    discharge_range_m3s: Tuple[float, float] | None = None
+    velocity_avg_ms: float = 0.1
+    velocity_range_ms: Tuple[float, float] | None = None
     longitudinal_slope: float = 0.0001
 
     # ---- 潮汐边界 ----
-    tidal_range_m: float = 1.6
-    tidal_range_limits_m: Tuple[float, float] = (1.35, 1.81)
+    tidal_range_m: float = 0.0
+    tidal_range_limits_m: Tuple[float, float] | None = None
     m2_period_h: float = 12.42
-    upstream_structure: str = "北村水闸"
-    downstream_connection: str = "珠江"
-    # 北村水闸潮位特征 (1985国家高程基准)
-    high_water_mean_m: float = 0.83
-    low_water_mean_m: float = -0.52
+    upstream_structure: str = "未提供"
+    downstream_connection: str = "未提供"
+    # 局部高程中的下游参考水位
+    high_water_mean_m: float = 2.0
+    low_water_mean_m: float = 2.0
 
     # ---- 水质基线 (V类) ----
     ammonia_nh3_mgL: float = 3.0
@@ -95,11 +88,13 @@ class YayaoConfig:
     do_saturation_mgL: float = 8.25   # 25°C 饱和溶解氧
 
     # ---- 坐标参考 ----
-    center_lat: float = 23.11
-    center_lon: float = 113.14
+    center_lat: float | None = None
+    center_lon: float | None = None
 
     # ---- 断面生成参数 ----
-    bottom_width_m: float = 40.0  # 河底宽 (m), 默认 = 0.73 * width_avg_m
+    bottom_width_m: float = 22.0
+    side_slope: float = 2.0
+    vertical_datum: str = "用户自定局部高程；断面及水位须使用同一基准"
 
     # ---- 参数来源元数据 (auto-detection mode) ----
     param_sources: Dict[str, str] = field(default_factory=dict)
@@ -129,11 +124,13 @@ class YayaoConfig:
             cloud_token: 星图地球 Cloud Token (可选, 用于卫星宽度估计)
 
         Returns:
-            完整填充的 YayaoConfig, 所有参数均从数据中推断
+            RiverConfig；GPS 与水质来自输入，其余建议含经验假设，未经现场率定
         """
         from .parameter_estimator import RiverParameterEstimator
         estimator = RiverParameterEstimator(amap_key=amap_key, cloud_token=cloud_token)
         return estimator.estimate(df)
 
 
-DEFAULT_CONFIG = YayaoConfig()
+# 兼容旧导入名；不会自动加载雅瑶水道参数。
+YayaoConfig = RiverConfig
+DEFAULT_CONFIG = RiverConfig()

@@ -28,9 +28,8 @@ from ..session import Session
 router = APIRouter(prefix="/river", tags=["river"])
 
 MODEL_CAVEAT = (
-    "非恒定（潮汐）工况存在已确认的数值缺陷：连续性方程遗漏水面宽，"
-    "质量不守恒（残差达蓄水率 103%）。恒定流仅作情景分析，实际河道仍需校准；"
-    "潮汐工况结果不可作为结论依据。详见 docs/代码审计与修改方案.md 第 2.8 节。"
+    "当前支持一维恒定流情景；河段几何、边界和反应参数须核实并率定。"
+    "潮汐、支汊和二维回流暂不支持。来源估计不能用于直接认定污染责任。"
 )
 
 
@@ -47,16 +46,38 @@ class ModelRequest(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True, allow_inf_nan=False)
 
 
+class RiverParameters(ModelRequest):
+    river_name: str | None = Field(None, min_length=1, max_length=100)
+    location: str | None = Field(None, min_length=1, max_length=100)
+    length_m: FiniteFloat | None = Field(None, ge=10, le=100000)
+    width_avg_m: FiniteFloat | None = Field(None, ge=.5, le=5000)
+    depth_avg_m: FiniteFloat | None = Field(None, ge=.1, le=100)
+    mannings_n: FiniteFloat | None = Field(None, gt=0, le=.2)
+    longitudinal_slope: FiniteFloat | None = Field(None, ge=0, le=.05)
+    avg_discharge_m3s: FiniteFloat | None = Field(None, ge=0)
+    bed_elevation_avg_m: FiniteFloat | None = None
+    high_water_mean_m: FiniteFloat | None = None
+    ammonia_nh3_mgL: FiniteFloat | None = Field(None, ge=0)
+    dissolved_oxygen_mgL: FiniteFloat | None = Field(None, ge=0)
+    bod_cbod_mgL: FiniteFloat | None = Field(None, ge=0)
+    water_temp_C: FiniteFloat | None = Field(None, ge=0, le=45)
+    k_nitrification: FiniteFloat | None = Field(None, ge=0, le=10)
+    k_cbod_decay: FiniteFloat | None = Field(None, ge=0, le=10)
+    k_sediment_oxygen_demand: FiniteFloat | None = Field(None, ge=0, le=100)
+    do_saturation_mgL: FiniteFloat | None = Field(None, gt=0, le=20)
+
+
 class InitRequest(ModelRequest):
     n_cross_sections: int = Field(50, ge=3, le=100)
     mannings_n: FiniteFloat | None = Field(None, gt=0, le=.2)
     auto_detect: bool = False
+    parameters: RiverParameters | None = None
 
 
 class HydroRequest(ModelRequest):
-    upstream_flow_m3s: FiniteFloat | None = None
+    upstream_flow_m3s: FiniteFloat | None = Field(None, ge=0)
     downstream_stage_m: FiniteFloat | None = None
-    tidal_amplitude_m: FiniteFloat = Field(0, ge=0, le=10)
+    tidal_amplitude_m: FiniteFloat = Field(0, ge=0, le=0)
     tidal_period_h: FiniteFloat | None = Field(None, gt=0)
     duration_h: FiniteFloat = Field(6, ge=.5, le=48)
     dt_s: FiniteFloat = Field(60, ge=1, le=300)
@@ -74,21 +95,17 @@ class PollutionRequest(ModelRequest):
 
 @router.get("/params")
 def detect_params(session: Session = Depends(get_session)) -> dict:
-    """从走航数据自动推断河道参数（6 层检测管道）。
-
-    最高优先级是"已知河道坐标库"—— 坐标落在某条已知河道的 bbox 内时
-    直接返回其标定参数（置信度 0.95），无需联网。
-    """
+    """基于当前走航数据生成带来源标识的参数建议，不代表现场率定。"""
     if session.df is None or len(session.df) == 0:
         raise HTTPException(400, "数据未加载")
 
     from river_model.parameter_estimator import estimate_config_from_data
 
-    cfg = estimate_config_from_data(
-        session.df,
-        amap_key=resolve_api_key("AMAP_KEY"),
-        cloud_token=resolve_api_key("CLOUD_TOKEN"),
-    )
+    try:
+        cfg = estimate_config_from_data(session.df, amap_key=resolve_api_key('AMAP_KEY'),
+                                        cloud_token=resolve_api_key('CLOUD_TOKEN'))
+    except ValueError as exc:
+        raise HTTPException(400, f'{exc}；请使用手工河段配置') from exc
     return {
         "river_name": cfg.river_name,
         "location": cfg.location,
@@ -99,6 +116,10 @@ def detect_params(session: Session = Depends(get_session)) -> dict:
         "longitudinal_slope": cfg.longitudinal_slope,
         "avg_discharge_m3s": cfg.avg_discharge_m3s,
         "tidal_range_m": cfg.tidal_range_m,
+        "bed_elevation_avg_m": cfg.bed_elevation_avg_m,
+        "high_water_mean_m": cfg.high_water_mean_m,
+        "ammonia_nh3_mgL": cfg.ammonia_nh3_mgL,
+        "dissolved_oxygen_mgL": cfg.dissolved_oxygen_mgL,
         "param_sources": cfg.param_sources,
         "param_confidence": cfg.param_confidence,
         "局限说明": MODEL_CAVEAT,
@@ -112,7 +133,7 @@ def init_model(payload: InitRequest | None = None,
     payload = payload or InitRequest()
     from river_model.tools import tool_river_init
 
-    kwargs = payload.model_dump()
+    kwargs = payload.model_dump(exclude_none=True)
     if kwargs["auto_detect"]:
         if session.df is None or len(session.df) == 0:
             raise HTTPException(400, "自动检测模式需要先加载走航数据")
@@ -127,11 +148,7 @@ def init_model(payload: InitRequest | None = None,
 @router.post("/hydro")
 def hydro(payload: HydroRequest | None = None,
           session: Session = Depends(get_exclusive_session)) -> dict:
-    """运行水动力模拟。
-
-    默认 `tidal_amplitude_m=0`（恒定流情景）。若要跑潮汐工况，
-    需显式传入非零值，并留意返回的局限说明。
-    """
+    """运行恒定流情景。当前请求模型拒绝非零潮汐振幅。"""
     payload = payload or HydroRequest()
     from river_model.tools import tool_river_hydro_simulation
 

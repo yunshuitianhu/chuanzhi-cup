@@ -1,10 +1,7 @@
-"""河道一维水动力-水质混合模型 (1D Hydrodynamic + Water Quality Model).
+"""通用河段的一维简化恒定流、水质输移反应与实验性单源反演。"""
 
-支持自动参数检测模式, 可从任意河道的走航监测数据自动推断所有参数。
-"""
-
-from .config import YayaoConfig, DEFAULT_CONFIG
-from .cross_sections import CrossSection, generate_yayao_cross_sections
+from .config import RiverConfig, YayaoConfig, DEFAULT_CONFIG
+from .cross_sections import CrossSection, generate_cross_sections, generate_yayao_cross_sections
 from .state import RiverModelState
 from .parameter_estimator import (
     RiverParameterEstimator,
@@ -14,9 +11,11 @@ from .parameter_estimator import (
 
 __all__ = [
     "YayaoConfig",
+    "RiverConfig",
     "DEFAULT_CONFIG",
     "CrossSection",
     "generate_yayao_cross_sections",
+    "generate_cross_sections",
     "RiverModelState",
     "RiverParameterEstimator",
     "estimate_config_from_data",

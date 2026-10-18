@@ -11,11 +11,11 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from river_model.config import YayaoConfig
 from river_model.cross_sections import generate_yayao_cross_sections
-from river_model.hecras_bridge import (
+from research.legacy_hecras.hecras_bridge import (
     _build_project_file, _build_geometry_file, _build_unsteady_flow_file,
     _build_plan_file, _build_f01_file, run_hecras_simulation,
 )

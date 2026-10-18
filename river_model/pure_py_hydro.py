@@ -15,7 +15,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from .config import YayaoConfig
+from .config import RiverConfig
 from .cross_sections import CrossSection
 from .state import HydroResult
 
@@ -23,10 +23,14 @@ from .state import HydroResult
 # ---- 几何预处理 ----
 
 def _build_geo_lookup(cs: CrossSection,
-                      z_min: float = -5.0,
-                      z_max: float = 5.0,
+                      z_min: float = None,
+                      z_max: float = None,
                       n_steps: int = 200) -> dict:
     """为单个断面建立几何属性插值表 A(Z), B(Z), K(Z)。"""
+    if z_min is None:
+        z_min = cs.bottom_elevation
+    if z_max is None:
+        z_max = float(np.max(cs.stations[:,1])) + 1.
     z_array = np.linspace(z_min, z_max, n_steps)
     A = np.array([cs.flow_area(float(z)) for z in z_array])
     B = np.array([cs.top_width(float(z)) for z in z_array])
@@ -42,6 +46,9 @@ def _build_geo_lookup(cs: CrossSection,
 
 def _interp_geo(geo: dict, z: float):
     """从几何查找表中线性插值 A, B, K。"""
+    if z < geo['z'][0] or z > geo['z'][-1]:
+        cs = geo['cs']
+        return cs.flow_area(z), cs.top_width(z), cs.conveyance(z)
     idx = np.searchsorted(geo["z"], z)
     idx = max(1, min(idx, len(geo["z"]) - 1))
     z0, z1 = geo["z"][idx - 1], geo["z"][idx]
@@ -279,12 +286,12 @@ def _double_sweep(geo_list: List[dict],
 # ---- 主求解器 ----
 
 def solve_hydrodynamics(
-    config: YayaoConfig,
+    config: RiverConfig,
     cross_sections: List[CrossSection],
-    upstream_flow_m3s: float = 6.9,
-    downstream_stage_m: float = 0.83,
-    tidal_amplitude_m: float = 0.8,
-    tidal_period_h: float = 12.42,
+    upstream_flow_m3s: float = None,
+    downstream_stage_m: float = None,
+    tidal_amplitude_m: float = 0.0,
+    tidal_period_h: float = None,
     duration_h: float = 24.0,
     dt_s: float = 60.0,
     output_interval_min: float = 30.0,
@@ -305,6 +312,9 @@ def solve_hydrodynamics(
     Returns:
         HydroResult 包含水位/流量/流速时间序列
     """
+    upstream_flow_m3s = config.avg_discharge_m3s if upstream_flow_m3s is None else upstream_flow_m3s
+    downstream_stage_m = config.high_water_mean_m if downstream_stage_m is None else downstream_stage_m
+    tidal_period_h = config.m2_period_h if tidal_period_h is None else tidal_period_h
     n_cs = len(cross_sections)
     phi = config.preissmann_phi
     theta = config.preissmann_theta
@@ -329,21 +339,31 @@ def solve_hydrodynamics(
     Z[-1] = downstream_stage_m
     Q[-1] = upstream_flow_m3s
     for j in range(n_cs - 2, -1, -1):
-        _, _, K_j = _interp_geo(geo_list[j], Z[j + 1])
-        dx = dx_array[j]
-        # 简化的回水方程: ΔZ = Sf * dx (subcritical, 从下游向上游积分)
-        if K_j > 1e-6:
-            Sf = Q[j + 1] * abs(Q[j + 1]) / (K_j * K_j)
-            Z[j] = Z[j + 1] + Sf * dx
+        # 与本求解器动量方程的中点输水系数一致，避免欧拉初值自行漂移。
+        if upstream_flow_m3s > 0:
+            from scipy.optimize import brentq
+            _, _, k_down = _interp_geo(geo_list[j+1], Z[j+1])
+            def equilibrium(stage):
+                _, _, k_up = _interp_geo(geo_list[j], stage)
+                k_mid = max((k_up+k_down)/2, 1e-6)
+                return stage-Z[j+1]-dx_array[j]*upstream_flow_m3s**2/k_mid**2
+            lower = Z[j+1]
+            upper = lower + max(1., config.depth_avg_m)
+            for _ in range(30):
+                if equilibrium(upper) >= 0:
+                    break
+                upper = lower + 2*(upper-lower)
+            Z[j] = brentq(equilibrium, lower, upper, xtol=1e-10)
         else:
             Z[j] = Z[j + 1]
         Q[j] = upstream_flow_m3s
 
     # ---- 时间推进 ----
     T_tide = tidal_period_h * 3600.0
-    total_steps = int(duration_h * 3600.0 / dt_s)
-    output_steps = int(output_interval_min * 60.0 / dt_s)
-    n_outputs = total_steps // output_steps + 1
+    total_seconds = duration_h * 3600.0
+    total_steps = int(np.ceil(total_seconds / dt_s))
+    output_steps = max(1, int(output_interval_min * 60.0 / dt_s))
+    n_outputs = int(np.ceil(total_steps / output_steps)) + 1
 
     # 存储输出
     t_out = np.zeros(n_outputs)
@@ -364,7 +384,8 @@ def solve_hydrodynamics(
     out_idx = 1
 
     for step in range(1, total_steps + 1):
-        t_current = step * dt_s
+        t_current = min(step * dt_s, total_seconds)
+        step_dt = t_current - (step - 1)*dt_s
 
         # ---- 边界条件 ----
         bc_up_type = "discharge"
@@ -390,7 +411,7 @@ def solve_hydrodynamics(
             bc_dn_dz = bc_stage_target - Z[-1]
             dZ, dQ = _double_sweep(
                 geo_list, Z, Q, dx_array,
-                dt_s, phi, theta,
+                step_dt, phi, theta,
                 bc_up_type, bc_up_value,
                 bc_dn_type, bc_stage_target,
                 bc_up_dz=bc_up_dz,
@@ -426,7 +447,7 @@ def solve_hydrodynamics(
             Q = Q_save
 
         # ---- 输出 ----
-        if step % output_steps == 0 and out_idx < n_outputs:
+        if (step % output_steps == 0 or step == total_steps) and out_idx < n_outputs:
             t_out[out_idx] = t_current / 3600.0  # 转换为小时
             Z_out[out_idx, :] = Z
             Q_out[out_idx, :] = Q
@@ -438,7 +459,7 @@ def solve_hydrodynamics(
 
     # 如果最后一个输出不在整步上, 追加上去
     if out_idx < n_outputs:
-        t_out[out_idx] = total_steps * dt_s / 3600.0
+        t_out[out_idx] = duration_h
         Z_out[out_idx, :] = Z
         Q_out[out_idx, :] = Q
         for j in range(n_cs):

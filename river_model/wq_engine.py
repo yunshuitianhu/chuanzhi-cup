@@ -24,7 +24,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-from .config import YayaoConfig
+from .config import RiverConfig
 from .state import HydroResult, WQResult
 from .transport import geometry, conservative_step
 
@@ -76,8 +76,8 @@ def _fischer_dispersion(u_ms: np.ndarray, B_m: np.ndarray,
     if n_hi or n_lo:
         logger.warning(
             "离散系数触及截断边界（上限 %g / 下限 %g）：%d 个断面撞上限、"
-            "%d 个撞下限。原始值范围 %.1f~%.1f。截断会压低扩散 —— "
-            "若上游河道参数（河宽/流速）无误，应上调 _K_CLIP_HI 而不是接受这个结果。",
+            "%d 个撞下限。原始值范围 %.1f~%.1f。上限可能压低、下限可能放大扩散；"
+            "请核查几何和流速并率定弥散系数，不能将截断值当作实测参数。",
             _K_CLIP_HI, _K_CLIP_LO, n_hi, n_lo, float(np.min(K)), float(np.max(K)))
     return np.clip(K, _K_CLIP_LO, _K_CLIP_HI)
 
@@ -192,11 +192,11 @@ def _reaction_step(cbod: np.ndarray, nh3: np.ndarray, do_: np.ndarray,
 # ---- 主求解器 ----
 
 def solve_water_quality(
-    config: YayaoConfig,
+    config: RiverConfig,
     hydro: HydroResult,
     pollutant_type: str = "ammonia",
     load_kg: float = 50.0,
-    chainage_m: float = 1600.0,
+    chainage_m: Optional[float] = None,
     duration_min: float = 30.0,
     simulation_hours: float = 24.0,
     dt_s: float = 60.0,
@@ -224,6 +224,8 @@ def solve_water_quality(
     """
     if pollutant_type not in ('ammonia', 'cbod'):
         raise ValueError('仅支持独立实现的 ammonia/cbod 组分')
+    if chainage_m is None:
+        chainage_m = float((hydro.chainage[0] + hydro.chainage[-1]) / 2)
     if (hydro.params.get('engine') == 'pure_python_preissmann'
             and hydro.params.get('tidal_amplitude_m', 0)):
         raise ValueError('当前纯 Python 潮汐水动力未通过水量守恒验收，不能用于水质计算')
@@ -420,6 +422,11 @@ def solve_water_quality(
             "max_transport_stability": max_stability,
             "reaction_model": {
                 "version": "oxygen_limited_nitrification_v1",
+                "k_cbod_decay_per_day": K_d,
+                "k_nitrification_per_day": beta1,
+                "sediment_oxygen_demand_g_m2_day": SOD,
+                "water_temperature_C": T_C,
+                "do_saturation_mgL": O_sat,
                 "oxygen_per_nitrified_n": config.oxygen_per_nitrified_n,
                 "oxygen_half_sat_nitrification_mgL": config.oxygen_half_sat_nitrification,
                 "oxygen_half_sat_cbod_mgL": config.oxygen_half_sat_cbod,

@@ -1,4 +1,4 @@
-"""雅瑶水道断面几何生成。
+"""通用河段断面几何生成。
 
 基于建模报告中的断面参数，生成梯形断面序列。
 断面上游至下游分布，间距 ~64m (3.2km / 50断面)。
@@ -44,29 +44,31 @@ class CrossSection:
         return A / P if P > 1e-6 else 0.0
 
     def flow_area(self, water_level: float) -> float:
-        """梯形积分计算过水面积。"""
-        s = self.stations
-        depth = np.maximum(0.0, water_level - s[:, 1])
-        # 梯形积分: sum of (depth[i] + depth[i+1]) / 2 * dx[i]
-        dx = np.diff(s[:, 0])
-        area = np.sum((depth[:-1] + depth[1:]) / 2.0 * dx)
+        """分段线性断面精确湿面积；部分淹没岸坡必须截取水面交点。"""
+        depth = np.maximum(0., water_level - self.stations[:, 1])
+        area = np.sum((depth[:-1] + depth[1:]) / 2 * np.diff(self.stations[:, 0])
+                      * self._wet_fraction(water_level))
         return float(area)
+
+    def _wet_fraction(self, water_level):
+        d = water_level - self.stations[:, 1]
+        denominator = np.abs(np.diff(d))
+        return np.where((d[:-1] >= 0) & (d[1:] >= 0), 1.,
+            np.divide(np.maximum(d[:-1], d[1:]).clip(0), denominator,
+                      out=np.zeros_like(denominator), where=denominator > 0).clip(0, 1))
 
     def wetted_perimeter(self, water_level: float) -> float:
         """湿周 (近似)。"""
-        width = self.top_width(water_level)
-        depth = water_level - self.bottom_elevation
-        return float(width + 2.0 * max(0.0, depth))
+        if water_level <= self.bottom_elevation:
+            return 0.
+        lengths = np.sqrt(np.sum(np.diff(self.stations, axis=0)**2, axis=1))
+        return float(np.sum(lengths * self._wet_fraction(water_level)))
 
     def top_width(self, water_level: float) -> float:
         """水面宽度。"""
-        s = self.stations
-        wet = water_level > s[:, 1]
-        if wet.sum() < 2:
-            return 0.0
-        left_idx = np.argmax(wet)
-        right_idx = len(wet) - 1 - np.argmax(wet[::-1])
-        return float(s[right_idx, 0] - s[left_idx, 0])
+        if water_level <= self.bottom_elevation:
+            return 0.
+        return float(np.sum(np.diff(self.stations[:, 0]) * self._wet_fraction(water_level)))
 
     def conveyance(self, water_level: float) -> float:
         """计算 K = A * R^(2/3) / n。"""
@@ -77,17 +79,17 @@ class CrossSection:
         return float(A * R ** (2.0 / 3.0) / self.mannings_n_channel)
 
 
-def generate_yayao_cross_sections(
+def generate_cross_sections(
     n_total: int = 50,
-    channel_length_m: float = 3200.0,
-    bed_elevation_avg_m: float = -2.0,
+    channel_length_m: float = 1000.0,
+    bed_elevation_avg_m: float = 0.0,
     bed_slope: float = 0.0001,
-    bottom_width_m: float = 40.0,
-    bank_elevation_m: float = 1.5,
+    bottom_width_m: float = 22.0,
+    bank_elevation_m: float = 5.0,
     side_slope: float = 2.0,       # 水平:垂直 = 2:1
     mannings_n: float = 0.028,
 ) -> List[CrossSection]:
-    """生成雅瑶水道理想化梯形断面序列。
+    """生成用户指定河段的理想梯形断面序列。
 
     河底沿流向下降：上游 (桩号 0) 高程为 bed + slope·L/2，
     下游 (桩号 L) 为 bed - slope·L/2，两端相对平均高程对称。
@@ -142,3 +144,7 @@ def generate_yayao_cross_sections(
         ))
 
     return sections
+
+
+# 旧工具导入兼容；新代码使用通用名称。
+generate_yayao_cross_sections = generate_cross_sections

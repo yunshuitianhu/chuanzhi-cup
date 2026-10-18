@@ -7,10 +7,10 @@ from tempfile import TemporaryDirectory
 import h5py
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from river_model.config import YayaoConfig
 from river_model.cross_sections import generate_yayao_cross_sections
-from river_model.hecras_bridge import _build_plan_file, _build_unsteady_flow_file, _extract_hecras_results
+from research.legacy_hecras.hecras_bridge import _build_plan_file, _build_unsteady_flow_file, _extract_hecras_results
 
 
 class HecIoTests(unittest.TestCase):

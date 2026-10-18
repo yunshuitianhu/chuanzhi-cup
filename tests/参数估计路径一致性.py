@@ -110,8 +110,8 @@ print()
 check("两条路径参数完全一致", not mismatch, f"不一致项: {mismatch}" if mismatch else "6 项全部一致")
 check("识别出已知河道", c1.river_name == c2.river_name == "北江",
       f"data={c1.river_name!r} gps={c2.river_name!r}")
-check("命中已知库时置信度为高值",
-      c2.param_confidence.get("mannings_n", 0) >= 0.8,
+check("地名命中不等于糙率已率定",
+      c2.param_confidence.get("mannings_n", 0) < 0.8,
       f"mannings_n 置信度 = {c2.param_confidence.get('mannings_n')}")
 
 # ---------- 场景 2：落在所有已知河道 bbox 之外 ----------
@@ -128,8 +128,11 @@ check("未知河道时两路径仍一致",
       all(abs(getattr(c3, f) - getattr(c4, f)) < 1e-6
           for f in COMPARE_FIELDS if isinstance(getattr(c3, f), (int, float))),
       "数值型字段全部一致")
-check("未知河道时流量走占位值分支", abs(c3.avg_discharge_m3s - 3.3) < 0.1,
-      f"discharge={c3.avg_discharge_m3s}（estimate_discharge(122.8)≈3.34）")
+area = c3.width_avg_m * c3.depth_avg_m
+radius = area / (c3.width_avg_m + 2*c3.depth_avg_m)
+expected_flow = area * radius**(2/3) * np.sqrt(c3.longitudinal_slope) / c3.mannings_n
+check("未知河道流量由本河段几何估计", abs(c3.avg_discharge_m3s-expected_flow) < max(.2,.01*expected_flow),
+      f"flow={c3.avg_discharge_m3s}, independent Manning={expected_flow}")
 
 # ---------- param_sources 完整性 ----------
 print()
@@ -144,8 +147,8 @@ for label, cfg in (("数据路径", c1), ("GPS 路径", c2)):
     check(f"{label} param_confidence 键完整", not miss_c, f"缺失 {miss_c}" if miss_c else "9 项齐全")
 
 # 命中已知库时来源标签不应再写死为区域默认值
-check("命中已知库时来源标签正确",
-      c2.param_sources.get("mannings_n") == "known_river_database",
+check("地名识别不自动套用参考物理参数",
+      c2.param_sources.get("mannings_n") != "known_river_database",
       f"mannings_n 来源 = {c2.param_sources.get('mannings_n')!r}")
 
 print()

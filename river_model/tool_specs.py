@@ -14,6 +14,7 @@ RIVER_TOOL_SPECS = [
         'n_cross_sections': {'type': 'integer', 'minimum': 3, 'maximum': 100},
         'mannings_n': {'type': 'number', 'exclusiveMinimum': 0, 'maximum': 0.2},
         'auto_detect': {'type': 'boolean'},
+        'parameters': {'type': 'object', 'description': '手工河段参数：length_m、width_avg_m、depth_avg_m、mannings_n、longitudinal_slope、avg_discharge_m3s、bed_elevation_avg_m、high_water_mean_m、river_name、location、ammonia_nh3_mgL、dissolved_oxygen_mgL、bod_cbod_mgL；均为情景输入，须核实'},
     }),
     _spec('run_hydrodynamic_simulation',
           '运行已初始化模型的恒定流模拟。潮汐求解器尚未通过质量守恒验收，不得用于报告。', {

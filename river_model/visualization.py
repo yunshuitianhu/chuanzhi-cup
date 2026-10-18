@@ -8,7 +8,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .config import YayaoConfig
+from .config import RiverConfig
 from .state import HydroResult, WQResult
 
 # 中文字体
@@ -24,7 +24,7 @@ def _fp():
 
 # ---- 水动力可视化 ----
 
-def plot_water_level_profile(hydro: HydroResult, config: YayaoConfig,
+def plot_water_level_profile(hydro: HydroResult, config: RiverConfig,
                               output_path: str = "river_hydro_profile.png",
                               time_indices: Optional[list] = None):
     """纵剖面水位线 (指定时刻)。"""
@@ -39,8 +39,8 @@ def plot_water_level_profile(hydro: HydroResult, config: YayaoConfig,
         ax.plot(hydro.chainage, hydro.water_level[idx, :],
                 color=c, linewidth=1.5, label=f"t = {hydro.t[idx]:.1f} h")
     ax.set_xlabel("桩号 (m)", fontproperties=_fp())
-    ax.set_ylabel("水位 (m, 1985高程)", fontproperties=_fp())
-    ax.set_title("雅瑶水道 — 沿程水位剖面", fontproperties=_fp(), fontsize=13)
+    ax.set_ylabel("水位 (m, 同一高程基准)", fontproperties=_fp())
+    ax.set_title(f"{config.river_name} — 沿程水位剖面", fontproperties=_fp(), fontsize=13)
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -63,7 +63,7 @@ def plot_discharge_profile(hydro: HydroResult, output_path: str = "river_dischar
                 color=c, linewidth=1.5, label=f"t = {hydro.t[idx]:.1f} h")
     ax.set_xlabel("桩号 (m)", fontproperties=_fp())
     ax.set_ylabel("流量 (m$^3$/s)", fontproperties=_fp())
-    ax.set_title("雅瑶水道 — 沿程流量剖面", fontproperties=_fp(), fontsize=13)
+    ax.set_title("河段沿程流量剖面", fontproperties=_fp(), fontsize=13)
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -82,7 +82,7 @@ def plot_velocity_timeseries(hydro: HydroResult, section_ids: list,
                 label=f"桩号 {ch:.0f}m")
     ax.set_xlabel("时间 (h)", fontproperties=_fp())
     ax.set_ylabel("流速 (m/s)", fontproperties=_fp())
-    ax.set_title("雅瑶水道 — 流速过程线", fontproperties=_fp(), fontsize=13)
+    ax.set_title("河段流速过程线", fontproperties=_fp(), fontsize=13)
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -94,7 +94,7 @@ def plot_velocity_timeseries(hydro: HydroResult, section_ids: list,
 
 def plot_concentration_contour(wq: WQResult, constituent: str = "ammonia",
                                 output_path: str = "river_wq_contour.png",
-                                config: Optional[YayaoConfig] = None):
+                                config: Optional[RiverConfig] = None):
     """浓度 x-t 等值线图。"""
     if constituent == "ammonia":
         data = wq.ammonia
@@ -127,7 +127,7 @@ def plot_concentration_contour(wq: WQResult, constituent: str = "ammonia",
 
     ax.set_xlabel("桩号 (m)", fontproperties=_fp())
     ax.set_ylabel("时间 (h)", fontproperties=_fp())
-    ax.set_title(f"雅瑶水道 — {label} 时空分布", fontproperties=_fp(), fontsize=13)
+    ax.set_title(f"{config.river_name if config else '当前河段'} — {label} 时空分布", fontproperties=_fp(), fontsize=13)
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)
     plt.close(fig)
@@ -136,7 +136,7 @@ def plot_concentration_contour(wq: WQResult, constituent: str = "ammonia",
 def plot_concentration_profile(wq: WQResult, time_h: float,
                                 constituent: str = "ammonia",
                                 output_path: str = "river_wq_profile.png",
-                                config: Optional[YayaoConfig] = None):
+                                config: Optional[RiverConfig] = None):
     """指定时刻的沿程浓度剖面。"""
     if constituent == "ammonia":
         data = wq.ammonia
@@ -171,7 +171,7 @@ def plot_concentration_profile(wq: WQResult, time_h: float,
 
     ax.set_xlabel("桩号 (m)", fontproperties=_fp())
     ax.set_ylabel(ylabel, fontproperties=_fp())
-    ax.set_title(f"雅瑶水道 — t={wq.t[t_idx]:.1f}h {ylabel}沿程剖面", fontproperties=_fp(), fontsize=13)
+    ax.set_title(f"{config.river_name if config else '当前河段'} — t={wq.t[t_idx]:.1f}h {ylabel}沿程剖面", fontproperties=_fp(), fontsize=13)
     ax.legend(fontsize=9, prop=_fp())
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -209,7 +209,7 @@ def plot_concentration_timeseries(wq: WQResult, section_ids: list,
     ax.axhline(y=std_val, color='r', linestyle='--', alpha=0.7)
     ax.set_xlabel("时间 (h)", fontproperties=_fp())
     ax.set_ylabel(ylabel, fontproperties=_fp())
-    ax.set_title(f"雅瑶水道 — {ylabel} 浓度过程线", fontproperties=_fp(), fontsize=13)
+    ax.set_title(f"当前河段 — {ylabel} 浓度过程线", fontproperties=_fp(), fontsize=13)
     ax.legend(fontsize=8, prop=_fp())
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -219,7 +219,7 @@ def plot_concentration_timeseries(wq: WQResult, section_ids: list,
 
 def plot_hydro_wq_dashboard(hydro: HydroResult, wq: WQResult,
                              output_path: str = "river_dashboard.png",
-                             config: Optional[YayaoConfig] = None):
+                             config: Optional[RiverConfig] = None):
     """四面板仪表盘: 水位剖面 + 浓度等值线 + DO剖面 + 氨氮过程线。"""
     fig, axes = plt.subplots(2, 2, figsize=(16, 11))
 
@@ -274,7 +274,7 @@ def plot_hydro_wq_dashboard(hydro: HydroResult, wq: WQResult,
     axes[1, 1].legend(fontsize=7, prop=_fp())
     axes[1, 1].grid(True, alpha=0.3)
 
-    fig.suptitle("雅瑶水道 水动力-水质模拟仪表盘",
+    fig.suptitle(f"{config.river_name if config else '当前河段'} 水动力-水质模拟仪表盘",
                  fontproperties=_fp(), fontsize=15, y=0.98)
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)

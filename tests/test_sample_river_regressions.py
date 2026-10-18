@@ -18,7 +18,7 @@ from river_model import tools
 
 class ArrivalRegressionTests(unittest.TestCase):
     def simulate(self, downstream):
-        state = RiverModelState(hydro_result=SimpleNamespace(params={}))
+        state = RiverModelState(hydro_result=SimpleNamespace(params={}, chainage=np.array([0., 50., 100.])))
         data = np.column_stack([np.ones(3)*2, np.ones(3)*2, downstream])
         result = WQResult(t=np.array([0., .25, .5]), chainage=np.array([0., 50., 100.]), ammonia=data)
         with ExitStack() as stack:
