@@ -51,7 +51,9 @@ const METRICS = [
   ['氨氮峰值(mg/L)', '氨氮峰值 mg/L'],
   ['溶解氧最低(mg/L)', '溶解氧最低 mg/L'],
   ['增强评分最高', '增强评分最高'],
-  ['时空增强识别的额外黑点', '时空额外发现'],
+  ['非黑臭指数异常点数', '指数线索（非黑臭）'],
+  ['有效判定点数', '有效筛查点'],
+  ['未判定点数', '缺测未判定'],
 ]
 </script>
 
@@ -67,6 +69,8 @@ const METRICS = [
     <p v-if="res['判定标准']" class="std">
       判定标准：{{ res['判定标准']['污染指数'] }} ｜ {{ res['判定标准']['黑臭判定'] }}
     </p>
+    <p v-if="res['筛查口径']" class="std">{{res['筛查口径']}}</p>
+    <p v-if="res['聚类提示']" class="std warn">{{res['聚类提示']}}</p>
     <p v-if="res['缺失指标'] && res['缺失指标'].length" class="std warn">
       缺失指标：{{ res['缺失指标'].join('、') }} ——
       黑臭判定仅基于氨氮与溶解氧两项，结果存在局限，此处如实标注。
@@ -87,7 +91,7 @@ const METRICS = [
         <div class="c-body">
           <span>点位 {{ c.count }} 个</span>
           <span>跨度 {{ c['空间跨度_m'] }} m</span>
-          <span>持续 {{ c['持续超标时长_min'] }} min</span>
+          <span>首末观测跨度 {{ c['首末观测跨度_min'] ?? c['持续超标时长_min'] }} min</span>
           <span v-if="c['趋势']">趋势 {{ c['趋势'] }}</span>
         </div>
         <div v-if="c['指标统计']" class="c-stat">

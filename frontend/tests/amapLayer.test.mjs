@@ -116,3 +116,27 @@ test('没有模拟结果时播放器显示操作入口，不呈现伪造扩散',
   assert.match(html,/href="\/river"/)
   assert.doesNotMatch(html,/aria-label="污染扩散时间轴"/)
 })
+
+test('恢复旧检测结果时地图提示重新计算，当前结果不显示更新提示',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:TraceMap}=await server.ssrLoadModule('/src/components/TraceMap.vue')
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  for(const outdated of [true,false]) {
+    const pinia=createPinia(),store=useSessionStore(pinia)
+    store.status.detection_outdated=outdated
+    const app=createSSRApp(TraceMap);app.use(pinia)
+    const html=await renderToString(app)
+    if(outdated) assert.match(html,/更新检测/)
+    else assert.doesNotMatch(html,/更新检测/)
+  }
+})
+
+test('检测面板将非黑臭指数线索和观测跨度明确显示',async()=>{
+  const {default:Result}=await server.ssrLoadModule('/src/components/BlackSpotResult.vue')
+  const html=await renderToString(createSSRApp(Result,{data:{result:{
+    '非黑臭指数异常点数':4,'聚类详情':[{cluster_id:0,count:6,'首末观测跨度_min':60}],
+  }}}))
+  assert.match(html,/指数线索（非黑臭）/)
+  assert.match(html,/首末观测跨度 60 min/)
+  assert.doesNotMatch(html,/时空额外发现|持续 60 min/)
+})

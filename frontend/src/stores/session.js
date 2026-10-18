@@ -179,6 +179,7 @@ export const useSessionStore = defineStore('session', {
     async runBlackSpots() {
       return this._run(async () => {
         this.blackSpots = await api.blackSpots()
+        this.comprehensive = null
         await this.refreshStatus()
         return this.blackSpots
       })

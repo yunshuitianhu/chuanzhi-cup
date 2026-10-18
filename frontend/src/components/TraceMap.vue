@@ -44,6 +44,10 @@ const sampleRows = computed(() => sampleMetrics.map(([key,label,unit])=>({key,la
 const sourceNames = {starcloud:'星图卫星影像', amap:'高德街道图', esri:'Esri 卫星图', osm:'OSM 街道图'}
 const sourceMaxZoom = source => source === 'amap' ? 17 : source === 'starcloud' ? 18 : 19
 
+async function refreshDetection() {
+  try {await store.runBlackSpots()} catch(e) {toastErr(`检测更新失败：${e.message}`)}
+}
+
 function updateFullscreen() { fullscreen.value = document.fullscreenElement === wrapper.value }
 async function toggleFullscreen() {
   try {
@@ -180,7 +184,7 @@ function render(fit = false) {
       `<b>热点 ${c.id} — ${c.grade}</b><br>`
       + `采样点：${c.count} 个<br>`
       + `时空增强评分均值：${c.avg_score}<br>`
-      + `影响半径：${Math.round(c.radius_m)} m<br>`
+      + `聚类显示半径：${Math.round(c.radius_m)} m<br>`
       + `时间：${c.time_range[0].slice(11, 19)} ~ ${c.time_range[1].slice(11, 19)}<br>`
       + `氨氮均值：${c.ammonia_mean ?? '—'} mg/L<br>`
       + `DO 均值：${c.do_mean ?? '—'} mg/L`,
@@ -247,7 +251,7 @@ onBeforeUnmount(() => {
   map?.remove(); map = null; layerGroup = null
 })
 
-watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision], load)
+watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision, store.status.detection_algorithm_version], load)
 watch([showHeat, showClusters, showTop5, showTrack, heatRadius, heatOpacity], () => render())
 watch(selectedId,()=>render())
 watch(()=>props.simulation,load)
@@ -260,6 +264,9 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
 
 <template>
   <div ref="wrapper" class="wrap">
+    <p v-if="!simulation && store.status.detection_outdated" class="map-warning">已有热点使用旧算法，请更新检测以重新计算热点与排序。
+      <button type="button" :disabled="store.loading || store.chatRunning" @click="refreshDetection">更新检测</button>
+    </p>
     <div class="basemap-options">
       <label>地图底图
         <select :value="provider" @change="selectSource($event.target.value)">
