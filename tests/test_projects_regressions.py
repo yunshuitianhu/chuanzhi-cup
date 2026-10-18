@@ -119,6 +119,21 @@ class CodecTests(unittest.TestCase):
             entries['manifest.json']=json.dumps(m).encode()
         with self.assertRaises(ProjectError):load_project(rewrite_package(raw,mutate))
 
+    def test_rejects_invalid_ui_and_model_metadata_before_activation(self):
+        for key in ('ui','params'):
+            s=sample_session()
+            if key=='ui':s.analysis_steps={'bad':np.ones(2)}
+            else:s.river_state.hydro_result.params=['not a mapping']
+            with self.assertRaises(ProjectError):load_project(dump_project(s,'无效元数据'))
+
+    def test_rejects_nonstandard_json_constants(self):
+        raw=dump_project(sample_session(),'项目')
+        def mutate(entries):
+            manifest=json.loads(entries['manifest.json']);manifest['runtime']['invalid']=float('nan')
+            entries['manifest.json']=json.dumps(manifest).encode()
+        with self.assertRaisesRegex(ProjectError,'非标准数值'):
+            load_project(rewrite_package(raw,mutate))
+
 
 class ProjectApiTests(unittest.TestCase):
     def setUp(self):

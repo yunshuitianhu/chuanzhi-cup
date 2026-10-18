@@ -1,5 +1,5 @@
 """可迁移项目包：JSON元数据及无pickle的NumPy数组；只恢复已知数据类型。"""
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from io import BytesIO
@@ -35,6 +35,12 @@ class ProjectError(ValueError):
 
 def _json(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
+
+
+def _read_json(raw):
+    def nonfinite(_):
+        raise ProjectError('项目JSON包含非标准数值')
+    return json.loads(raw,parse_constant=nonfinite)
 
 
 def _scrubber():
@@ -152,7 +158,7 @@ def load_project(raw):
                 raise ProjectError('项目包文件数、重复名称或展开大小不合法')
             if 'manifest.json' not in names or archive.getinfo('manifest.json').file_size>1024**2:
                 raise ProjectError('缺少有效项目清单')
-            manifest=json.loads(archive.read('manifest.json'))
+            manifest=_read_json(archive.read('manifest.json'))
             if manifest.get('format')!='water-quality-project' or manifest.get('schema_version')!=1:
                 raise ProjectError('不支持的项目格式或版本')
             contents=manifest['contents']
@@ -224,7 +230,7 @@ def load_project(raw):
                 return cls(**{k:child(v) for k,v in value['fields'].items()})
             raise ProjectError('项目包含未知的数据类型')
 
-        state=unpack(json.loads(entries['state.json']))
+        state=unpack(_read_json(entries['state.json']))
         if not isinstance(state,dict) or set(state)!=set(STATE_FIELDS):
             raise ProjectError('项目状态字段不完整')
         _validate_state(state)
@@ -234,11 +240,28 @@ def load_project(raw):
         return ProjectSnapshot(name,state,{PurePosixPath(k).name:v for k,v in entries.items() if k.startswith('artifacts/')})
     except ProjectError:
         raise
-    except (ValueError,TypeError,KeyError,IndexError,OverflowError,zipfile.BadZipFile,RuntimeError,EOFError,OSError,zlib.error,RecursionError) as exc:
+    except (ValueError,TypeError,KeyError,IndexError,AttributeError,OverflowError,zipfile.BadZipFile,RuntimeError,EOFError,OSError,zlib.error,RecursionError) as exc:
         raise ProjectError('项目包损坏或数据结构不兼容') from exc
 
 
 def _validate_state(state):
+    for key in ('data_filename','video_filename','analysis_status'):
+        if not isinstance(state[key],str):
+            raise ProjectError('项目文本字段无效')
+    if type(state['analysis_done']) is not bool or type(state['analysis_revision']) is not int or state['analysis_revision']<0:
+        raise ProjectError('项目运行状态无效')
+    for key in ('black_spots_json','comprehensive_summary'):
+        if state[key] is not None and not isinstance(state[key],str):
+            raise ProjectError('项目摘要字段无效')
+    for key in ('cross_validation','national_station_result'):
+        if state[key] is not None and not isinstance(state[key],dict):
+            raise ProjectError('项目证据字段无效')
+    for key in ('river_ui','captions','tool_evidence','analysis_steps'):
+        if not isinstance(state[key],dict):
+            raise ProjectError('项目界面状态无效')
+    for key in ('river_ui','captions','tool_evidence','analysis_steps','cross_validation',
+                'national_station_result','messages','full_messages','video_frames'):
+        _json(state[key])  # 供HTTP返回的字段不能包含非有限数或隐藏的数组/对象节点。
     if state['target_water_class'] not in ('I','II','III','IV','V'):
         raise ProjectError('项目水质等级无效')
     for key in ('df','black_spots'):
@@ -258,8 +281,12 @@ def _validate_state(state):
     if not isinstance(model,RiverModelState) or not isinstance(model.config,RiverConfig):
         raise ProjectError('河道状态类型无效')
     cfg=model.config
+    _json(asdict(cfg))
+    _json(model.scenarios)
     for field in fields(cfg):
         number=getattr(cfg,field.name)
+        if not isinstance(number,(str,float,int,tuple,dict,type(None))):
+            raise ProjectError('河道参数类型无效')
         if isinstance(number,(float,int)) and not np.isfinite(number):
             raise ProjectError('河道参数包含非有限数')
     for key,lo,hi in (('length_m',10,100000),('width_avg_m',.5,5000),('depth_avg_m',.1,100),
@@ -280,11 +307,16 @@ def _validate_state(state):
             continue
         if not isinstance(result,(HydroResult,WQResult)):
             raise ProjectError('模型结果类型无效')
+        if not isinstance(result.params,dict):
+            raise ProjectError('模型元数据无效')
+        _json(result.params)
         for axis in (result.t,result.chainage):
             if not isinstance(axis,np.ndarray) or axis.ndim!=1 or not len(axis) or not np.isfinite(axis).all() or np.any(np.diff(axis)<=0) or axis[0]<0:
                 raise ProjectError('模型时间或桩号轴无效')
         for f in fields(result):
             array=getattr(result,f.name)
+            if isinstance(result,HydroResult) and f.name not in ('t','chainage','params') and array is None:
+                raise ProjectError('水动力结果缺少必需数组')
             if f.name not in ('t','chainage','params') and array is not None:
                 if not isinstance(array,np.ndarray) or array.shape!=(len(result.t),len(result.chainage)) or not np.isfinite(array).all():
                     raise ProjectError('模型结果数组尺寸或数值无效')
