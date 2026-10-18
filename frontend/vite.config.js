@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 // 开发期把 /api 代理到 FastAPI，避免跨域配置分散在两处。
@@ -8,8 +8,9 @@ import vue from '@vitejs/plugin-vue'
 // （netstat 显示有 PID，但该 PID 的进程已不存在，taskkill 也找不到），
 // 表现为「改了后端代码却没生效」—— 请求被残留套接字背后的旧实例接走了。
 // PowerShell 覆盖示例：$env:BACKEND_PORT='8003'; npm run dev
-const BACKEND_PORT = process.env.BACKEND_PORT || '8002'
-export default defineConfig({
+export default defineConfig(({mode}) => {
+  const BACKEND_PORT = loadEnv(mode, process.cwd(), 'WQ_').WQ_BACKEND_PORT || process.env.BACKEND_PORT || '8002'
+  return {
   plugins: [vue()],
   server: {
     port: 5173,
@@ -24,4 +25,5 @@ export default defineConfig({
     outDir: 'dist',
     chunkSizeWarningLimit: 1200,   // echarts 体积较大，属预期
   },
+  }
 })

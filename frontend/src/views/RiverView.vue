@@ -8,12 +8,13 @@
  * 演示与文档中不得把"潮汐模拟"作为宣传点。
  * 参数默认取 `tidal_amplitude_m = 0`（恒定流），要跑潮汐需用户显式开启。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import EChart from '../components/EChart.vue'
+import { restoreRiverWorkspace } from '../utils/projectRestore'
 
 const store = useSessionStore()
 
@@ -41,22 +42,48 @@ const form = ref({
   pollutant_type: 'ammonia',
 })
 
-onMounted(detectParams)
+let hydrating = false
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
+onMounted(async () => {
+  const workspaceRevision = store.workspaceRevision
+  hydrating = true
+  try {
+    const saved = await api.projects()
+    if (disposed || workspaceRevision !== store.workspaceRevision || store.switchingProject) return
+    store.projectState = saved
+    const restored = restoreRiverWorkspace(store.projectState,store.riverForm,form.value)
+    Object.assign(form.value,restored.form)
+    await nextTick()
+    if (disposed) return
+    initResult.value = restored.init
+    hydroResult.value = restored.hydro
+    pollutionResult.value = restored.pollution
+    store.riverForm = { ...form.value }
+    // 已配置项目优先恢复用户参数，避免自动建议覆盖另一条河流的设置。
+    if (!store.projectState.model?.initialized && !Object.keys(store.projectState.river_ui?.form || {}).length && store.status.has_data) await detectParams()
+  } catch (e) { toastErr(`项目参数恢复失败：${e.message}`) }
+  finally { hydrating = false }
+})
+watch(form, () => { store.riverForm = { ...form.value } }, { deep:true })
 watch(() => store.status.analysis_revision, () => {
   params.value = null
   initResult.value = null
   hydroResult.value = null
   pollutionResult.value = null
   busy.value = ''
+  store.riverForm = null
   detectParams()
 })
 watch(() => ['river_name','length_m','width_avg_m','depth_avg_m','longitudinal_slope',
   'bed_elevation_avg_m','mannings_n','n_cross_sections','ammonia_nh3_mgL','dissolved_oxygen_mgL',
   'bod_cbod_mgL','water_temp_C','k_nitrification','k_cbod_decay','k_sediment_oxygen_demand','do_saturation_mgL']
   .map(k => form.value[k]), () => {
+    if (hydrating) return
     initResult.value = hydroResult.value = pollutionResult.value = null
 })
 watch(() => [form.value.upstream_flow_m3s, form.value.high_water_mean_m, form.value.duration_h], () => {
+  if (hydrating) return
   hydroResult.value = pollutionResult.value = null
 })
 

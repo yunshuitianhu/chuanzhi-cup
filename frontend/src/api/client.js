@@ -55,7 +55,7 @@ class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body, isForm = false } = {}) {
+async function request(path, { method = 'GET', body, isForm = false, binary = false } = {}) {
   const headers = {}
   if (sessionId) headers['X-Session-Id'] = sessionId
   if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json'
@@ -72,6 +72,8 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
     sessionId = sid
     localStorage.setItem('wq_session_id', sid)
   }
+
+  if (binary && res.ok) return res.blob()
 
   let payload = null
   const text = await res.text()
@@ -91,6 +93,17 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
 }
 
 export const api = {
+  projects: () => request('/projects'),
+  createProject: (payload) => request('/projects', { method:'POST', body:payload }),
+  saveProject: (payload) => request('/projects/save', { method:'POST', body:payload }),
+  openProject: (id, riverForm) => request(`/projects/${id}/open`, { method:'POST', body:{river_form:riverForm} }),
+  exportProject: (id, riverForm) => request(`/projects/${id}/export`, { method:'POST', body:{river_form:riverForm}, binary:true }),
+  importProject: (file, riverForm) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('river_form', JSON.stringify(riverForm))
+    return request('/projects/import', { method:'POST', body:fd, isForm:true })
+  },
   health: () => request('/health'),
   chatHistory: () => request('/agent/history'),
   config: () => request('/config'),

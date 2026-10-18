@@ -10,6 +10,7 @@ import { useSessionStore } from './stores/session'
 import { routes } from './router'
 import StatusBadge from './components/StatusBadge.vue'
 import DataPanel from './components/DataPanel.vue'
+import ProjectPanel from './components/ProjectPanel.vue'
 import Toast from './components/Toast.vue'
 
 const store = useSessionStore()
@@ -36,6 +37,8 @@ const keySummary = computed(() => {
         <div class="brand-title">水质监测与污染溯源助手</div>
         <div class="brand-sub">AI Web 应用 · Vue 3 + FastAPI</div>
       </div>
+
+      <ProjectPanel />
 
       <section class="panel">
         <h3 class="panel-title">密钥状态</h3>
@@ -66,7 +69,7 @@ const keySummary = computed(() => {
         </p>
       </section>
 
-      <DataPanel />
+      <DataPanel :key="store.workspaceRevision" />
 
       <footer class="side-foot">
         <StatusBadge :ok="store.ready" :text="store.ready ? '后端已连接' : '后端未连接'" />
@@ -103,7 +106,7 @@ const keySummary = computed(() => {
         <div v-if="store.error" class="error-bar">
           <strong>出错了：</strong>{{ store.error }}
         </div>
-        <RouterView />
+        <RouterView v-if="store.ready && !store.switchingProject" :key="store.workspaceRevision" />
       </div>
     </main>
 

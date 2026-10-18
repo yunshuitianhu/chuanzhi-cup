@@ -14,6 +14,10 @@ export const useSessionStore = defineStore('session', {
     error: '',
     chatMessages: [],
     chatRunning: false,
+    workspaceRevision: 0,
+    switchingProject: false,
+    projectState: { projects:[], current:null, river_ui:{}, model:null, restore_error:'' },
+    riverForm: null,
 
     config: { keys: {}, target_water_class: 'V', valid_classes: [] },
     status: {
@@ -34,6 +38,60 @@ export const useSessionStore = defineStore('session', {
   },
 
   actions: {
+    async refreshProjects() {
+      this.projectState = await api.projects()
+      if (this.riverForm === null) this.riverForm = this.projectState.river_ui?.form || null
+    },
+
+    async adoptProject(state) {
+      this.switchingProject = true
+      try {
+        this.projectState = state
+        this.riverForm = state.river_ui?.form || null
+        this.preview = { columns:[], rows:[], total:0 }
+        this.blackSpots = this.crossValidation = this.comprehensive = null
+        this.chatMessages = []
+        this.config = await api.config()
+        await this.refreshStatus()
+        this.chatMessages = (await api.chatHistory()).messages
+        if (this.status.has_data) await this.refreshPreview()
+        this.workspaceRevision++
+      } catch (e) {
+        this.ready = false
+        throw e
+      } finally { this.switchingProject = false }
+    },
+
+    async createProject(name, fromCurrent) {
+      return this._run(() => this.changeProject(() => api.createProject({ name, from_current:fromCurrent, river_form:this.riverForm })))
+    },
+
+    async saveProject() {
+      return this._run(async () => { this.projectState = await api.saveProject({river_form:this.riverForm}) })
+    },
+
+    async openProject(id) {
+      return this._run(() => this.changeProject(() => api.openProject(id,this.riverForm)))
+    },
+
+    async importProject(file) {
+      return this._run(() => this.changeProject(() => api.importProject(file,this.riverForm)))
+    },
+
+    async changeProject(request) {
+      this.switchingProject = true
+      try { await this.adoptProject(await request()) }
+      finally { this.switchingProject = false }
+    },
+
+    async exportProject() {
+      return this._run(async () => {
+        const blob = await api.exportProject(this.projectState.current.id,this.riverForm)
+        await this.refreshProjects()
+        return blob
+      })
+    },
+
     async bootstrap() {
       try {
         await api.health()
@@ -41,6 +99,7 @@ export const useSessionStore = defineStore('session', {
         await this.refreshStatus()
         const history = await api.chatHistory()
         this.chatMessages = history.messages
+        await this.refreshProjects()
         this.ready = true
         if (this.status.has_data) await this.refreshPreview()
       } catch (e) {
@@ -69,6 +128,8 @@ export const useSessionStore = defineStore('session', {
         this.blackSpots = null
         this.crossValidation = null
         this.comprehensive = null
+        this.riverForm = null
+        await this.refreshProjects()
       }
       this.status = status
     },
@@ -107,6 +168,8 @@ export const useSessionStore = defineStore('session', {
           this.blackSpots = null
           this.crossValidation = null
           this.comprehensive = null
+          this.riverForm = null
+          await this.refreshProjects()
         }
         await this.refreshStatus()
         return res
