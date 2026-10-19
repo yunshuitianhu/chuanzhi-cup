@@ -17,10 +17,10 @@ import json
 import logging
 import os
 import re
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+if TYPE_CHECKING:
+    import chromadb
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,9 @@ class RAGEngine:
     def chroma_client(self) -> chromadb.PersistentClient:
         """延迟初始化 ChromaDB 持久化客户端。"""
         if self._chroma_client is None:
+            # 检索依赖缺失时由调用方报告降级，不阻止数据导入、检测和报告服务启动。
+            import chromadb
+            from chromadb.config import Settings as ChromaSettings
             self._chroma_client = chromadb.PersistentClient(
                 path=self._persist_dir,
                 settings=ChromaSettings(anonymized_telemetry=False),
@@ -326,7 +329,16 @@ def search_treatment_cases(
     engine = get_rag_engine()
     engine._collection = None  # 强制重新从磁盘读取，避免 Singleton 缓存过期状态
     engine._chroma_client = None  # 也重置 chroma 客户端，避免 SQLite 文件锁残留
-    results = engine.retrieve(query, top_k, filters)
+    try:
+        results = engine.retrieve(query, top_k, filters)
+    except ImportError:
+        logger.warning('RAG 可选依赖不可用，本次检索未执行')
+        return json.dumps({'状态': '知识库依赖不可用，检索未执行',
+            '建议': '请按项目依赖清单安装知识库依赖；当前结果不包含治理案例。'}, ensure_ascii=False)
+    except Exception as exc:
+        logger.warning('RAG 检索未完成: %s', type(exc).__name__, exc_info=True)
+        return json.dumps({'状态': f'知识库查询失败（{type(exc).__name__}），检索未完成',
+            '建议': '检查索引与依赖版本兼容性；当前结果不包含治理案例。'}, ensure_ascii=False)
 
     if not results:
         return json.dumps(
