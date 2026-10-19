@@ -15,7 +15,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from .quality_control import QualityConfig
 from typing import Dict, List, Tuple
 
 # ======================================================================
@@ -82,6 +83,9 @@ class AnalysisConfig:
     # ---- 目标水质等级 ----
     target_water_class: str = "V"
     """目标水质等级: I, II, III, IV, V。黑点检测以此为基线计算超标倍数。"""
+
+    quality_control: QualityConfig = field(default_factory=QualityConfig)
+    """离线质量复核参数；工程门限，不代表传感器精度或故障诊断。"""
 
     # ---- DBSCAN 聚类参数 ----
     dbscan_eps: float = 0.0003
@@ -193,6 +197,7 @@ class AnalysisConfig:
         """导出为 JSON 可序列化字典。"""
         return {
             "target_water_class": self.target_water_class,
+            'quality_control': asdict(self.quality_control),
             "dbscan_eps": self.dbscan_eps,
             "dbscan_min_samples": self.dbscan_min_samples,
             "dbscan_eps_m": self.dbscan_eps_m,

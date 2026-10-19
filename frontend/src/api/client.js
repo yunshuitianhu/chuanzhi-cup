@@ -94,6 +94,8 @@ async function request(path, { method = 'GET', body, isForm = false, binary = fa
 }
 
 export const api = {
+  dataQuality: (params = {}) => request('/analysis/quality?' + new URLSearchParams(params)),
+  updateQualityConfig: (body) => request('/analysis/quality-config', { method:'POST', body }),
   projects: () => request('/projects'),
   createProject: (payload) => request('/projects', { method:'POST', body:payload }),
   saveProject: (payload) => request('/projects/save', { method:'POST', body:payload }),

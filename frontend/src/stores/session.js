@@ -42,6 +42,13 @@ export const useSessionStore = defineStore('session', {
   },
 
   actions: {
+    async updateQualityConfig(config) {
+      return this._run(async () => {
+        const response = await api.updateQualityConfig(config)
+        await this.refreshStatus()
+        return response
+      })
+    },
     async refreshProjects() {
       const request = ++this.projectRequest
       const workspace = this.workspaceRevision

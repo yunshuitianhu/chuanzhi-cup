@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from water_quality_mcp.src.water_quality_mcp.loaders import extract_video, load_data
 from water_quality_mcp.src.water_quality_mcp.detection_support import DETECTION_VERSION
+from water_quality_mcp.src.water_quality_mcp.evidence import EVIDENCE_VERSION
 
 from ..deps import get_session, get_exclusive_session
 from ..session import Session
@@ -78,6 +79,7 @@ def status(session: Session = Depends(get_session)) -> dict:
         "has_data": df is not None and len(df) > 0,
         "rows": int(len(df)) if df is not None else 0,
         "data_filename": session.data_filename,
+        'data_identity': session.data_identity,
         "video_frames": len(session.video_frames),
         "video_filename": session.video_filename,
         "has_black_spots": session.black_spots is not None and len(session.black_spots) > 0,
@@ -96,11 +98,14 @@ def status(session: Session = Depends(get_session)) -> dict:
         out["time_range"] = [str(df["datetime"].min()), str(df["datetime"].max())]
     try:
         evidence = json.loads(session.black_spots_json or '{}')
-        version = evidence.get('算法版本') if isinstance(evidence,dict) else None
+        evidence = evidence if isinstance(evidence, dict) else {}
+        version = evidence.get('算法版本')
     except (ValueError,TypeError):
+        evidence = {}
         version = None
     out['detection_algorithm_version'] = version
-    out['detection_outdated'] = session.black_spots is not None and version != DETECTION_VERSION
+    out['detection_outdated'] = session.black_spots is not None and (
+        version != DETECTION_VERSION or evidence.get('证据版本') != EVIDENCE_VERSION)
     return out
 
 

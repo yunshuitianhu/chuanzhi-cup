@@ -4,7 +4,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from water_quality_mcp.src.water_quality_mcp.analysis import calc_black_score_vectorized, get_severity_info
+from water_quality_mcp.src.water_quality_mcp.analysis import calc_black_score_vectorized, get_severity_info, quality_report
 from water_quality_mcp.src.water_quality_mcp.data_quality import observed_mask
 
 METRICS = ('ammonia_nitrogen', 'dissolved_oxygen', 'cod', 'turbidity', 'ph')
@@ -18,7 +18,8 @@ def finite(value):
         return None
 
 
-def map_samples(df, config):
+def map_samples(df, config, quality=None):
+    quality = quality or quality_report(df, config)
     masks = {}
     for key in METRICS:
         if key in ('ammonia_nitrogen', 'dissolved_oxygen'):
@@ -46,6 +47,7 @@ def map_samples(df, config):
         score = finite(scores[pos])
         time = getattr(row, 'datetime', None)
         result.append({'id': pos, 'coord': [lat, lon],
+            'quality': {k: quality.rows[pos][k] for k in ('flag', 'label', 'reasons', 'raw_values', 'raw_text', 'raw_preserved')},
             'time': None if time is None or pd.isna(time) else str(time),
             'values': values, 'interpolated': interpolated, 'sources': sources, 'raw_score': score,
             'grade': get_severity_info(score, config)[1] if score is not None else '关键指标缺测，未判定'})

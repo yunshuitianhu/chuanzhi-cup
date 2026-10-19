@@ -270,6 +270,12 @@ def _validate_state(state):
     if state['df'] is not None and not state['df'].empty:
         if 'datetime' not in state['df'] or not pd.api.types.is_datetime64_any_dtype(state['df']['datetime']):
             raise ProjectError('监测表缺少有效时间列')
+        if 'quality_control_config' in state['df'].attrs:
+            from water_quality_mcp.src.water_quality_mcp.quality_control import QualityConfig
+            try:
+                QualityConfig(**state['df'].attrs['quality_control_config'])
+            except (TypeError, ValueError, OverflowError):
+                raise ProjectError('项目质控参数无效')
     for key in ('video_frames','messages','full_messages'):
         if not isinstance(state[key],list) or any(not isinstance(v,dict) for v in state[key]):
             raise ProjectError('帧或对话记录格式无效')

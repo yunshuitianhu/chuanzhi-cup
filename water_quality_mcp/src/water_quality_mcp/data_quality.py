@@ -6,6 +6,29 @@ MEASUREMENTS = {'ammonia_nitrogen': ('氨氮', 0, 1000),
                 'dissolved_oxygen': ('溶解氧', 0, 20)}
 
 
+def observation_values(df, column):
+    """统计只消费有限的原始观测；插值仍可留给图表使用。"""
+    if column not in df:
+        return pd.Series(dtype=float)
+    values = pd.to_numeric(df[column], errors='coerce')
+    valid = np.isfinite(values)
+    flag = f'__observed_{column}'
+    if flag in df:
+        valid &= df[flag].eq(True)
+    return values[valid]
+
+
+def coordinate_mask(df):
+    if not {'latitude', 'longitude'} <= set(df.columns):
+        return pd.Series(False, index=df.index)
+    lat = pd.to_numeric(df['latitude'], errors='coerce')
+    lon = pd.to_numeric(df['longitude'], errors='coerce')
+    valid = lat.between(-90, 90) & lon.between(-180, 180)
+    if '__observed_coordinates' in df:
+        valid &= df['__observed_coordinates'].eq(True)
+    return valid
+
+
 def coordinate_text(row):
     try:
         lat, lon = float(row['latitude']), float(row['longitude'])

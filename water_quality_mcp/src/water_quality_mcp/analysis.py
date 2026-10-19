@@ -9,8 +9,11 @@ import cv2
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
-from .data_quality import measurement_error, assessment_mask, coordinate_text
+from .data_quality import (measurement_error, assessment_mask, coordinate_text,
+                           observation_values, coordinate_mask)
 from .detection_support import temporal_support, spatial_support, cluster_black_samples, DETECTION_VERSION
+from .evidence import EVIDENCE_VERSION, data_identity, conclusion_limits
+from .quality_control import assess_quality
 
 if TYPE_CHECKING:
     from .analysis_config import AnalysisConfig
@@ -255,6 +258,7 @@ def get_cluster_summary(cluster_df, cid, config=None):
     info = {
         "cluster_id": int(cid),
         "count": len(cluster_df),
+        '需质控复核点数': int(cluster_df['__qc_flag'].eq(3).sum()) if '__qc_flag' in cluster_df else None,
         "center_lat": round(float(cluster_df['latitude'].mean()), 6),
         "center_lon": round(float(cluster_df['longitude'].mean()), 6),
         "内梅罗指数_均值": avg_score,
@@ -266,18 +270,17 @@ def get_cluster_summary(cluster_df, cid, config=None):
     }
     # 关键指标统计
     pollutants = {}
-    if 'ammonia_nitrogen' in cluster_df.columns:
-        nh3_mean = float(cluster_df['ammonia_nitrogen'].mean())
-        nh3_max = float(cluster_df['ammonia_nitrogen'].max())
+    if len(values := observation_values(cluster_df, 'ammonia_nitrogen')):
+        nh3_mean = float(values.mean())
+        nh3_max = float(values.max())
         pollutants['氨氮'] = f"均值{nh3_mean:.1f}/峰值{nh3_max:.1f} mg/L"
-    if 'dissolved_oxygen' in cluster_df.columns:
-        do_mean = float(cluster_df['dissolved_oxygen'].mean())
-        do_min = float(cluster_df['dissolved_oxygen'].min())
+    if len(values := observation_values(cluster_df, 'dissolved_oxygen')):
+        do_mean = float(values.mean())
+        do_min = float(values.min())
         pollutants['DO'] = f"均值{do_mean:.2f}/最低{do_min:.2f} mg/L"
-    if 'cod' in cluster_df.columns:
-        pollutants['COD'] = f"均值{float(cluster_df['cod'].mean()):.0f} mg/L"
-    if 'turbidity' in cluster_df.columns:
-        pollutants['浊度'] = f"均值{float(cluster_df['turbidity'].mean()):.1f} NTU"
+    for col, label, unit in [('cod', 'COD', 'mg/L'), ('turbidity', '浊度', 'NTU')]:
+        values = observation_values(cluster_df, col)
+        pollutants[label] = f"均值{float(values.mean()):.1f} {unit}" if len(values) else '缺测，未参与统计'
     info["指标统计"] = pollutants
 
     # 触发黑臭的主要指标 (按指标聚合, 非按具体值)
@@ -294,22 +297,24 @@ def get_cluster_summary(cluster_df, cid, config=None):
     # ---- 时空维度字段 ----
     if 'datetime' in cluster_df.columns:
         times = cluster_df['datetime']
-        info["持续超标时长_min"] = round((times.max() - times.min()).total_seconds() / 60.0, 1)
-        info["首末观测跨度_min"] = info["持续超标时长_min"]
+        info["首末观测跨度_min"] = round((times.max() - times.min()).total_seconds() / 60.0, 1)
         info["持续性说明"] = '首末观测间隔不代表全时段连续超标。'
-        # 趋势基于原始指数，不让变化的时空权重伪造恶化趋势。
+        info['趋势'] = '时间趋势未判定'
+        info['趋势解释'] = '走航同时改变位置和时间；沿航迹读数变化不能证明固定地点水质恶化、改善或稳定。'
         if len(cluster_df) >= 3:
             x = (times - times.min()).dt.total_seconds().values.astype(float)
             y = cluster_df.get('nemerow_raw',cluster_df['black_score']).values.astype(float)
-            if np.std(x) > 0:
-                slope = np.polyfit(x, y, 1)[0]
+            finite = np.isfinite(x) & np.isfinite(y)
+            if finite.sum() >= 3 and np.std(x[finite]) > 0:
+                slope = np.polyfit(x[finite], y[finite], 1)[0]
                 per_hour = slope * 3600.0  # 每小时变化率
+                info['沿航迹指数变化率_每小时'] = round(float(per_hour), 3)
                 if per_hour > 0.5:
-                    info["趋势"] = "恶化"
+                    info['沿航迹指数变化'] = '升高'
                 elif per_hour < -0.5:
-                    info["趋势"] = "改善"
+                    info['沿航迹指数变化'] = '降低'
                 else:
-                    info["趋势"] = "稳定"
+                    info['沿航迹指数变化'] = '无明显变化'
 
     if 'latitude' in cluster_df.columns and 'longitude' in cluster_df.columns:
         lats, lons = cluster_df['latitude'].values, cluster_df['longitude'].values
@@ -318,10 +323,10 @@ def get_cluster_summary(cluster_df, cid, config=None):
         info["空间跨度_m"] = round(float(spatial_span), 1)
         info["空间跨度口径"] = '两次最远点距离估计，不是河道长度或污染影响范围。'
 
-    # 超标倍数范围
+    # 综合指数不是任一单项污染物的超标倍数。
     if 'black_score' in cluster_df.columns:
         raw = cluster_df.get('nemerow_raw',cluster_df['black_score'])
-        info["超标倍数范围"] = f"{raw.min():.1f} ~ {raw.max():.1f}"
+        info['原始内梅罗范围'] = f"{raw.min():.2f} ~ {raw.max():.2f}"
         info["增强评分范围"] = f"{cluster_df['black_score'].min():.1f} ~ {cluster_df['black_score'].max():.1f}"
     if 'nemerow_raw' in cluster_df.columns:
         info["原始内梅罗范围"] = f"{cluster_df['nemerow_raw'].min():.2f} ~ {cluster_df['nemerow_raw'].max():.2f}"
@@ -441,23 +446,44 @@ def compute_black_score_enhanced(df, config=None):
 
 # ---------- 状态依赖的分析函数 ----------
 
-def data_summary(df):
+def quality_report(df, config=None):
+    """质控与现有点级阈值分别计算；此函数不聚类、不改变任何状态。"""
+    if config is None:
+        from .analysis_config import DEFAULT_CONFIG as config
+    qc = assess_quality(df, config.quality_control)
+    valid = assessment_mask(df).to_numpy(dtype=bool)
+    alerts = np.zeros(len(df), dtype=bool)
+    if valid.any():
+        levels, _, _ = _determine_black_odor_vectorized(df.iloc[np.flatnonzero(valid)], config)
+        alerts[valid] = np.asarray(levels) != 'normal'
+    qc.summary = qc.with_alerts(alerts)
+    return qc
+
+
+def data_summary(df, filename='', config=None):
     """返回水质数据统计摘要 JSON。"""
     if df is None or len(df) == 0:
         return json.dumps({"error": "数据未加载"}, ensure_ascii=False)
     result = {
+        '证据版本': EVIDENCE_VERSION,
+        '数据身份': data_identity(df, filename),
         "记录数": len(df),
         "时间范围": f"{df['datetime'].min()} ~ {df['datetime'].max()}",
+        '有效GPS记录数': int(coordinate_mask(df).sum()),
+        '统计口径': '仅统计有效原始观测；有原始观测标记时排除插值。旧数据无标记时无法追溯插值。',
     }
     for col, name, unit in [('ammonia_nitrogen','氨氮','mg/L'), ('dissolved_oxygen','溶解氧','mg/L'),
                               ('turbidity','浊度','NTU'), ('ph','pH',''), ('cod','COD','mg/L')]:
         if col in df.columns:
-            values = pd.to_numeric(df[col], errors='coerce')
-            values = values[np.isfinite(values)]
+            values = observation_values(df, col)
             extreme = values.min() if col == 'dissolved_oxygen' else values.max()
             result[name] = {"均值": round(float(values.mean()), 2) if len(values) else None,
                             "极值": round(float(extreme), 2) if len(values) else None,
-                            "单位": unit}
+                            '有效观测数': len(values), "单位": unit}
+    result['缺测指标'] = [name for col, name in [('ammonia_nitrogen','氨氮'),
+        ('dissolved_oxygen','溶解氧'), ('cod','COD'), ('turbidity','浊度'), ('ph','pH')]
+        if observation_values(df, col).empty]
+    result['数据质量'] = quality_report(df, config).summary
     return json.dumps(result, ensure_ascii=False)
 
 
@@ -493,9 +519,14 @@ def find_black_spots(df, config=None):
         ordered['__time_sort'] = pd.to_datetime(ordered['datetime'],errors='coerce',utc=True)
         ordered = ordered.sort_values('__time_sort',kind='stable').drop(columns='__time_sort')
     ordered['__sample_sequence'] = np.arange(len(ordered))
+    qc = quality_report(ordered, config)
+    ordered['__qc_flag'] = [row['flag'] for row in qc.rows]
     valid = assessment_mask(ordered)
     quality = {'有效判定点数': int(valid.sum()), '未判定点数': int((~valid).sum()),
         '算法版本':DETECTION_VERSION, '聚类提示':None,
+        '证据版本': EVIDENCE_VERSION,
+        '综合指数计算状态': '已对有效判定点计算；热点摘要只展示预警点，不展示全部正常点指数。',
+        '数据质量': qc.summary,
         '筛查口径':'仅用氨氮和DO的点级预警；缺少重复采样、透明度及ORP，不能作为完整水体定级或污染责任认定。'}
     temp = ordered.loc[valid].copy()
     # 增强黑点评分 (超标倍数 × 严重度 × 时间持续性 × 空间连续性)
@@ -817,14 +848,27 @@ def build_comprehensive_summary(state, river_state=None, config=None):
     if config is None:
         from .analysis_config import DEFAULT_CONFIG as config
 
-    sections = {}
+    identity = data_identity(state.df, getattr(state, 'data_filename', ''))
+    sections = {'数据身份': identity, '证据边界': conclusion_limits(identity),
+        '筛查方法': {'使用指标': ['氨氮', '溶解氧'],
+            '缺失的黑臭分级指标': _MISSING_INDICATORS,
+            'COD用途': '不参与当前氨氮/DO点级黑臭判定；COD缺测影响有机污染评价，不能解释无黑臭预警。',
+            '综合指数计算状态': ('已对有效判定点计算，热点摘要未展示正常点指数'
+                          if state.black_spots is not None else '尚未完成本轮点级筛查'),
+            '目标水质等级': config.target_water_class}}
+    if state.df is not None and len(state.df):
+        sections['数据质量'] = quality_report(state.df, config).summary
     station_result = getattr(state, 'national_station_result', None)
-    if station_result:
+    if station_result and identity['kind'] != 'synthetic':
         sections['国控站点查询'] = {
             k: station_result.get(k) for k in ('数据来源', '数据时效', '含实时监测值',
                 '查询条件', '本次查询时间', '站点数量')}
         sections['国控站点查询']['使用说明'] = '监测背景参考；须核对查询省份、站点监测时间和当前走航日期，不是排污源或当前河段的直接实测值'
         sections['国控站点查询']['监测时间样例'] = [s.get('时间') for s in station_result.get('站点列表', [])[:3]]
+        sections['国控站点查询']['可用于本次走航直接对照'] = False
+        sections['国控站点查询']['未核实内容'] = ['同期观测', '同一水文连通河段', '可比采样条件']
+    elif station_result:
+        sections['国控站点查询'] = {'使用状态': '仿真分析排除真实监测背景，不用于比较或归因'}
 
     # ---- 1. 数据概览 ----
     if state.df is not None and len(state.df) > 0:
@@ -833,18 +877,36 @@ def build_comprehensive_summary(state, river_state=None, config=None):
             "时间范围": f"{state.df['datetime'].min()} ~ {state.df['datetime'].max()}",
             "有效判定点数": int(assessment_mask(state.df).sum()),
             "未判定点数": int((~assessment_mask(state.df)).sum()),
+            '有效GPS记录数': int(coordinate_mask(state.df).sum()),
+            '缺测指标': [name for col, name in [('ammonia_nitrogen','氨氮'), ('dissolved_oxygen','溶解氧'),
+                ('cod','COD'), ('turbidity','浊度'), ('ph','pH')] if observation_values(state.df, col).empty],
+            '统计口径': '有原始观测标记时排除插值；旧数据无标记时无法追溯插值。',
         }
         for col, name, unit in [('ammonia_nitrogen', '氨氮', 'mg/L'), ('dissolved_oxygen', '溶解氧', 'mg/L'),
                                   ('turbidity', '浊度', 'NTU'), ('ph', 'pH', ''), ('cod', 'COD', 'mg/L')]:
             if col in state.df.columns:
-                s = state.df[col].dropna()
+                s = observation_values(state.df, col)
                 if len(s) > 0:
                     sections["数据概览"][name] = {
                         "均值": round(float(s.mean()), 2),
                         "最小": round(float(s.min()), 2),
                         "最大": round(float(s.max()), 2),
                         "单位": unit,
+                        '有效观测数': len(s),
                     }
+
+        coords = state.df.loc[coordinate_mask(state.df)]
+        sections['空间分析'] = {'有效GPS记录数': len(coords),
+            '轨迹起点': coordinate_text(coords.iloc[0]) if len(coords) else None,
+            '轨迹终点': coordinate_text(coords.iloc[-1]) if len(coords) else None,
+            '最密集聚类中心': None,
+            '说明': '没有污染聚类中心不等于没有GPS坐标；热点聚类数不等于污染源数；往返起终点接近不代表覆盖范围小。'}
+        if len(coords):
+            coord_values = coords[['latitude', 'longitude']].apply(pd.to_numeric, errors='coerce')
+            sections['空间分析']['有效采样经纬度包络'] = {
+                '纬度范围': [float(coord_values.latitude.min()), float(coord_values.latitude.max())],
+                '经度范围': [float(coord_values.longitude.min()), float(coord_values.longitude.max())],
+                '口径': '所有有效GPS记录的坐标极值，不是河道长度或污染范围。'}
 
     # ---- 2. 黑臭检测 ----
     if state.black_spots is not None and len(state.black_spots) > 0:
@@ -876,6 +938,11 @@ def build_comprehensive_summary(state, river_state=None, config=None):
         top5 = black.nlargest(5, 'black_score')
         top5_list = []
         for i, (_, row) in enumerate(top5.iterrows(), 1):
+            point_stats = {}
+            for col, field, precision in [('ammonia_nitrogen', '氨氮_mgL', 2),
+                    ('dissolved_oxygen', '溶解氧_mgL', 2), ('cod', 'COD_mgL', 0), ('turbidity', '浊度_NTU', 0)]:
+                values = observation_values(row.to_frame().T, col)
+                point_stats[field] = round(float(values.iloc[0]), precision) if len(values) else None
             top5_list.append({
                 "排名": i,
                 "时间": str(row['datetime']),
@@ -883,19 +950,13 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                 "内梅罗指数": round(float(row.get('nemerow_raw',row['black_score'])), 2),
                 "时空增强评分": round(float(row['black_score']), 2),
                 "黑臭等级": row['severity_label'],
-                "氨氮_mgL": round(float(row['ammonia_nitrogen']), 2) if pd.notna(row.get('ammonia_nitrogen')) else None,
-                "溶解氧_mgL": round(float(row['dissolved_oxygen']), 2) if pd.notna(row.get('dissolved_oxygen')) else None,
-                "COD_mgL": round(float(row['cod']), 0) if pd.notna(row.get('cod')) else None,
-                "浊度_NTU": round(float(row['turbidity']), 0) if pd.notna(row.get('turbidity')) else None,
+                '质控状态': ('需复核，不撤销预警' if row.get('__qc_flag') == 3 else
+                          '未触发已执行规则，不代表确认污染' if row.get('__qc_flag') == 1 else '质控上下文不足或尚未重算'),
+                **point_stats,
             })
         sections["黑臭检测"]["Top5最严重点位"] = top5_list
 
         # 空间范围
-        sections["空间分析"] = {
-            "轨迹起点": coordinate_text(state.df.iloc[0]),
-            "轨迹终点": coordinate_text(state.df.iloc[-1]),
-            "最密集聚类中心": None,
-        }
         if len(clusters_out) > 0:
             densest = max(clusters_out, key=lambda x: x['count'])
             sections["空间分析"]["最密集聚类中心"] = {
@@ -906,7 +967,9 @@ def build_comprehensive_summary(state, river_state=None, config=None):
             }
 
     if state.black_spots is not None and len(state.black_spots) == 0:
-        sections['黑臭检测'] = {'黑点总数': 0, '提示': '本次有效判定点未检出黑臭，缺测点未判定'}
+        sections['黑臭检测'] = {'黑点总数': 0, '聚类数': 0,
+            '无热点原因': '没有氨氮/DO黑臭预警点可参与黑臭热点聚类，不是GPS缺失或聚类失败。',
+            '提示': '本次有效判定点未检出黑臭，缺测点未判定'}
 
     # ---- 3. 交叉印证 ----
     if hasattr(state, 'cross_validation_result') and state.cross_validation_result:
@@ -983,6 +1046,7 @@ def build_comprehensive_summary(state, river_state=None, config=None):
 
     # ---- 综合 ----
     return json.dumps({
+        '证据版本': EVIDENCE_VERSION,
         "分析时间": str(pd.Timestamp.now()),
         "分析模块": list(sections.keys()),
         **sections,

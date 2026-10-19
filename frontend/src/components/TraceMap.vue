@@ -40,7 +40,8 @@ const tried = new Set()
 const selectedId = ref(null), nearbyIds = ref([])
 const selectedSample = computed(() => data.value?.samples?.find(s=>s.id === selectedId.value))
 const sampleRows = computed(() => sampleMetrics.map(([key,label,unit])=>({key,label,unit,
-  value:selectedSample.value?.values?.[key], interpolated:selectedSample.value?.interpolated?.[key], source:selectedSample.value?.sources?.[key]})))
+  value:selectedSample.value?.values?.[key], interpolated:selectedSample.value?.interpolated?.[key], source:selectedSample.value?.sources?.[key],
+  rawText:selectedSample.value?.quality?.raw_text?.[key], rawPreserved:selectedSample.value?.quality?.raw_preserved?.[key]})))
 const sourceNames = {starcloud:'星图卫星影像', amap:'高德街道图', esri:'Esri 卫星图', osm:'OSM 街道图'}
 const sourceMaxZoom = source => source === 'amap' ? 17 : source === 'starcloud' ? 18 : 19
 
@@ -221,6 +222,8 @@ function render(fit = false) {
       ...sampleMetrics.map(([key,label,unit])=>`${label}：${numberText(selected.values[key])} ${unit}`
         + (selected.values[key] == null && selected.interpolated[key] != null ? `（缺测；插值参考 ${numberText(selected.interpolated[key])}）` : '')),
       `原始综合指数：${numberText(selected.raw_score)}`].join('\n')
+    if (selected.quality) node.textContent += '\n质控：' + selected.quality.label
+      + '\n' + selected.quality.reasons.map(r=>r.message).join('、') + '\n标记不撤销阈值预警，不能确认仪器故障。'
     L.circleMarker(selected.coord,{radius:8,color:'#fff',weight:3,fillColor:'#159aff',fillOpacity:1})
       .addTo(layerGroup).bindPopup(node,{minWidth:240,maxWidth:310,maxHeight:280}).openPopup()
   }
@@ -317,10 +320,12 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
     <section v-if="selectedSample && !simulation" class="sample-detail" aria-label="采样点水质详情">
       <div class="sample-heading"><b>采样点 #{{ selectedSample.id+1 }} · {{ selectedSample.grade }}</b><button type="button" @click="selectedId=null">关闭</button></div>
       <p>{{ selectedSample.time || '时间未提供' }} · WGS-84 {{ numberText(selectedSample.coord[0],6) }}, {{ numberText(selectedSample.coord[1],6) }}</p>
+      <p v-if="selectedSample.quality">质控：{{ selectedSample.quality.label }}。标记不撤销阈值预警，不能确认仪器故障。</p>
+      <ul v-if="selectedSample.quality?.reasons?.length"><li v-for="(reason, i) in selectedSample.quality.reasons" :key="i">{{ reason.parameter === 'ammonia_nitrogen' ? '氨氮' : reason.parameter === 'dissolved_oxygen' ? 'DO' : '采样' }}：{{ reason.message }}</li></ul>
       <label v-if="nearbyIds.length>1">附近记录（{{ nearbyIds.length }} 条）
         <select v-model.number="selectedId"><option v-for="id in nearbyIds" :key="id" :value="id">#{{ id+1 }} · {{ data.samples.find(s=>s.id===id)?.time }}</option></select>
       </label>
-      <div class="sample-metrics"><div v-for="row in sampleRows" :key="row.key"><span>{{ row.label }}</span><b>{{ numberText(row.value) }} {{ row.unit }}</b><small v-if="row.value == null && row.interpolated != null">缺测 · 插值参考 {{ numberText(row.interpolated) }}</small><small v-else>{{ row.value == null ? '缺测' : row.source === 'observed' ? '原始观测' : '记录值（无插值标记）' }}</small></div></div>
+      <div class="sample-metrics"><div v-for="row in sampleRows" :key="row.key"><span>{{ row.label }}</span><b>{{ numberText(row.value) }} {{ row.unit }}</b><small v-if="row.value == null && row.interpolated != null">缺测 · 插值参考 {{ numberText(row.interpolated) }}</small><small v-else>{{ row.value == null ? '缺测' : row.source === 'observed' ? '原始观测' : '记录值（无插值标记）' }}</small><small v-if="row.rawPreserved">导入原值：{{ row.rawText ?? '缺测' }}</small><small v-else-if="row.rawPreserved === false">旧记录未单独保留原值</small></div></div>
       <p>原始综合污染指数：{{ numberText(selectedSample.raw_score) }}</p>
     </section>
     <p v-if="!simulation" class="map-footnote">沿线颜色表示相对 {{ data?.target_water_class || store.status.target_water_class }} 类的污染指数；横向晕染仅供显示，不表示污染范围。≥8 使用上限色，原始值见点位详情。</p>

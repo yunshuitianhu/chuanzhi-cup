@@ -13,6 +13,7 @@ import Panel from '../components/Panel.vue'
 import TraceMap from '../components/TraceMap.vue'
 import CrossValidation from '../components/CrossValidation.vue'
 import PollutionPlayback from '../components/PollutionPlayback.vue'
+import DataQualityPanel from '../components/DataQualityPanel.vue'
 import { toastErr } from '../composables/useToast'
 
 const store = useSessionStore()
@@ -139,6 +140,9 @@ const caption = computed(() => store.status.has_data
   </div>
 
   <template v-else>
+    <Panel title="传感器质量复核" subtitle="突刺 · 近恒值 · 采样异常 · 原始阈值预警保持">
+      <DataQualityPanel />
+    </Panel>
     <Panel title="时间序列趋势" subtitle="氨氮 / 溶解氧 / 浑浊度 / pH，黑点按严重等级着色">
       <template #actions>
         <button class="mini" :disabled="loading" @click="loadTimeSeries">刷新</button>

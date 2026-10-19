@@ -123,6 +123,9 @@ async function load() {
     </p>
 
     <div v-if="store.status.has_data" class="stat">
+      <p v-if="store.status.data_identity" class="hint" :title="store.status.data_identity['说明']">
+        {{ store.status.data_identity.label }}
+      </p>
       <div class="stat-row"><span>走航数据</span><b>{{ store.status.rows }} 条</b></div>
       <div class="stat-row"><span>视频帧</span><b>{{ store.status.video_frames }} 帧</b></div>
       <div class="stat-row" v-if="store.status.time_range">

@@ -7,6 +7,7 @@ import { renderToString } from '@vue/server-renderer'
 import { createPinia } from 'pinia'
 
 const server=await createServer({
+  configLoader:'runner',
   server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test',
   resolve:{alias:[
     {find:'leaflet/dist/leaflet.css',replacement:fileURLToPath(new URL('./fixtures/mapLayerStub.js',import.meta.url))},
@@ -197,6 +198,7 @@ test('统计与时间序列的迟到响应不能覆盖较新数据',async()=>{
   for(const [file,method,value] of [
     ['/src/components/SummaryCards.vue','load','data'],
     ['/src/views/ChartsView.vue','loadTimeSeries','ts'],
+    ['/src/components/DataQualityPanel.vue','load','result'],
   ]) {
     const {default:Component}=await server.ssrLoadModule(file)
     const pinia=createPinia(),store=useSessionStore(pinia);store.status.has_data=true
@@ -212,4 +214,58 @@ test('统计与时间序列的迟到响应不能覆盖较新数据',async()=>{
     resolveOld(new Response('{"marker":"old"}',{status:200}));await old
     assert.equal(controls[value].marker,'new',file)
   }
+})
+
+test('质量摘要同时保留原始预警和复核数，不显示确认故障',async()=>{
+  const {default:Quality}=await server.ssrLoadModule('/src/components/QualitySummary.vue')
+  const html=await renderToString(createSSRApp(Quality,{summary:{
+    '原始阈值预警点数':24,'需质控复核预警点数':24,'需复核记录数':24,'关键指标缺测记录数':36,
+    '原始值已保留':{ammonia_nitrogen:false,dissolved_oxygen:false},
+  }}))
+  assert.match(html,/原始阈值预警/)
+  assert.match(html,/预警中需质控复核/)
+  assert.match(html,/不撤销阈值预警/)
+  assert.match(html,/旧处理值不能当原值/)
+  assert.doesNotMatch(html,/已确认故障|清洗后无污染|合格率/)
+})
+
+test('复核清单显示原始记录并转义源表文本',async()=>{
+  const {default:Panel}=await server.ssrLoadModule('/src/components/DataQualityPanel.vue')
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  const pinia=createPinia(),store=useSessionStore(pinia);store.status.has_data=true
+  const app=createSSRApp(Panel);app.use(pinia)
+  app.mixin({created(){if(this.$options.__file?.endsWith('DataQualityPanel.vue')) this.$.setupState.result={
+    summary:null,total:1,records:[{id:2,time:'2026-10-19',label:'输入无效',input_record_id:3,
+      raw_text:{ammonia_nitrogen:'<img src=x onerror=alert(1)>'},raw_preserved:{ammonia_nitrogen:true},reasons:[]}],
+  }}})
+  const html=await renderToString(app)
+  assert.match(html,/采样点 #3/)
+  assert.match(html,/排序前导入记录 #3/)
+  assert.match(html,/&lt;img/)
+  assert.doesNotMatch(html,/<img src=x/)
+})
+
+test('质控设置可提交响应式表单且项目更新后丢弃旧草稿',async()=>{
+  const {default:Panel}=await server.ssrLoadModule('/src/components/DataQualityPanel.vue')
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  const pinia=createPinia(),store=useSessionStore(pinia);store.status.has_data=true
+  const config={max_gap_s:60,flat_duration_s:120,flat_min_points:5,
+    spike_thresholds:{ammonia_nitrogen:2,dissolved_oxygen:.5},
+    flat_tolerances:{ammonia_nitrogen:.001,dissolved_oxygen:.001}}
+  let controls,submitted
+  store.updateQualityConfig=async value=>{submitted=value}
+  const app=createSSRApp(Panel);app.use(pinia)
+  app.mixin({created(){if(this.$options.__file?.endsWith('DataQualityPanel.vue'))controls=this.$.setupState}})
+  await renderToString(app)
+  globalThis.fetch=async()=>new Response(JSON.stringify({summary:{'参数':config},records:[],total:0}),{status:200})
+  await controls.load()
+  controls.settings.spike_thresholds.ammonia_nitrogen=3
+  await controls.saveSettings()
+  assert.equal(submitted.spike_thresholds.ammonia_nitrogen,3)
+  assert.equal(controls.error,'');assert.equal(controls.saved,true)
+  controls.resetData()
+  assert.equal(controls.settings,null);assert.equal(controls.saved,false)
+  // 等待本次加载，以免迟到的测试请求混入下一用例。
+  await controls.load()
+  assert.equal(controls.settings.spike_thresholds.ammonia_nitrogen,2)
 })

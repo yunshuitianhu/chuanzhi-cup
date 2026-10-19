@@ -75,12 +75,21 @@ class Session:
     def analysis_config(self) -> AnalysisConfig:
         cfg = AnalysisConfig()
         cfg.target_water_class = self.target_water_class
+        if self.df is not None and 'quality_control_config' in self.df.attrs:
+            from water_quality_mcp.src.water_quality_mcp.quality_control import QualityConfig
+            cfg.quality_control = QualityConfig(**self.df.attrs['quality_control_config'])
         return cfg
+
+    @property
+    def data_identity(self) -> dict:
+        from water_quality_mcp.src.water_quality_mcp.evidence import data_identity
+        return data_identity(self.df, self.data_filename)
 
     def water_quality_state(self) -> WaterQualityState:
         """构造下游函数需要的 WaterQualityState（它们不认识 Session）。"""
         st = WaterQualityState()
         st.df = self.df
+        st.data_filename = self.data_filename
         st.black_spots = self.black_spots
         st.video_frames = self.video_frames
         st.cross_validation_result = self.cross_validation
