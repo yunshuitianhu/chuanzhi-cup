@@ -76,6 +76,7 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
 
     msgs = list(session.full_messages)
     system_prompt = SYSTEM_PROMPT_AUTO if auto else SYSTEM_PROMPT_CHAT
+    system_prompt += '\n当前数据身份（服务器核对）：' + json.dumps(session.data_identity, ensure_ascii=False)
     if session.analysis_status == 'stale':
         system_prompt += (' 当前检测或视频已更新，历史报告和工具记录可能过期。'
                           '请先调用当前数据摘要、检测及综合摘要工具，勿直接沿用历史统计或视觉结论。')

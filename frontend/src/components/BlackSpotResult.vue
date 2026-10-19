@@ -93,8 +93,10 @@ const METRICS = [
         <div class="c-body">
           <span>点位 {{ c.count }} 个</span>
           <span>跨度 {{ c['空间跨度_m'] }} m</span>
-          <span>首末观测跨度 {{ c['首末观测跨度_min'] ?? c['持续超标时长_min'] }} min</span>
-          <span v-if="c['趋势']">趋势 {{ c['趋势'] }}</span>
+          <span v-if="c['首末观测跨度_min'] != null">首末观测跨度 {{ c['首末观测跨度_min'] }} min</span>
+          <span v-else>观测跨度待重新分析</span>
+          <span v-if="c['沿航迹指数变化']" :title="c['趋势解释']">沿航迹指数 {{ c['沿航迹指数变化'] }}</span>
+          <span v-else-if="c['趋势']">历史趋势待重新分析</span>
         </div>
         <div v-if="c['指标统计']" class="c-stat">
           <span v-for="(v, k) in c['指标统计']" :key="k">{{ k }} {{ v }}</span>

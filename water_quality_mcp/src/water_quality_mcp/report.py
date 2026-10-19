@@ -1,6 +1,8 @@
 import logging
+import json
 
 from openai import OpenAI
+from .evidence import EVIDENCE_RULES
 
 MODEL_NAME = "deepseek-chat"
 BASE_URL = "https://api.deepseek.com/v1"
@@ -67,11 +69,43 @@ def generate_report(api_key, summary):
             f"{summary}"
         )
 
-    client = OpenAI(base_url=BASE_URL, api_key=api_key)
-    resp = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-        max_tokens=2000,
-    )
-    return resp.choices[0].message.content
+    # 事实抬头由代码生成，不让模型决定数据身份、GPS是否存在或是否已确认污染源。
+    try:
+        facts = json.loads(summary)
+        facts = facts if isinstance(facts, dict) else {}
+    except (ValueError, TypeError):
+        facts = {}
+    identity = facts.get('数据身份', {})
+    identity = identity if isinstance(identity, dict) else {}
+    label = identity.get('label', '来源未核验的数据')
+    overview = facts.get('数据概览', {})
+    screening = facts.get('黑臭检测', {})
+    overview = overview if isinstance(overview, dict) else {}
+    screening = screening if isinstance(screening, dict) else {}
+    header = [f"> 数据身份：{label}。",
+              '> 结论级别：水质筛查与辅助排查；当前报告没有已确认的污染源或责任主体。']
+    header.append('> 治理案例：' + ('已取得参考资料，仅借鉴治理方法。'
+        if reference_cases and '暂无相关治理案例' not in reference_cases else '本次未取得可用案例，不补造引用。'))
+    if overview:
+        header.append(f"> 数据记录：{overview.get('记录数', '未提供')}；有效GPS记录：{overview.get('有效GPS记录数', '未核对')}。")
+    if '黑点总数' in screening:
+        header.append(f"> 点级预警：{screening['黑点总数']}；热点数量不能当作污染源数量。")
+    prompt += ('\n\n请按数据事实、候选解释、证据缺口、复核建议组织正文。'
+               '正文约1200字，不要完整复写全部工具表格，须保留局限和复核建议。'
+               '不得确认因果来源；工具给出的时间趋势未判定时，只描述沿航迹读数变化。')
+    with OpenAI(base_url=BASE_URL, api_key=api_key) as client:
+        resp = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{'role': 'system', 'content': '你是水质辅助分析报告撰写助手。' + EVIDENCE_RULES},
+                      {"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=4000,
+        )
+    finish_reason = getattr(resp.choices[0], 'finish_reason', None)
+    if finish_reason not in ('stop', None):
+        raise ValueError(f'报告未完整生成（{finish_reason}），不能标记为完成')
+    body = resp.choices[0].message.content
+    if not isinstance(body, str) or not body.strip():
+        raise ValueError('报告未生成有效正文')
+    logger.info('报告正文生成完成，finish_reason=%s', finish_reason)
+    return '\n'.join(header) + '\n\n' + body

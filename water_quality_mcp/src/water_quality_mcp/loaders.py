@@ -7,7 +7,8 @@ import tempfile
 import cv2
 import numpy as np
 import pandas as pd
-from .data_quality import MEASUREMENTS, measurement_error
+from .data_quality import measurement_error, coordinate_mask
+from .evidence import set_file_identity
 
 # 抑制 FFmpeg H.264 解码警告，避免污染 stderr
 os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "-8"
@@ -184,6 +185,7 @@ def load_data(file_bytes: str, filename: str):
     raw = base64.b64decode(file_bytes)
     buf = io.BytesIO(raw)
     fn = filename.lower()
+    declared_kind = 'unknown'
     try:
         if fn.endswith('.csv'):
             try:
@@ -192,7 +194,24 @@ def load_data(file_bytes: str, filename: str):
                 buf.seek(0)
                 df = pd.read_csv(buf, encoding='gbk')
         elif fn.endswith(('.xls', '.xlsx')):
-            df = pd.read_excel(buf)
+            with pd.ExcelFile(buf) as book:
+                df = pd.read_excel(book, sheet_name=0)
+                # 只消费已知说明表中的「数据性质」枚举，不把自由文本交给报告。
+                for sheet in ('数据说明', '仿真说明', '说明'):
+                    if sheet not in book.sheet_names:
+                        continue
+                    notes = pd.read_excel(book, sheet_name=sheet, header=None, nrows=32,
+                                          usecols=lambda c: c in (0, 1))
+                    if notes.shape[1] < 2:
+                        continue
+                    for _, row in notes.iterrows():
+                        if str(row.iloc[0]).strip() != '数据性质':
+                            continue
+                        value = str(row.iloc[1]).strip().lower()
+                        if re.search(r'仿真|合成|synthetic|simulation', value):
+                            declared_kind = 'synthetic'
+                        elif declared_kind != 'synthetic' and value in ('现场实测', '现场观测', '实测数据', '观测数据'):
+                            declared_kind = 'declared_observation'
         else:
             return None, "不支持的文件格式，请上传 .csv / .xls / .xlsx"
     except Exception as e:
@@ -201,6 +220,7 @@ def load_data(file_bytes: str, filename: str):
     df, err = normalize_columns(df)
     if err:
         return None, err
+    set_file_identity(df, filename, declared_kind)
 
     numeric_cols = ['ammonia_nitrogen', 'dissolved_oxygen', 'water_temperature', 'cod', 'turbidity', 'ph']
     for col in numeric_cols:
@@ -218,7 +238,7 @@ def load_data(file_bytes: str, filename: str):
             df[col] = df[col].where((df[col] >= lo) & (df[col] <= hi), np.nan)
 
     # 插值可用于趋势展示，但不能制造实测证据。DO=0 是合法的严重低氧观测。
-    for col in MEASUREMENTS:
+    for col in numeric_cols:
         if col in df:
             df[f'__observed_{col}'] = df[col].notna() & np.isfinite(df[col])
     error = measurement_error(df)
@@ -228,11 +248,12 @@ def load_data(file_bytes: str, filename: str):
     for col in numeric_cols:
         if col in df.columns and df[col].isna().sum() > 0:
             df[col] = df[col].interpolate(method='linear', limit_direction='both')
+    df['__observed_coordinates'] = coordinate_mask(df)
     for col in ['longitude', 'latitude']:
         if col in df.columns:
             df[col] = df[col].ffill().bfill()
 
-    report = [f"数据加载完成，共 {len(df)} 条记录"]
+    report = [f"数据加载完成，共 {len(df)} 条记录", df.attrs['data_identity']['label']]
     for col in ['ammonia_nitrogen', 'dissolved_oxygen', 'turbidity', 'ph']:
         if col in df.columns:
             valid = df[col].dropna()

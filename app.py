@@ -1687,10 +1687,10 @@ def _display_black_spot_result(result_str):
                 st.markdown(f"**聚类 {ci.get('cluster_id', '')}** — "
                            f"污染等级: {ci.get('内梅罗等级', '')}, "
                            f"黑臭等级: {ci.get('黑臭等级', '')}, "
-                           f"趋势: {ci.get('趋势', '')}")
+                           f"沿航迹指数: {ci.get('沿航迹指数变化', ci.get('趋势', '未判定'))}")
                 st.caption(f"点位: {ci.get('count', '')} 个 | "
                           f"空间跨度: {ci.get('空间跨度_m', '')}m | "
-                          f"持续时长: {ci.get('持续超标时长_min', '')}min")
+                          f"首末观测跨度: {ci.get('首末观测跨度_min', '')}min")
 
 
 def _display_trace_result(result_str):

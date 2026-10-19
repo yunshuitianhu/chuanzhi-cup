@@ -237,6 +237,7 @@ def multi_source_trace(
 
     return json.dumps({
         "搜索中心": f"{lat:.6f}, {lon:.6f}",
+        '证据边界': '结果是周边待核实资料；权重仅表示数据源的配置优先级，不是来源概率。尚未核验入河连接、上下游关系、排放时段及输移一致性，不能确认污染源。',
         "搜索半径_m": config.search_radius_m,
         "各数据源贡献": source_summary,
         "国控监测背景": station_background,

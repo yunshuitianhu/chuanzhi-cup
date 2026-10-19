@@ -155,7 +155,8 @@ class WebRegressionTests(unittest.TestCase):
             client.chat.completions.create.return_value = [chunk]
             events = list(run_agent(self.session, '新问题', auto=False))
             sent = client.chat.completions.create.call_args.kwargs['messages']
-            self.assertEqual(sent[0]['content'], SYSTEM_PROMPT_CHAT)
+            self.assertTrue(sent[0]['content'].startswith(SYSTEM_PROMPT_CHAT))
+            self.assertIn('当前数据身份（服务器核对）', sent[0]['content'])
             self.assertEqual(sent[1]['content'], '历史问题')
             client.close.assert_called_once()
         self.assertIn('event: done', events[-1])

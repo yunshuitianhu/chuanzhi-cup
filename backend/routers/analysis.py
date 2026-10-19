@@ -19,6 +19,7 @@ from water_quality_mcp.src.water_quality_mcp.analysis import (
 
 from ..deps import get_session, get_exclusive_session
 from ..session import Session
+from water_quality_mcp.src.water_quality_mcp.evidence import EVIDENCE_VERSION
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -46,15 +47,20 @@ def saved_results(session: Session = Depends(get_session)) -> dict:
             warnings.append(f'{label}缓存无法读取，请重新运行对应分析。')
             return None
     parsed = stored_object(session.black_spots_json, '检测') if session.black_spots is not None else None
+    if parsed is not None and parsed.get('证据版本') != EVIDENCE_VERSION:
+        warnings.append('检测摘要使用旧版证据口径，请重新运行检测；历史趋势和指标表述尚未复核。')
     clusters = (parsed or {}).get('聚类详情') or []
     if not isinstance(clusters, list):
         clusters = []
     black = None if parsed is None else {'result':parsed,
         'cluster_fields':sorted(clusters[0]) if clusters and isinstance(clusters[0],dict) else []}
     cross = stored_object(session.cross_validation, '交叉印证')
+    comprehensive = stored_object(session.comprehensive_summary, '综合摘要')
+    if comprehensive is not None and comprehensive.get('证据版本') != EVIDENCE_VERSION:
+        warnings.append('综合摘要使用旧版证据口径，请重新分析生成当前报告。')
     return {'analysis_revision':session.analysis_revision, 'results_revision':session.results_revision,
         'black_spots':black, 'cross_validation':cross,
-        'comprehensive':stored_object(session.comprehensive_summary, '综合摘要'), 'warnings':warnings}
+        'comprehensive':comprehensive, 'warnings':warnings}
 
 
 @router.get("/summary")
@@ -62,7 +68,7 @@ def summary(session: Session = Depends(get_session)) -> dict:
     """数据统计摘要 —— 对应 app.py 的 tool_data_summary。"""
     if session.df is None or len(session.df) == 0:
         raise HTTPException(400, "数据未加载")
-    return json.loads(data_summary(session.df))
+    return json.loads(data_summary(session.df, session.data_filename))
 
 
 @router.post("/black-spots")

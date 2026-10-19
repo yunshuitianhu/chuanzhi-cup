@@ -109,6 +109,9 @@ def multi_source(payload: TraceRequest | None = None,
         "搜索中心文本": data.get("搜索中心", ""),   # 内核原值仍保留
         "搜索中心来源": origin,
         "查询用途": "周边背景线索查询；候选资料不表示本次已检出污染，亦不构成源识别或责任认定。",
+        '数据身份': session.data_identity,
+        '仿真使用限制': ('当前数据为仿真；返回的真实周边资料只供地图背景查询，不能与设定污染关联。'
+                         if session.data_identity['kind'] == 'synthetic' else None),
         "坐标系说明": COORD_NOTE,
     }
 
