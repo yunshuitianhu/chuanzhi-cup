@@ -7,6 +7,7 @@ import { renderToString } from '@vue/server-renderer'
 import { createPinia } from 'pinia'
 
 const server=await createServer({
+  configLoader:'runner',
   server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test',
   resolve:{alias:[
     {find:'leaflet/dist/leaflet.css',replacement:fileURLToPath(new URL('./fixtures/mapLayerStub.js',import.meta.url))},
