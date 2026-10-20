@@ -15,6 +15,7 @@ import { toastErr, toastOk } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import EChart from '../components/EChart.vue'
 import PollutionPlayback from '../components/PollutionPlayback.vue'
+import NumericalResolution from '../components/NumericalResolution.vue'
 import { restoreRiverWorkspace } from '../utils/projectRestore'
 
 const store = useSessionStore()
@@ -385,6 +386,7 @@ const pollutionCompare = computed(() => {
           </div>
           <p class="hint">排放开始时间相对模拟起点计算；本时段仅计入与排放时段重叠的负荷。源位置取最近断面，实际计算桩号 {{ pollutionResult['源位置离散']?.['实际计算桩号_m'] ?? '—' }} m。</p>
           <p class="cred">{{ pollutionResult['提示'] }}</p>
+          <NumericalResolution :diagnostics="pollutionResult['数值诊断']" />
           <div v-if="pollutionResult['反应模型']?.version" class="reaction-info">
             <p>本次计算包含硝化耗氧、低氧限制及硝态氮转化。</p>
             <div class="result">
