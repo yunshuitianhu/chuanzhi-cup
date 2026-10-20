@@ -1030,6 +1030,7 @@ def build_comprehensive_summary(state, river_state=None, config=None):
                     "模拟时长_h": w.t[-1],
                     "反应模型": w.params.get('reaction_model', {}),
                     "反应核算": w.params.get('reaction_diagnostics', {}),
+                    "数值诊断": w.params.get('numerical_diagnostics', {}),
                     "结论限制": "仅为情景模拟，参数未经当前河道现场率定，不能据此认定污染责任",
                 }
                 if pollutant in ('ammonia', 'cbod') and concentration is not None:

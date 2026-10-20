@@ -404,6 +404,7 @@ def tool_river_pollution_event(
         "反应模型": result.params.get('reaction_model', {}),
         "反应核算": result.params.get('reaction_diagnostics', {}),
         "质量核算": result.params.get('mass_balance', {}),
+        "数值诊断": result.params.get('numerical_diagnostics', {}),
         "污染物": pollutant_type,
         "排放量_kg": load_kg,
         "排放位置_m": chainage_m,

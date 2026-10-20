@@ -133,15 +133,16 @@ def _reaction_step(cbod: np.ndarray, nh3: np.ndarray, do_: np.ndarray,
                    O_sat: float, T_C: float, dt_s: float,
                    theta_d: float, theta_n: float, theta_rea: float,
                    oxygen_per_n: float = 4.57, oxygen_half_sat_n: float = .6,
-                   oxygen_half_sat_cbod: float = .5, oxygen_half_sat_sod: float = .5) -> tuple:
+                   oxygen_half_sat_cbod: float = .5, oxygen_half_sat_sod: float = .5,
+                   reaeration_base: float = 5.32) -> tuple:
     """带氧限制的耦合 RK4；按反应损失率细分，不能靠截零消除透支的氧。
 
     速率单位 d⁻¹，dt_s 单位秒。NH3-N 的反应损失全部视为 NO3-N 生成，
     由调用方同步推进硝态氮。4.57 为完全硝化理论耗氧，不含生物合成。
     """
     scalar = (K_d, K_s, beta1, SOD, O_sat, T_C, dt_s, theta_d, theta_n, theta_rea,
-              oxygen_per_n, oxygen_half_sat_n, oxygen_half_sat_cbod, oxygen_half_sat_sod)
-    if (not np.all(np.isfinite(scalar)) or min(K_d, K_s, beta1, SOD, O_sat, dt_s) < 0
+              oxygen_per_n, oxygen_half_sat_n, oxygen_half_sat_cbod, oxygen_half_sat_sod, reaeration_base)
+    if (not np.all(np.isfinite(scalar)) or min(K_d, K_s, beta1, SOD, O_sat, dt_s, reaeration_base) < 0
             or min(theta_d, theta_n, theta_rea, oxygen_per_n,
                    oxygen_half_sat_n, oxygen_half_sat_cbod, oxygen_half_sat_sod) <= 0):
         raise ValueError('反应参数须有限，速率/时长/饱和氧须非负，温度系数及氧限制参数须为正')
@@ -156,7 +157,8 @@ def _reaction_step(cbod: np.ndarray, nh3: np.ndarray, do_: np.ndarray,
     temp_fac_rea = theta_rea ** (T_C - 20.0)
 
     kd, kn = K_d * temp_fac_d, beta1 * temp_fac_n
-    ka = _owens_gibbs_ka(np.abs(u), H) * temp_fac_rea
+    # 默认5.32保持原结果；显式配置为0可关闭复氧，不能继续默用硬编码系数。
+    ka = _owens_gibbs_ka(np.abs(u), H) * temp_fac_rea * (reaeration_base / 5.32)
     sod = SOD / np.asarray(H)
     # L、N 在反应期间只减不增；以 K_O 给氧损失系数取上界，限制 RK4 的子步。
     loss_bound = max(kd + K_s, kn, float(np.max(ka
@@ -366,6 +368,8 @@ def solve_water_quality(
     reaction_change = np.zeros(4)
     times, snapshots = [0.0], [components.copy()]
     max_stability = 0.0
+    substep_count = 0
+    min_actual_dt, max_actual_dt = float('inf'), 0.
 
     for t0, t1 in zip(step_edges[:-1], step_edges[1:]):
         step_dt = t1 - t0
@@ -387,6 +391,8 @@ def solve_water_quality(
         # 对流与扩散共同限制显式步长，包含反向流和边界半单元。
         n_sub = max(1, int(np.ceil(step_dt * rate / .9)))
         sub_dt = step_dt / n_sub
+        substep_count += n_sub
+        min_actual_dt, max_actual_dt = min(min_actual_dt, sub_dt), max(max_actual_dt, sub_dt)
         max_stability = max(max_stability, rate * sub_dt)
         H_now = np.maximum(A_now / config.width_avg_m, .1)
 
@@ -408,7 +414,7 @@ def solve_water_quality(
                 *components[:3], H_now, np.abs(u_now), K_d, K_s, beta1, SOD,
                 O_sat, T_C, sub_dt, theta_d, theta_n, theta_rea,
                 config.oxygen_per_nitrified_n, config.oxygen_half_sat_nitrification,
-                config.oxygen_half_sat_cbod, config.oxygen_half_sat_sod))
+                config.oxygen_half_sat_cbod, config.oxygen_half_sat_sod, config.k_reaeration_base))
             components[3] += before_nh3 - components[1]
             reaction_change += (components * volume).sum(axis=1) - before_reaction
 
@@ -451,6 +457,20 @@ def solve_water_quality(
             "hydro_time_mode": "stationary_single_frame" if len(t_hydro) == 1 else "time_interpolation",
             "mass_balance": balance,
             "max_transport_stability": max_stability,
+            "numerical_diagnostics": {
+                "requested_dt_s": float(dt_s),
+                "actual_min_dt_s": min_actual_dt,
+                "actual_max_dt_s": max_actual_dt,
+                "transport_substeps": substep_count,
+                "grid_nodes": n_cs,
+                "min_spacing_m": float(np.diff(chainage).min()),
+                "max_spacing_m": float(np.diff(chainage).max()),
+                "dispersion_min_m2s": float(K_array.min()),
+                "dispersion_max_m2s": float(K_array.max()),
+                "max_cell_peclet": float(np.max(u_rep * np.r_[np.diff(chainage), np.diff(chainage)[-1]] / K_array)),
+                "scheme": "first_order_upwind_advection_explicit_centered_diffusion_split_rk4",
+                "limits": "实际子步受稳定性、输出与排放边界影响；迎风格式存在数值弥散，守恒不代表峰值/到达时间精度。",
+            },
             "reaction_model": {
                 "version": "oxygen_limited_nitrification_v1",
                 "k_cbod_decay_per_day": K_d,
@@ -458,6 +478,7 @@ def solve_water_quality(
                 "sediment_oxygen_demand_g_m2_day": SOD,
                 "water_temperature_C": T_C,
                 "do_saturation_mgL": O_sat,
+                "reaeration_base": config.k_reaeration_base,
                 "oxygen_per_nitrified_n": config.oxygen_per_nitrified_n,
                 "oxygen_half_sat_nitrification_mgL": config.oxygen_half_sat_nitrification,
                 "oxygen_half_sat_cbod_mgL": config.oxygen_half_sat_cbod,
