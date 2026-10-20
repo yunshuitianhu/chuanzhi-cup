@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 from .config import RiverConfig
 from .state import HydroResult, WQResult
 from .transport import geometry, conservative_step
+from .wq_grid import refined_chainage, check_work_budget
 
 
 # ---- 反应动力学 ----
@@ -206,6 +207,7 @@ def solve_water_quality(
     output_interval_s: float = 60.0,
     output_times_h: Optional[np.ndarray] = None,
     point_sources: Optional[list[dict]] = None,
+    wq_refinement: int = 1,
 ) -> WQResult:
     """运行水质 ADR 模拟 (含污染事件)。
 
@@ -224,6 +226,8 @@ def solve_water_quality(
         point_sources: 仅供受控实验的多排放事件。每项须给出 pollutant_type、load_kg、
             chainage_m、duration_min、source_start_h；提供时替代单源参数，空列表表示无排放。
             同一物理源的多次排放可重复 source_id。Web 入口尚不开放多源反演。
+        wq_refinement: 每个水动力区间细分为1/2/4/8段水质网格。内核默认1兼容旧实验，
+            Web和工具默认4。细分线性插值A/Q，不代表增加实测几何信息。
 
     Returns:
         WQResult 包含各组分浓度时间序列
@@ -241,8 +245,12 @@ def solve_water_quality(
         raise ValueError('负荷和排放开始时刻须非负，时长和步长须为正有限数')
     if not hydro.chainage[0] <= chainage_m <= hydro.chainage[-1]:
         raise ValueError('污染源桩号超出当前河道范围')
-    n_cs = len(hydro.chainage)
-    chainage = hydro.chainage
+    native_chainage = np.asarray(hydro.chainage, dtype=float)
+    chainage = refined_chainage(native_chainage, wq_refinement)
+    n_cs = len(chainage)
+    def on_wq_grid(values):
+        return (np.asarray(values) if wq_refinement == 1
+                else np.interp(chainage, native_chainage, values))
     t_hydro = hydro.t * 3600.0  # 转为秒
     total_seconds = simulation_hours * 3600.0
     if point_sources is not None and not isinstance(point_sources, list):
@@ -264,13 +272,13 @@ def solve_water_quality(
                 or min(mass, start) < 0 or minutes <= 0
                 or not hydro.chainage[0] <= position <= hydro.chainage[-1]):
             raise ValueError('排放事件的组分、负荷、桩号或时长无效')
-        idx = int(np.argmin(np.abs(hydro.chainage - position)))
+        idx = int(np.argmin(np.abs(chainage - position)))
         releases.append(dict(source_id=str(event.get('source_id', f'source_{event_number}')),
             pollutant_type=kind, load_kg=mass, chainage_m=position, duration_min=minutes,
             source_start_h=start, start_s=start * 3600., end_s=start * 3600. + minutes * 60.,
             rate_gs=mass * 1000. / (minutes * 60.), component=1 if kind == 'ammonia' else 0,
-            source_section_id=idx, source_effective_chainage_m=float(hydro.chainage[idx]),
-            source_snap_distance_m=float(abs(hydro.chainage[idx] - position)), injected_kg=0.))
+            source_section_id=idx, source_effective_chainage_m=float(chainage[idx]),
+            source_snap_distance_m=float(abs(chainage[idx] - position)), injected_kg=0.))
     if (t_hydro.ndim != 1 or not len(t_hydro) or not np.all(np.isfinite(t_hydro))
             or t_hydro[0] != 0 or np.any(np.diff(t_hydro) <= 0)):
         raise ValueError('水动力时间轴须从 0 开始且严格递增，单位为小时')
@@ -303,13 +311,13 @@ def solve_water_quality(
     # 代表性水力条件取水动力结果的时间平均：K 在时间循环外算一次，
     # 与既有结构保持一致（避免把 K 的重算塞进每个子步）。
     g = 9.81
-    B_array = np.ones(n_cs) * float(config.width_avg_m)
+    B_array = np.ones(len(native_chainage)) * float(config.width_avg_m)
 
     try:
         vel = np.asarray(hydro.velocity, dtype=float)
         u_rep = np.abs(vel).mean(axis=0) if vel.ndim == 2 else np.abs(vel)
     except (TypeError, ValueError, AttributeError):
-        u_rep = np.ones(n_cs) * float(config.velocity_avg_ms)
+        u_rep = np.ones(len(native_chainage)) * float(config.velocity_avg_ms)
 
     try:
         if hydro.area is not None:
@@ -328,7 +336,9 @@ def solve_water_quality(
            / np.maximum(H_rep, 0.1) ** (2.0 / 3.0)) ** 2
     u_star = np.sqrt(g * H_rep * S_f)
 
-    K_array = _fischer_dispersion(u_rep, B_array, H_rep, u_star)
+    # 在原水动力节点计算经验闭合，再插值；网格加密不更换物理闭合参数。
+    K_array = on_wq_grid(_fischer_dispersion(u_rep, B_array, H_rep, u_star))
+    u_rep = on_wq_grid(u_rep)
 
     # ---- 初始浓度场 ----
     cbod = np.ones(n_cs) * config.bod_cbod_mgL
@@ -354,13 +364,22 @@ def solve_water_quality(
     release_edges = [s for release in releases for s in (release['start_s'], release['end_s'])
                      if 0 < s < total_seconds]
     output_seconds = np.unique(np.r_[0., output_seconds, release_edges, total_seconds])
+    initial_area_native = (hydro.area[0] if hydro.area is not None else
+        np.full(len(native_chainage), config.width_avg_m * config.depth_avg_m))
+    initial_area = on_wq_grid(initial_area_native)
+    # 在构造积分时刻和结果数组前拒绝失控计算，不靠静默退回粗网格通过请求。
+    areas = np.asarray(hydro.area) if hydro.area is not None else initial_area_native[None, :]
+    discharges = np.asarray(hydro.discharge)
+    steps_bound = check_work_budget(chainage, on_wq_grid(areas.min(axis=0)),
+        on_wq_grid(areas.max(axis=0)), on_wq_grid(discharges.min(axis=0)),
+        on_wq_grid(discharges.max(axis=0)), K_array, total_seconds,
+        total_steps+len(output_seconds), len(output_seconds))
     # 在输出及排放边界处分步，避免提前排放、跨边界摊平，或把邻帧当作观测时刻。
     step_edges = np.unique(np.r_[np.arange(total_steps) * dt_s, output_seconds])
     output_set = set(output_seconds)
     components = np.stack([cbod, nh3, do_, nitrate])
     upstream, downstream = components[:, 0].copy(), components[:, -1].copy()
-    initial_area = hydro.area[0] if hydro.area is not None else np.full(n_cs, config.width_avg_m * config.depth_avg_m)
-    volume, _, _, _ = geometry(chainage, initial_area, hydro.discharge[0], K_array)
+    volume, _, _, _ = geometry(chainage, initial_area, on_wq_grid(hydro.discharge[0]), K_array)
     initial_mass = (components * volume).sum(axis=1)
     injected = np.zeros(4)
     inflow = np.zeros(4)
@@ -381,9 +400,13 @@ def solve_water_quality(
             u_now = (1 - fraction) * hydro.velocity[lo] + fraction * hydro.velocity[hi]
             Q_now = (1 - fraction) * hydro.discharge[lo] + fraction * hydro.discharge[hi]
             A_now = ((1 - fraction) * hydro.area[lo] + fraction * hydro.area[hi]
-                     if hydro.area is not None else initial_area)
+                     if hydro.area is not None else initial_area_native)
         else:
-            u_now, Q_now, A_now = hydro.velocity[0], hydro.discharge[0], initial_area
+            u_now, Q_now, A_now = hydro.velocity[0], hydro.discharge[0], initial_area_native
+
+        if wq_refinement > 1:
+            Q_now, A_now = on_wq_grid(Q_now), on_wq_grid(A_now)
+            u_now = Q_now / A_now  # 插值流量和面积，再取流速，保持 Q=A*u。
 
         new_volume, q_face, conductance, rate = geometry(chainage, A_now, Q_now, K_array)
         components *= volume / new_volume  # 几何随时间变化时保持原有质量。
@@ -456,6 +479,7 @@ def solve_water_quality(
             "time_unit": "h",
             "hydro_time_mode": "stationary_single_frame" if len(t_hydro) == 1 else "time_interpolation",
             "mass_balance": balance,
+            "wq_refinement": wq_refinement,
             "max_transport_stability": max_stability,
             "numerical_diagnostics": {
                 "requested_dt_s": float(dt_s),
@@ -463,6 +487,11 @@ def solve_water_quality(
                 "actual_max_dt_s": max_actual_dt,
                 "transport_substeps": substep_count,
                 "grid_nodes": n_cs,
+                "hydro_grid_nodes": len(native_chainage),
+                "wq_refinement": wq_refinement,
+                "transport_steps_upper_bound": steps_bound,
+                "grid_method": "subdivide_hydro_intervals_linear_area_discharge",
+                "geometry_information": "水质网格细分采用原水动力A/Q线性插值；未增加实测断面信息",
                 "min_spacing_m": float(np.diff(chainage).min()),
                 "max_spacing_m": float(np.diff(chainage).max()),
                 "dispersion_min_m2s": float(K_array.min()),
