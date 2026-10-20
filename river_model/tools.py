@@ -282,6 +282,7 @@ def tool_river_pollution_event(
     monitoring_data=None,
     source_start_h: float = 0.0,
     output_interval_s: float = 60.0,
+    wq_refinement: int = 4,
 ) -> str:
     """在当前河段指定位置模拟污染事件。"""
     if not state.has_hydro():
@@ -310,6 +311,7 @@ def tool_river_pollution_event(
             dt_s=60.0,
             source_start_h=source_start_h,
             output_interval_s=output_interval_s,
+            wq_refinement=wq_refinement,
         )
     except Exception as e:
         return json.dumps({"error": f"水质模拟失败: {str(e)}"}, ensure_ascii=False)
@@ -317,7 +319,7 @@ def tool_river_pollution_event(
     result.params.update(hydro_run_id=state.hydro_result.params.get('run_id'),
                          hydro_tidal_amplitude_m=state.hydro_result.params.get('tidal_amplitude_m', 0))
     state.wq_result = result
-    scenario_name = f"{pollutant_type}_{load_kg}kg_{chainage_m}m_start{source_start_h}h_dur{duration_min}min"
+    scenario_name = f"{pollutant_type}_{load_kg}kg_{chainage_m}m_start{source_start_h}h_dur{duration_min}min_wq{wq_refinement}"
     state.scenarios[scenario_name] = result.params
 
     # 每张图独立生成；某张失败不会阻止其余图，也不会把旧文件列作新结果。
@@ -414,7 +416,7 @@ def tool_river_pollution_event(
         "源位置离散": {
             "实际计算桩号_m": result.params.get('source_effective_chainage_m'),
             "与请求位置距离_m": result.params.get('source_snap_distance_m'),
-            "说明": "负荷注入最近断面；断面间距限制源位置分辨率",
+            "说明": "负荷注入最近水质计算节点；水质网格间距限制源位置分辨率，细分不增加实测几何信息",
         },
         "输出时间点数": len(result.t),
         "输出间隔_s": output_interval_s,
@@ -427,13 +429,15 @@ def tool_river_pollution_event(
             "目标水质": target_water_class,
             "基准_mgL": std_limit,
             "说明": ("CBOD 与 BOD 标准不是同一量测口径，仅作参考，不能据此认定达标"
-                     if pollutant_type == 'cbod' else "浓度超过所选等级标准限值的断面"),
+                     if pollutant_type == 'cbod' else "浓度超过所选等级标准限值的水质计算节点"),
+            "统计对象": "水质计算节点，数量随网格改变；应同时比较桩号范围",
             "断面数": n_exceed_std,
             "桩号范围_m": list(exceed_std_chainage_range),
         },
         "相对监测基线": {
             "基准_mgL": round(float(data[0, :].max()), 2) if data is not None else 0.0,
-            "说明": "浓度超过监测基线 1.5 倍的断面（衡量本次排放带来的增量影响）",
+            "说明": "浓度超过监测基线 1.5 倍的水质计算节点（衡量本次排放带来的增量影响）",
+            "统计对象": "水质计算节点，数量随网格改变；应同时比较桩号范围",
             "断面数": n_affected,
             "桩号范围_m": list(affected_chainage_range),
         },

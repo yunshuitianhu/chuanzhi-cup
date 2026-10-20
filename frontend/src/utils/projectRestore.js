@@ -12,6 +12,8 @@ export function restoreRiverWorkspace(saved, draft, defaults) {
     form.high_water_mean_m = model.hydro_params.downstream_stage_m ?? form.high_water_mean_m
     form.duration_h = model.hydro_params.duration_h ?? form.duration_h
     const p = model.wq_params
+    // 旧结果使用原水动力网格；不能恢复成新默认4并暗示它已加密计算。
+    if (model.has_wq) form.wq_refinement = p.wq_refinement ?? 1
     for (const key of ['load_kg','source_start_h','duration_min','chainage_m','pollutant_type']) {
       if (p[key] != null) form[key] = p[key]
     }
@@ -28,5 +30,6 @@ export function restoreRiverWorkspace(saved, draft, defaults) {
     init: geometryMatches ? { 断面数:model.cross_section_count, 河段长度_km:model.config.length_m/1000,
       曼宁糙率:model.config.mannings_n, ...ui.init } : null,
     hydro: hydroMatches ? { 工况:'恒定流', 结果可信度:'已恢复恒定流情景；请核实断面、边界和反应参数，结果不代表现场率定。', ...ui.hydro } : null,
-    pollution: hydroMatches && model.has_wq ? (ui.pollution || { 状态:'已恢复水质结果' }) : null }
+    pollution: hydroMatches && model.has_wq && form.wq_refinement === (model.wq_params.wq_refinement ?? 1)
+      ? (ui.pollution || { 状态:'已恢复水质结果' }) : null }
 }

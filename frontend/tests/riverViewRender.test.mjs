@@ -14,11 +14,20 @@ test('无数据也显示手工建模、初始化、水动力和污染事件控�
   const app=createSSRApp(RiverView);app.use(createPinia())
   const html=await renderToString(app)
   assert.doesNotMatch(html,/<template(?:\s|>)/i)
-  for(const label of ['河段名称','参考水面宽','初始化模型','运行水动力','模拟污染事件','排放开始 h']) {
+  for(const label of ['河段名称','参考水面宽','初始化模型','运行水动力','模拟污染事件','排放开始 h','水质网格细分','4 倍（默认）']) {
     assert.ok(html.includes(label),`missing visible control: ${label}`)
   }
   assert.ok((html.match(/<input\b/g)||[]).length>=20)
   assert.match(html,/class="river-workspace"/)
+})
+
+test('独立网格明确区分水动力断面与细分水质节点',async()=>{
+  const {default:Resolution}=await server.ssrLoadModule('/src/components/NumericalResolution.vue')
+  const html=await renderToString(createSSRApp(Resolution,{diagnostics:{requested_dt_s:60,
+    grid_nodes:397,hydro_grid_nodes:100,wq_refinement:4,min_spacing_m:15.15,max_spacing_m:15.15}}))
+  assert.match(html,/水动力断面 100 个/)
+  assert.match(html,/共 397 个计算节点/)
+  assert.match(html,/未增加实测断面信息/)
 })
 
 test('数值分辨率区分请求步长与实际子步，并保留零值',async()=>{

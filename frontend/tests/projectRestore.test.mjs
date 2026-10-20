@@ -33,3 +33,12 @@ test('空项目不继承其它项目结果',()=>{
   const restored=restoreRiverWorkspace({model:null,river_ui:{}},null,defaults)
   assert.equal(restored.form.river_name,'默认');assert.equal(restored.init,null)
 })
+test('旧结果恢复原网格，新结果恢复实际细分数，草稿不能冒用旧结果',()=>{
+  const saved=fixture()
+  assert.equal(restoreRiverWorkspace(saved,null,{...defaults,wq_refinement:4}).form.wq_refinement,1)
+  saved.model.wq_params.wq_refinement=8
+  const restored=restoreRiverWorkspace(saved,null,{...defaults,wq_refinement:4})
+  assert.equal(restored.form.wq_refinement,8);assert.equal(restored.pollution.status,'wq')
+  const draft=restoreRiverWorkspace(saved,{wq_refinement:4},{...defaults,wq_refinement:4})
+  assert.ok(draft.hydro);assert.equal(draft.pollution,null)
+})

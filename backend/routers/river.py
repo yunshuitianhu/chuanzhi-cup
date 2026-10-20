@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator
 from typing import Literal
 
 from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
@@ -106,6 +106,14 @@ class PollutionRequest(ModelRequest):
     simulation_hours: FiniteFloat = Field(6, ge=.5, le=48)
     source_start_h: FiniteFloat = Field(0, ge=0)
     output_interval_s: FiniteFloat = Field(60, ge=1, le=3600)
+    wq_refinement: int = Field(4, ge=1, le=8)
+
+    @field_validator('wq_refinement')
+    @classmethod
+    def supported_refinement(cls, value):
+        if value not in (1, 2, 4, 8):
+            raise ValueError('水质网格细分数须为 1、2、4 或 8')
+        return value
 
 
 @router.get("/params")

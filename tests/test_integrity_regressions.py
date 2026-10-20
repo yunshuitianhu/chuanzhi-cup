@@ -187,10 +187,21 @@ class RiverApiTests(unittest.TestCase):
         self.assertEqual(solve.call_args.kwargs['source_start_h'], .25)
         self.assertEqual(solve.call_args.kwargs['duration_min'], 7.)
         self.assertEqual(solve.call_args.kwargs['output_interval_s'], 30.)
+        self.assertEqual(solve.call_args.kwargs['wq_refinement'], 4)
         for body in ({'source_start_h': -1}, {'source_start_h': '1'}, {'output_interval_s': 0}):
             with self.subTest(body=body):
                 self.assertEqual(self.client.post('/api/river/pollution', headers=self.headers,
                                                   json=body).status_code, 422)
+
+    def test_water_quality_refinement_is_strict_and_forwarded(self):
+        for value in (True, 1., '4', 3, 16):
+            self.assertEqual(self.client.post('/api/river/pollution', headers=self.headers,
+                json={'wq_refinement': value}).status_code, 422)
+        for value in (1, 2, 4, 8):
+            with patch.object(river_tools, 'tool_river_pollution_event', return_value='{}') as solve:
+                response = self.client.post('/api/river/pollution', headers=self.headers, json={'wq_refinement': value})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(solve.call_args.kwargs['wq_refinement'], value)
 
     def test_profile_interpolates_and_rejects_outside_time_range(self):
         st = self.session.get_river_state()

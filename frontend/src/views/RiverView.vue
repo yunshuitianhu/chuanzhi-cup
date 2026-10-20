@@ -42,6 +42,7 @@ const form = ref({
   duration_min: 30,
   chainage_m: 500,
   pollutant_type: 'ammonia',
+  wq_refinement: 4,
 })
 
 let hydrating = false
@@ -87,6 +88,10 @@ watch(() => ['river_name','length_m','width_avg_m','depth_avg_m','longitudinal_s
 watch(() => [form.value.upstream_flow_m3s, form.value.high_water_mean_m, form.value.duration_h], () => {
   if (hydrating) return
   hydroResult.value = pollutionResult.value = null
+})
+watch(() => [form.value.wq_refinement, form.value.chainage_m, form.value.pollutant_type,
+  form.value.load_kg, form.value.source_start_h, form.value.duration_min], () => {
+  if (!hydrating) pollutionResult.value = null
 })
 
 async function detectParams() {
@@ -173,6 +178,7 @@ async function runPollution() {
       source_start_h: form.value.source_start_h,
       duration_min: form.value.duration_min,
       simulation_hours: form.value.duration_h,
+      wq_refinement: form.value.wq_refinement,
     })
     if (revision !== store.status.analysis_revision) return
     pollutionResult.value = result
@@ -244,7 +250,7 @@ const pollutionCompare = computed(() => {
         { value: base['断面数'] ?? 0, itemStyle: { color: '#2ea3f2' } },
       ],
       label: { show: true, position: 'right', color: '#e8eef5', fontSize: 11,
-               formatter: '{c} 个断面' },
+               formatter: '{c} 个水质节点' },
     }],
   }
 })
@@ -364,7 +370,16 @@ const pollutionCompare = computed(() => {
           <label>污染源桩号 m<input v-model.number="form.chainage_m" type="number" step="100" /></label>
           <label>排放开始 h<input v-model.number="form.source_start_h" type="number" min="0" step="0.1" /></label>
           <label>排放持续 min<input v-model.number="form.duration_min" type="number" min="0.1" step="1" /></label>
+          <label>水质网格细分
+            <select v-model.number="form.wq_refinement">
+              <option :value="1">1 倍（原网格，对照）</option>
+              <option :value="2">2 倍</option>
+              <option :value="4">4 倍（默认）</option>
+              <option :value="8">8 倍（精细复算）</option>
+            </select>
+          </label>
         </div>
+        <p class="hint">水质网格可独立细分，无需重新运行水动力。预计 {{ (form.n_cross_sections - 1) * form.wq_refinement + 1 }} 个水质节点；更细网格会增加计算量。几何信息仍来自原水动力断面。</p>
         <button
           class="mini primary"
           :disabled="!!busy || store.chatRunning || !hydroResult"
@@ -384,7 +399,7 @@ const pollutionCompare = computed(() => {
             <span>本时段实际注入 <b>{{ pollutionResult['实际注入量_kg']?.toFixed(3) ?? '—' }} kg</b></span>
             <span>输出时间点 <b>{{ pollutionResult['输出时间点数'] }}</b></span>
           </div>
-          <p class="hint">排放开始时间相对模拟起点计算；本时段仅计入与排放时段重叠的负荷。源位置取最近断面，实际计算桩号 {{ pollutionResult['源位置离散']?.['实际计算桩号_m'] ?? '—' }} m。</p>
+          <p class="hint">排放开始时间相对模拟起点计算；本时段仅计入与排放时段重叠的负荷。源位置取最近水质计算节点，实际计算桩号 {{ pollutionResult['源位置离散']?.['实际计算桩号_m'] ?? '—' }} m，偏移 {{ pollutionResult['源位置离散']?.['与请求位置距离_m'] ?? '—' }} m。</p>
           <p class="cred">{{ pollutionResult['提示'] }}</p>
           <NumericalResolution :diagnostics="pollutionResult['数值诊断']" />
           <div v-if="pollutionResult['反应模型']?.version" class="reaction-info">

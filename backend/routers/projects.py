@@ -19,7 +19,7 @@ FORM_KEYS={'n_cross_sections','mannings_n','river_name','length_m','width_avg_m'
     'longitudinal_slope','bed_elevation_avg_m','high_water_mean_m','ammonia_nh3_mgL',
     'dissolved_oxygen_mgL','bod_cbod_mgL','water_temp_C','k_nitrification','k_cbod_decay',
     'k_sediment_oxygen_demand','do_saturation_mgL','upstream_flow_m3s','tidal_amplitude_m',
-    'duration_h','load_kg','source_start_h','duration_min','chainage_m','pollutant_type'}
+    'duration_h','load_kg','source_start_h','duration_min','chainage_m','pollutant_type','wq_refinement'}
 
 
 class SaveRequest(BaseModel):
