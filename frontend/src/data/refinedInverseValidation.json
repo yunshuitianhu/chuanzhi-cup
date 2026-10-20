@@ -1,0 +1,29 @@
+{
+  "version": "single_source_checked_grid_v2",
+  "date": "2026-10-20",
+  "seed": 20261020,
+  "scope": "离线受控单源恒定流；解析真值；非现场准确率",
+  "noiseCases": 12,
+  "declineCases": 9,
+  "knownBlindSpot": "虚假的增益校准假设仍可通过拟合与留出检验并给出错误负荷；须外部核实校准、水动力与边界",
+  "crossRiver": [
+    {
+      "length_m": 600.0,
+      "load_relative_error": 0.012580939494216237,
+      "holdout_truth_nrmse": 0.010529223517055304,
+      "source_recovered": true
+    },
+    {
+      "length_m": 1800.0,
+      "load_relative_error": 0.010611727674885829,
+      "holdout_truth_nrmse": 0.010100970460647701,
+      "source_recovered": true
+    },
+    {
+      "length_m": 5400.0,
+      "load_relative_error": 0.011416939766716094,
+      "holdout_truth_nrmse": 0.010547749542161236,
+      "source_recovered": true
+    }
+  ]
+}

@@ -16,6 +16,8 @@ import BlackSpotResult from '../components/BlackSpotResult.vue'
 import StationQuery from '../components/StationQuery.vue'
 import MultiSourceTrace from '../components/MultiSourceTrace.vue'
 import RagSearch from '../components/RagSearch.vue'
+import WaterQualityGridTech from '../components/WaterQualityGridTech.vue'
+import InverseValidationTech from '../components/InverseValidationTech.vue'
 
 const store = useSessionStore()
 const running = ref(false)
@@ -35,7 +37,7 @@ async function runBlackSpots() {
 </script>
 
 <template>
-  <Panel title="核心技术能力展示" subtitle="每项能力均可独立运行，无需通过对话提问">
+  <Panel title="核心技术能力展示" subtitle="独立体验分析能力，了解模型原理与验证依据">
     <StatusBanner />
     <p v-for="message in store.resultsWarnings" :key="message" class="hint">{{ message }}</p>
 
@@ -85,22 +87,28 @@ async function runBlackSpots() {
       <RagSearch />
     </section>
 
-    <section class="block">
+    <section class="block" id="water-quality-grid">
+      <h2 class="bt">🌊 水动力–水质模型与独立网格</h2>
+      <WaterQualityGridTech />
+    </section>
+
+    <section class="block" id="single-source-validation">
+      <h2 class="bt">🧪 受控单源反演与拒绝机制</h2>
+      <InverseValidationTech />
+    </section>
+
+    <section class="block last">
       <h2 class="bt">📊 数据统计概览</h2>
       <p class="desc">当前会话已加载数据的指标均值与极值。</p>
       <SummaryCards />
     </section>
 
-    <section class="block last">
-      <h2 class="bt">🌊 河道模型参数检测</h2>
-      <p class="desc">已移至「河道模型」标签页。</p>
-    </section>
   </Panel>
 </template>
 
 <style scoped>
 .block { padding: 20px 0; border-bottom: 1px solid var(--c-border); }
-.block.last { border-bottom: none; opacity: .7; }
+.block.last { border-bottom: none; }
 .bt { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
 .desc { margin: 0 0 10px; font-size: 12px; color: var(--c-sub); line-height: 1.9; max-width: 820px; }
 .desc b { color: var(--c-ink); }
