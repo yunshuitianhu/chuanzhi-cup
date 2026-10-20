@@ -1,0 +1,3091 @@
+{
+  "version": "single_source_checked_grid_v2",
+  "scope": "离线受控单源恒定流；解析真值；非现场准确率",
+  "seed": 20261020,
+  "gates": {
+    "load_relative_error_max": 0.2,
+    "holdout_truth_nrmse_max": 0.15,
+    "weighted_rmse_max": 2.0,
+    "doubled_grid_normalized_rms_max": 1.0,
+    "interpretation": "工程门槛，不是置信区间"
+  },
+  "known_blind_spot": "虚假的增益校准假设仍可通过拟合与留出检验并给出错误负荷；须外部核实校准、水动力与边界",
+  "cases": [
+    {
+      "name": "cross_river_1",
+      "expectation": "recover",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.012580939494216237,
+      "holdout_truth_nrmse": 0.010529223517055304,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.5062904697471081,
+          "weighted_sse": 51.11304055862704,
+          "response_gain": 1.0
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5062904697471081,
+          "weighted_sse": 51.11304055862704,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5062904697471081,
+            "weighted_sse": 51.11304055862704,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.49882846773619954,
+            "weighted_sse": 2417.367351778853,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.4377764187264161,
+            "weighted_sse": 2828.373355216223,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.43846994159926167,
+            "weighted_sse": 6932.338170766418,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.3410724227341403,
+            "weighted_sse": 8354.072907227863,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 14890.011477578535,
+        "signal_improvement": 14838.898437019909,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.191556411666726,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.40503237579768653,
+              "sse_increase": 502.3857454837462
+            },
+            {
+              "load_kg": 0.6075485636965298,
+              "sse_increase": 459.6497179851282
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.2956479116120858,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.4142349247707353,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "cross_river_2",
+      "expectation": "recover",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 1800.0,
+        "width_m": 20.0,
+        "depth_m": 2.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 450.0,
+        "load_kg": 2.0,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.004120932411749027,
+      "quadrature_relative_error": 3.367632958077168e-16,
+      "load_relative_error": 0.010611727674885829,
+      "holdout_truth_nrmse": 0.010100970460647701,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 450.0,
+          "load_kg": 2.0212234553497717,
+          "weighted_sse": 50.79282919832047,
+          "response_gain": 1.0
+        },
+        "conditional_fit": {
+          "source_m": 450.0,
+          "load_kg": 2.0212234553497717,
+          "weighted_sse": 50.79282919832047,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 450.0,
+            "load_kg": 2.0212234553497717,
+            "weighted_sse": 50.79282919832047,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 359.0909090909091,
+            "load_kg": 1.9847921992937805,
+            "weighted_sse": 2112.8388844233664,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 540.909090909091,
+            "load_kg": 1.8800544645783601,
+            "weighted_sse": 2280.4914724530486,
+            "response_gain": 0.9999999999999997
+          },
+          {
+            "source_m": 268.1818181818182,
+            "load_kg": 1.745800683822357,
+            "weighted_sse": 6408.949372266221,
+            "response_gain": 1.0000000000000004
+          },
+          {
+            "source_m": 631.8181818181819,
+            "load_kg": 1.566121860373281,
+            "weighted_sse": 7508.149179434791,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          450.0
+        ],
+        "baseline_weighted_sse": 14566.234797677853,
+        "signal_improvement": 14515.441968479532,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.18781813514341,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 1.6169787642798175,
+              "sse_increase": 491.43480328484173
+            },
+            {
+              "load_kg": 2.425468146419726,
+              "sse_increase": 449.6303304156233
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.28016833893793686,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.5462105586699555,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 25342730,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 4.545454545454504,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            4.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "cross_river_3",
+      "expectation": "recover",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 5400.0,
+        "width_m": 40.0,
+        "depth_m": 3.0,
+        "velocity_ms": 0.35
+      },
+      "truth": {
+        "source_m": 1350.0,
+        "load_kg": 6.0,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.0014026249411290674,
+      "quadrature_relative_error": 4.947077226732932e-16,
+      "load_relative_error": 0.011416939766716094,
+      "holdout_truth_nrmse": 0.010547749542161236,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 1350.0,
+          "load_kg": 6.068501638600297,
+          "weighted_sse": 51.55805816145138,
+          "response_gain": 1.0
+        },
+        "conditional_fit": {
+          "source_m": 1350.0,
+          "load_kg": 6.068501638600297,
+          "weighted_sse": 51.55805816145138,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 1350.0,
+            "load_kg": 6.068501638600297,
+            "weighted_sse": 51.55805816145138,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 1077.2727272727275,
+            "load_kg": 5.901799993461131,
+            "weighted_sse": 2121.6368706246144,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 1622.7272727272727,
+            "load_kg": 5.713179013061584,
+            "weighted_sse": 2314.7178381605586,
+            "response_gain": 0.9999999999999997
+          },
+          {
+            "source_m": 804.5454545454546,
+            "load_kg": 5.115050788790783,
+            "weighted_sse": 6481.096300492134,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 1895.4545454545455,
+            "load_kg": 4.728729534568547,
+            "weighted_sse": 7605.305933159843,
+            "response_gain": 0.9999999999999996
+          }
+        ],
+        "near_best_sources_m": [
+          1350.0
+        ],
+        "baseline_weighted_sse": 14270.370319403075,
+        "signal_improvement": 14218.812261241623,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.1967323352623753,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 4.854801310880237,
+              "sse_increase": 481.3921079165969
+            },
+            {
+              "load_kg": 7.282201966320356,
+              "sse_increase": 440.44192860421913
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.2932379652873909,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.5727781830214111,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 24838604,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 13.636363636363058,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            12.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.025_0",
+      "expectation": "recover",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.012580939494216237,
+      "holdout_truth_nrmse": 0.010529223517055304,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.5062904697471081,
+          "weighted_sse": 51.11304055862704,
+          "response_gain": 1.0
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5062904697471081,
+          "weighted_sse": 51.11304055862704,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5062904697471081,
+            "weighted_sse": 51.11304055862704,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.49882846773619954,
+            "weighted_sse": 2417.367351778853,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.4377764187264161,
+            "weighted_sse": 2828.373355216223,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.43846994159926167,
+            "weighted_sse": 6932.338170766418,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.3410724227341403,
+            "weighted_sse": 8354.072907227863,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 14890.011477578535,
+        "signal_improvement": 14838.898437019909,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.191556411666726,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.40503237579768653,
+              "sse_increase": 502.3857454837462
+            },
+            {
+              "load_kg": 0.6075485636965298,
+              "sse_increase": 459.6497179851282
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.2956479116120858,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.4142349247707353,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.025_1",
+      "expectation": "recover",
+      "seed": 20261021,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.02212324111961883,
+      "holdout_truth_nrmse": 0.0095896754874351,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.5110616205598094,
+          "weighted_sse": 53.392750211340555,
+          "response_gain": 1.0
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5110616205598094,
+          "weighted_sse": 53.392750211340555,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5110616205598094,
+            "weighted_sse": 53.392750211340555,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.5072034780628157,
+            "weighted_sse": 2278.3095358808387,
+            "response_gain": 1.0000000000000004
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.4411499396339382,
+            "weighted_sse": 2925.0356704615747,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.44936680932326606,
+            "weighted_sse": 6815.168079808436,
+            "response_gain": 1.0000000000000004
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.3457947726067575,
+            "weighted_sse": 8455.105487385295,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 15173.28488775162,
+        "signal_improvement": 15119.89213754028,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.2178390494293634,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.40884929644784757,
+              "sse_increase": 511.8990682085634
+            },
+            {
+              "load_kg": 0.6132739446717713,
+              "sse_increase": 468.3537788524481
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.2984340212824215,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 0.7550562106624954,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.025_2",
+      "expectation": "recover",
+      "seed": 20261022,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.029554199424231653,
+      "holdout_truth_nrmse": 0.009701331901720768,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.5147770997121158,
+          "weighted_sse": 43.67923476909247,
+          "response_gain": 0.9999999999999998
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5147770997121158,
+          "weighted_sse": 43.67923476909247,
+          "response_gain": 0.9999999999999998
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5147770997121158,
+            "weighted_sse": 43.67923476909247,
+            "response_gain": 0.9999999999999998
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.5060349095518842,
+            "weighted_sse": 2548.5921868254622,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.44833420445135214,
+            "weighted_sse": 2733.7866443606104,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.44365900239245765,
+            "weighted_sse": 7237.079819441668,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.35469171736673333,
+            "weighted_sse": 8315.886950420847,
+            "response_gain": 1.0000000000000002
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 15384.217379960923,
+        "signal_improvement": 15340.538145191831,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.1015044606896673,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.4118216797696927,
+              "sse_increase": 519.3692594436144
+            },
+            {
+              "load_kg": 0.617732519654539,
+              "sse_increase": 475.18850958546267
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.3006036723378054,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 0.8784388801105921,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.025_3",
+      "expectation": "recover",
+      "seed": 20261023,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.03244748657023444,
+      "holdout_truth_nrmse": 0.009947403952755157,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.5162237432851172,
+          "weighted_sse": 51.23180701864725,
+          "response_gain": 0.9999999999999998
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5162237432851172,
+          "weighted_sse": 51.23180701864725,
+          "response_gain": 0.9999999999999998
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5162237432851172,
+            "weighted_sse": 51.23180701864725,
+            "response_gain": 0.9999999999999998
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.5101214358569975,
+            "weighted_sse": 2434.3395235008957,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.4481979691713267,
+            "weighted_sse": 2835.368341694429,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.45008679402449525,
+            "weighted_sse": 7093.190718716323,
+            "response_gain": 1.0000000000000004
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.35393587185000214,
+            "weighted_sse": 8439.874670163046,
+            "response_gain": 0.9999999999999997
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 15478.112074578592,
+        "signal_improvement": 15426.880267559945,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.1929399609862934,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.4129789946280938,
+              "sse_increase": 522.2924583385085
+            },
+            {
+              "load_kg": 0.6194684919421406,
+              "sse_increase": 477.863043167937
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.30144843868590443,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.1672274151909132,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.1_0",
+      "expectation": "recover_or_decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.1,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.06270464178939898,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.01432343197778907,
+      "holdout_truth_nrmse": 0.017185700239620193,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.49283828401110547,
+          "weighted_sse": 38.99805261829568,
+          "response_gain": 0.9999999999999998
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.49283828401110547,
+          "weighted_sse": 38.99805261829568,
+          "response_gain": 0.9999999999999998
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.49283828401110547,
+            "weighted_sse": 38.99805261829568,
+            "response_gain": 0.9999999999999998
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.4824991099343474,
+            "weighted_sse": 188.4616077618449,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.42231665932347123,
+            "weighted_sse": 216.25107507496466,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.4203336636591461,
+            "weighted_sse": 460.7383914563741,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.3196889492560236,
+            "weighted_sse": 558.919449152162,
+            "response_gain": 0.9999999999999993
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 917.800076317996,
+        "signal_improvement": 878.8020236997003,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.0408070135222487,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.3942706272088844,
+              "sse_increase": 29.752721314377034
+            },
+            {
+              "load_kg": 0.5914059408133265,
+              "sse_increase": 27.221771486121945
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.07194812964934313,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.4797362126634972,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.1_1",
+      "expectation": "recover_or_decline",
+      "seed": 20261021,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.1,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.06270464178939898,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.02384577452382075,
+      "holdout_truth_nrmse": 0.009547023445182339,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.5119228872619104,
+          "weighted_sse": 46.98206931991341,
+          "response_gain": 1.0000000000000002
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5119228872619104,
+          "weighted_sse": 46.98206931991341,
+          "response_gain": 1.0000000000000002
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5119228872619104,
+            "weighted_sse": 46.98206931991341,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.5159991512408122,
+            "weighted_sse": 161.0324952155619,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.43581074295355965,
+            "weighted_sse": 248.06533046302752,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.46392113455516426,
+            "weighted_sse": 438.39444633278066,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.33857834874649234,
+            "weighted_sse": 592.6193212120239,
+            "response_gain": 0.9999999999999997
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 995.1631119318403,
+        "signal_improvement": 948.1810426119268,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.1423911244003542,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.4095383098095283,
+              "sse_increase": 32.1016173786694
+            },
+            {
+              "load_kg": 0.6143074647142924,
+              "sse_increase": 29.37085597594698
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.07473423931967998,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 0.6047739585229179,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.1_2",
+      "expectation": "recover_or_decline",
+      "seed": 20261022,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.1,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.06270464178939898,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.05356960774227226,
+      "holdout_truth_nrmse": 0.014216626121083036,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.5267848038711361,
+          "weighted_sse": 36.271407728604004,
+          "response_gain": 1.0
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5267848038711361,
+          "weighted_sse": 36.271407728604004,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5267848038711361,
+            "weighted_sse": 36.271407728604004,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.4645478022232153,
+            "weighted_sse": 191.4335638186008,
+            "response_gain": 1.0000000000000004
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.5113248771970862,
+            "weighted_sse": 221.2191324350989,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.44108990683192995,
+            "weighted_sse": 536.9899740945605,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.374166127786396,
+            "weighted_sse": 548.6925509308852,
+            "response_gain": 0.9999999999999999
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 1040.3059438372268,
+        "signal_improvement": 1004.0345361086228,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.0037624736820625,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.42142784309690895,
+              "sse_increase": 33.99259325449347
+            },
+            {
+              "load_kg": 0.6321417646453633,
+              "sse_increase": 31.100973790500717
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.07690389037506325,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 0.931245309838983,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.1_3",
+      "expectation": "recover_or_decline",
+      "seed": 20261023,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.1,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.06270464178939898,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.06514275632628275,
+      "holdout_truth_nrmse": 0.017585777428304746,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.5325713781631414,
+          "weighted_sse": 43.73539141186561,
+          "response_gain": 1.0
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5325713781631414,
+          "weighted_sse": 43.73539141186561,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5325713781631414,
+            "weighted_sse": 43.73539141186561,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.5276709824175396,
+            "weighted_sse": 197.6558685919403,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.4640028611031137,
+            "weighted_sse": 223.06712266399023,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.4668010733600806,
+            "weighted_sse": 506.2463582568119,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.37114274571947053,
+            "weighted_sse": 586.2484151579777,
+            "response_gain": 1.0000000000000002
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 1069.949119157887,
+        "signal_improvement": 1026.2137277460215,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.1022123133330228,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.4260571025305131,
+              "sse_increase": 34.74349196656929
+            },
+            {
+              "load_kg": 0.6390856537957696,
+              "sse_increase": 31.78799643066082
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.07774865672316074,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.0882222349120736,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.25_0",
+      "expectation": "recover_or_decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.25,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.15676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "load_unresolved",
+        "reason": "数据未能清楚区分相差20%的负荷，或搜索范围不足以检查",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.4664030486063162,
+            "weighted_sse": 32.720622324312465,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.4499257207107219,
+            "weighted_sse": 57.17936771433108,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.3932350625037237,
+            "weighted_sse": 61.32849812825143,
+            "response_gain": 1.0000000000000004
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.38407162065254863,
+            "weighted_sse": 97.59302278718546,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.28306514729575344,
+            "weighted_sse": 113.63123972069727,
+            "response_gain": 0.9999999999999999
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 158.6493798636298,
+        "signal_improvement": 125.92875753931733,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 0.95336570930328,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.373122438885053,
+              "sse_increase": 4.2634440152511175
+            },
+            {
+              "load_kg": 0.5596836583275794,
+              "sse_increase": 3.90076919353789
+            }
+          ],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 6762498,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.25_1",
+      "expectation": "recover_or_decline",
+      "seed": 20261021,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.25,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.15676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "load_unresolved",
+        "reason": "数据未能清楚区分相差20%的负荷，或搜索范围不足以检查",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5141251101523288,
+            "weighted_sse": 45.9101090839668,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.534645194083798,
+            "weighted_sse": 55.64654181325795,
+            "response_gain": 0.9999999999999996
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.42531970873788655,
+            "weighted_sse": 85.0772650689688,
+            "response_gain": 1.0000000000000004
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.49499891319499445,
+            "weighted_sse": 97.50916925639112,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.32421745049614603,
+            "weighted_sse": 139.8679513886655,
+            "response_gain": 1.0000000000000002
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 198.92714626818318,
+        "signal_improvement": 153.01703718421638,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.1292833160407385,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.41130008812186303,
+              "sse_increase": 5.18054481090882
+            },
+            {
+              "load_kg": 0.6169501321827945,
+              "sse_increase": 4.739855743818275
+            }
+          ],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 6762498,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.25_2",
+      "expectation": "recover_or_decline",
+      "seed": 20261022,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.25,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.15676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "load_unresolved",
+        "reason": "数据未能清楚区分相差20%的负荷，或搜索范围不足以检查",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5510978465277758,
+            "weighted_sse": 35.31672204730124,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.49707145950608156,
+            "weighted_sse": 55.630042810642635,
+            "response_gain": 0.9999999999999998
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.522646225465875,
+            "weighted_sse": 74.21168540928794,
+            "response_gain": 0.9999999999999993
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.41314381856808857,
+            "weighted_sse": 115.23349962606437,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.4374282147923179,
+            "weighted_sse": 131.93414206971931,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 211.1332039059042,
+        "signal_improvement": 175.81648185860297,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 0.9904645661857262,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.44087827722222067,
+              "sse_increase": 5.952442809804879
+            },
+            {
+              "load_kg": 0.6613174158333309,
+              "sse_increase": 5.44609134205205
+            }
+          ],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 6762498,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "noise_0.25_3",
+      "expectation": "recover_or_decline",
+      "seed": 20261023,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.25,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.15676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "load_unresolved",
+        "reason": "数据未能清楚区分相差20%的负荷，或搜索范围不足以检查",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5653362722703014,
+            "weighted_sse": 42.930789600976084,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.5629845997102528,
+            "weighted_sse": 69.07695372668576,
+            "response_gain": 0.9999999999999998
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.49563201288986963,
+            "weighted_sse": 73.34575327692467,
+            "response_gain": 0.9999999999999997
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.5007894952320515,
+            "weighted_sse": 124.14492386663977,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.4055617832154604,
+            "weighted_sse": 135.53749831434303,
+            "response_gain": 1.0000000000000002
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 227.94958936402728,
+        "signal_improvement": 185.0187997630512,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.092026525941768,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.4522690178162411,
+              "sse_increase": 6.263996484777856
+            },
+            {
+              "load_kg": 0.6784035267243617,
+              "sse_increase": 5.731142341460277
+            }
+          ],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 6762498,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "wrong_velocity",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "model_mismatch",
+        "reason": "残差超过观测误差尺度的两倍，需检查参数、边界、单源假设或误差设定",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.6001207781664363,
+            "weighted_sse": 389.97026172801804,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.6046857017508114,
+            "weighted_sse": 1432.4297050051546,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5204006981957802,
+            "weighted_sse": 3133.6651238285363,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.3983664642545065,
+            "weighted_sse": 8036.423037026263,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.2752245469930192,
+            "weighted_sse": 12168.368900570054,
+            "response_gain": 0.9999999999999998
+          }
+        ],
+        "near_best_sources_m": [
+          119.6969696969697
+        ],
+        "baseline_weighted_sse": 14890.011477578535,
+        "signal_improvement": 14500.041215850517,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 3.2912774526348767,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 8722884,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "wrong_background",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "model_mismatch",
+        "reason": "残差超过观测误差尺度的两倍，需检查参数、边界、单源假设或误差设定",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.09059414600672601,
+            "weighted_sse": 4910.1424939611625,
+            "response_gain": 0.9999999999999997
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.05757795721464023,
+            "weighted_sse": 5176.613601250392,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.05354840128428109,
+            "weighted_sse": 5241.5309764733465,
+            "response_gain": 0.9999999999999994
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.0,
+            "weighted_sse": 5385.261526955963,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.0,
+            "weighted_sse": 5385.261526955963,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 5385.261526955963,
+        "signal_improvement": 475.11903299480036,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 11.678734822508675,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 6762498,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "missing_source",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "model_mismatch",
+        "reason": "残差超过观测误差尺度的两倍，需检查参数、边界、单源假设或误差设定",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.49882846773619954,
+            "weighted_sse": 2417.367351778853,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.4377764187264161,
+            "weighted_sse": 2828.373355216223,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.43846994159926167,
+            "weighted_sse": 6932.338170766418,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.3410724227341403,
+            "weighted_sse": 8354.072907227863,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          119.6969696969697
+        ],
+        "baseline_weighted_sse": 14890.011477578535,
+        "signal_improvement": 12472.644125799681,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 8.19445502184057,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 5,
+          "node_updates_upper_bound": 5635415,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "load_boundary",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "model_mismatch",
+        "reason": "残差超过观测误差尺度的两倍，需检查参数、边界、单源假设或误差设定",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.25,
+            "weighted_sse": 3706.6753747969055,
+            "response_gain": 1.02
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.25,
+            "weighted_sse": 4930.90186490209,
+            "response_gain": 1.02
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.25,
+            "weighted_sse": 5397.426536327876,
+            "response_gain": 1.02
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.25,
+            "weighted_sse": 8325.611417646094,
+            "response_gain": 1.02
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.25,
+            "weighted_sse": 8770.311940710737,
+            "response_gain": 1.02
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 14890.011477578535,
+        "signal_improvement": 11183.33610278163,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 10.147078636507633,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 6762498,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            0.25
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "before_emission",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "status": "unidentifiable",
+        "reason": "观测全部早于或等于排放开始时刻",
+        "estimate": null
+      }
+    },
+    {
+      "name": "holdout_mismatch",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "holdout_mismatch",
+        "reason": "留出残差超过给定误差尺度的两倍",
+        "estimate": null,
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.5062904697471081,
+          "weighted_sse": 51.11304055862704,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.5062904697471081,
+            "weighted_sse": 51.11304055862704,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.49882846773619954,
+            "weighted_sse": 2417.367351778853,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.4377764187264161,
+            "weighted_sse": 2828.373355216223,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.43846994159926167,
+            "weighted_sse": 6932.338170766418,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.3410724227341403,
+            "weighted_sse": 8354.072907227863,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 14890.011477578535,
+        "signal_improvement": 14838.898437019909,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.191556411666726,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.40503237579768653,
+              "sse_increase": 502.3857454837462
+            },
+            {
+              "load_kg": 0.6075485636965298,
+              "sse_increase": 459.6497179851282
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.2956479116120858,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 40.872756828569,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "coarse_grid",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.0
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 100,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "model_mismatch",
+        "reason": "残差超过观测误差尺度的两倍，需检查参数、边界、单源假设或误差设定",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 151.5151515151515,
+            "load_kg": 0.5291717742448133,
+            "weighted_sse": 172.84191518777726,
+            "response_gain": 1.0000000000000004
+          },
+          {
+            "source_m": 121.21212121212122,
+            "load_kg": 0.5349260580344825,
+            "weighted_sse": 1873.007375062551,
+            "response_gain": 0.9999999999999996
+          },
+          {
+            "source_m": 181.8181818181818,
+            "load_kg": 0.45848759940178124,
+            "weighted_sse": 2996.083987836205,
+            "response_gain": 1.0000000000000002
+          },
+          {
+            "source_m": 90.9090909090909,
+            "load_kg": 0.48598004358947344,
+            "weighted_sse": 6002.544890957112,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 212.12121212121212,
+            "load_kg": 0.3670441341518609,
+            "weighted_sse": 8095.0991449350995,
+            "response_gain": 1.0000000000000002
+          }
+        ],
+        "near_best_sources_m": [
+          151.5151515151515
+        ],
+        "baseline_weighted_sse": 14890.011477578537,
+        "signal_improvement": 14717.16956239076,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 2.191155930273241,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 209400,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 6.0606060606060055,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 1,
+          "response_gain_bounds": [
+            0.98,
+            1.02
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "unknown_gain",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.5
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "calibration_unverified",
+        "reason": "缺少增量响应增益界限或校准依据，无法分离仪器响应与排放负荷",
+        "estimate": null,
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.7616777355766626,
+          "weighted_sse": 64.33954847020631,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.7616777355766626,
+            "weighted_sse": 64.33954847020631,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.7509642612379415,
+            "weighted_sse": 5381.318338443544,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.6592412546567817,
+            "weighted_sse": 6297.209846994763,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.6607276253889116,
+            "weighted_sse": 15579.569152588812,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.5151725463475633,
+            "weighted_sse": 18737.827349341267,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 33649.28749514901,
+        "signal_improvement": 33584.9479466788,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.3368656176773914,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.6093421884613301,
+              "sse_increase": 1343.397917867152
+            },
+            {
+              "load_kg": 0.9140132826919951,
+              "sse_increase": 1343.3979178671495
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.44478109958724793,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.4021762518065555,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": null,
+          "calibration_reference": null,
+          "calibration_status": "unverified",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "wide_gain_bounds",
+      "expectation": "decline",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.5
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": null,
+      "holdout_truth_nrmse": null,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "load_unresolved",
+        "reason": "数据未能清楚区分相差20%的负荷，或搜索范围不足以检查",
+        "estimate": null,
+        "conditional_fit": null,
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.7616777355766626,
+            "weighted_sse": 64.33954847020631,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.7509642612379415,
+            "weighted_sse": 5381.318338443546,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.6592412546567817,
+            "weighted_sse": 6297.209846994763,
+            "response_gain": 0.9999999999999999
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 1.0,
+            "weighted_sse": 15579.569152588812,
+            "response_gain": 0.6607276253889116
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.5151725463475633,
+            "weighted_sse": 18737.827349341267,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 33649.28749514901,
+        "signal_improvement": 33584.9479466788,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.3368656176773914,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.6093421884613301,
+              "sse_increase": 1.4210854715202004e-14
+            },
+            {
+              "load_kg": 0.9140132826919951,
+              "sse_increase": 7.105427357601002e-14
+            }
+          ],
+          "grid_check": null,
+          "holdout": null,
+          "forward_evaluations": 6,
+          "node_updates_upper_bound": 6762498,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            0.5,
+            1.5
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    },
+    {
+      "name": "false_calibration_known_blind_spot",
+      "expectation": "known_confounding",
+      "seed": 20261020,
+      "passed": true,
+      "river": {
+        "length_m": 600.0,
+        "width_m": 8.0,
+        "depth_m": 1.0,
+        "velocity_ms": 0.25
+      },
+      "truth": {
+        "source_m": 150.0,
+        "load_kg": 0.5,
+        "response_gain": 1.5
+      },
+      "noise_fraction": 0.025,
+      "fit_hydro_nodes": 100,
+      "fit_wq_nodes": 397,
+      "train_count": 36,
+      "holdout_count": 12,
+      "sigma_mgL": 0.015676160447349746,
+      "quadrature_relative_error": 1.4164476414412483e-15,
+      "load_relative_error": 0.5233554711533253,
+      "holdout_truth_nrmse": 0.18262173853045402,
+      "fit": {
+        "version": "single_source_checked_grid_v2",
+        "status": "identified_in_scenario",
+        "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+        "estimate": {
+          "source_m": 150.0,
+          "load_kg": 0.7616777355766626,
+          "weighted_sse": 64.33954847020631,
+          "response_gain": 1.0
+        },
+        "conditional_fit": {
+          "source_m": 150.0,
+          "load_kg": 0.7616777355766626,
+          "weighted_sse": 64.33954847020631,
+          "response_gain": 1.0
+        },
+        "candidate_fits": [
+          {
+            "source_m": 150.0,
+            "load_kg": 0.7616777355766626,
+            "weighted_sse": 64.33954847020631,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 119.6969696969697,
+            "load_kg": 0.7509642612379415,
+            "weighted_sse": 5381.318338443544,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 180.3030303030303,
+            "load_kg": 0.6592412546567817,
+            "weighted_sse": 6297.209846994763,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 89.39393939393939,
+            "load_kg": 0.6607276253889116,
+            "weighted_sse": 15579.569152588812,
+            "response_gain": 1.0
+          },
+          {
+            "source_m": 210.60606060606062,
+            "load_kg": 0.5151725463475633,
+            "weighted_sse": 18737.827349341267,
+            "response_gain": 1.0
+          }
+        ],
+        "near_best_sources_m": [
+          150.0
+        ],
+        "baseline_weighted_sse": 33649.28749514901,
+        "signal_improvement": 33584.9479466788,
+        "diagnostics": {
+          "observation_count": 36,
+          "weighted_rmse": 1.3368656176773914,
+          "weighted_rmse_limit": 2.0,
+          "signal_improvement_min": 9.0,
+          "near_best_sse_delta": 2.0,
+          "load_relative_probe": 0.2,
+          "load_probe_sse_increase_min": 9.0,
+          "load_probes": [
+            {
+              "load_kg": 0.6093421884613301,
+              "sse_increase": 1343.397917867152
+            },
+            {
+              "load_kg": 0.9140132826919951,
+              "sse_increase": 1343.3979178671495
+            }
+          ],
+          "grid_check": {
+            "fit_refinement": 4,
+            "check_refinement": 8,
+            "normalized_rms_difference": 0.44478109958724793,
+            "limit": 1.0
+          },
+          "holdout": {
+            "count": 12,
+            "weighted_rmse": 1.4021762518065555,
+            "limit": 2.0,
+            "used_for_optimization": false
+          },
+          "forward_evaluations": 8,
+          "node_updates_upper_bound": 22936526,
+          "linear_ammonia_response": true,
+          "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+        },
+        "source_grid_min_spacing_m": 1.5151515151515014,
+        "assumptions": {
+          "source_start_h": 0.03,
+          "duration_min": 3.0,
+          "load_bounds_kg": [
+            0.0,
+            1.0
+          ],
+          "wq_refinement": 4,
+          "response_gain_bounds": [
+            1.0,
+            1.0
+          ],
+          "calibration_reference": "受控仿真增量响应假设；不是现场仪器校准记录",
+          "calibration_status": "provided_assumption",
+          "response_model": "已知背景 + 增益 * 污染浓度增量",
+          "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+        },
+        "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+      }
+    }
+  ],
+  "passed": true,
+  "coupled_solver_check": {
+    "scope": "同内核8倍网格生成、4倍拟合；仅验证非线性耦合调用路径",
+    "passed": true,
+    "fit": {
+      "version": "single_source_checked_grid_v2",
+      "status": "identified_in_scenario",
+      "reason": "通过给定候选和固定参数情景内的筛查，不代表现场来源已确认",
+      "estimate": {
+        "source_m": 150.0,
+        "load_kg": 0.5170810319001127,
+        "weighted_sse": 1.3491487623126903,
+        "response_gain": 1.0
+      },
+      "conditional_fit": {
+        "source_m": 150.0,
+        "load_kg": 0.5170810319001127,
+        "weighted_sse": 1.3491487623126903,
+        "response_gain": 1.0
+      },
+      "candidate_fits": [
+        {
+          "source_m": 150.0,
+          "load_kg": 0.5170810319001127,
+          "weighted_sse": 1.3491487623126903,
+          "response_gain": 1.0
+        }
+      ],
+      "near_best_sources_m": [
+        150.0
+      ],
+      "baseline_weighted_sse": 996.4792086629702,
+      "signal_improvement": 995.1300599006576,
+      "diagnostics": {
+        "observation_count": 36,
+        "weighted_rmse": 0.19358810528719433,
+        "weighted_rmse_limit": 2.0,
+        "signal_improvement_min": 9.0,
+        "near_best_sse_delta": 2.0,
+        "load_relative_probe": 0.2,
+        "load_probe_sse_increase_min": 9.0,
+        "load_probes": [
+          {
+            "load_kg": 0.41366482552009015,
+            "sse_increase": 39.80520306436571
+          },
+          {
+            "load_kg": 0.6204972382801351,
+            "sse_increase": 39.805202812681095
+          }
+        ],
+        "grid_check": {
+          "fit_refinement": 4,
+          "check_refinement": 8,
+          "normalized_rms_difference": 0.2569152329299204,
+          "limit": 1.0
+        },
+        "holdout": {
+          "count": 12,
+          "weighted_rmse": 0.1604979808498818,
+          "limit": 2.0,
+          "used_for_optimization": false
+        },
+        "forward_evaluations": 12,
+        "node_updates_upper_bound": 654604,
+        "linear_ammonia_response": false,
+        "interpretation": "独立观测及给定误差尺度下的工程筛查；不输出统计置信度"
+      },
+      "source_grid_min_spacing_m": 6.25,
+      "assumptions": {
+        "source_start_h": 0.03,
+        "duration_min": 3.0,
+        "load_bounds_kg": [
+          0.0,
+          1.0
+        ],
+        "wq_refinement": 4,
+        "response_gain_bounds": [
+          1.0,
+          1.0
+        ],
+        "calibration_reference": "受控仿真假设，非现场校准",
+        "calibration_status": "provided_assumption",
+        "response_model": "已知背景 + 增益 * 污染浓度增量",
+        "fixed_parameters": "水动力、排放时段、反应参数和边界均视为已知"
+      },
+      "limitation": "单源恒定流条件试验；近优候选不是置信区间；校准记录由调用者提供且未核实。错误的增益假设可产生低残差和错误负荷，留出集不能消除此混淆，不对应现场责任认定"
+    }
+  },
+  "boundary_tolerance_rechecks": [
+    "cross_river_1",
+    "load_boundary"
+  ]
+}
