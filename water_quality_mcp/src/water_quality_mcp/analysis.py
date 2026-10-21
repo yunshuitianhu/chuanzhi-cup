@@ -858,6 +858,8 @@ def build_comprehensive_summary(state, river_state=None, config=None):
             '目标水质等级': config.target_water_class}}
     if state.df is not None and len(state.df):
         sections['数据质量'] = quality_report(state.df, config).summary
+    if getattr(state, 'model_alignment', None) is not None:
+        sections['走航时空配准'] = state.model_alignment
     station_result = getattr(state, 'national_station_result', None)
     if station_result and identity['kind'] != 'synthetic':
         sections['国控站点查询'] = {
@@ -900,9 +902,13 @@ def build_comprehensive_summary(state, river_state=None, config=None):
             '轨迹起点': coordinate_text(coords.iloc[0]) if len(coords) else None,
             '轨迹终点': coordinate_text(coords.iloc[-1]) if len(coords) else None,
             '最密集聚类中心': None,
-            '说明': '没有污染聚类中心不等于没有GPS坐标；热点聚类数不等于污染源数；往返起终点接近不代表覆盖范围小。'}
+            '说明': '没有污染聚类中心不等于没有GPS坐标；热点聚类数不等于污染源数。首末距离按米数描述，不自动判断接近或推断往返。'}
         if len(coords):
             coord_values = coords[['latitude', 'longitude']].apply(pd.to_numeric, errors='coerce')
+            sections['空间分析']['首末直线距离_m'] = round(float(_haversine_distance_m(
+                coord_values.latitude.iloc[0],coord_values.longitude.iloc[0],
+                coord_values.latitude.iloc[-1],coord_values.longitude.iloc[-1])),2)
+            sections['空间分析']['端点口径'] = '输入行序中的首末有效原始GPS记录；不是污染覆盖范围或河道长度。'
             sections['空间分析']['有效采样经纬度包络'] = {
                 '纬度范围': [float(coord_values.latitude.min()), float(coord_values.latitude.max())],
                 '经度范围': [float(coord_values.longitude.min()), float(coord_values.longitude.max())],

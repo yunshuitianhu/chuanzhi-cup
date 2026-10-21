@@ -150,6 +150,10 @@ export const api = {
   ragSearch: (query, topK = 5) => request('/rag/search', { method: 'POST', body: { query, top_k: topK } }),
 
   // ---- 河道模型 ----
+  cruiseAudit: (timezone, signal) => request(`/river/alignment/audit?timezone=${encodeURIComponent(timezone)}`, {signal}),
+  cruiseAlignment: (signal) => request('/river/alignment', {signal}),
+  cruiseReference: (params, signal) => request('/river/alignment/reference?'+new URLSearchParams(params), {signal}),
+  setCruiseAlignment: (body, signal) => request('/river/alignment', {method:'POST',body,signal}),
   riverParams: () => request('/river/params'),
   riverInit: (payload) => request('/river/init', { method: 'POST', body: payload || {} }),
   riverHydro: (payload) => request('/river/hydro', { method: 'POST', body: payload || {} }),

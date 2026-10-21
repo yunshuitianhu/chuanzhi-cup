@@ -4,7 +4,7 @@ import numpy as np
 from water_quality_mcp.src.water_quality_mcp.analysis_config import GB3838_STANDARDS
 
 
-def playback_data(state, monitoring_data, constituent, target_class, max_frames):
+def playback_data(state, monitoring_data, constituent, target_class, max_frames, alignment_config=None):
     wq = state.wq_result
     names = {'ammonia': ('氨氮', 'ammonia'), 'cbod': ('CBOD', 'cbod'), 'do': ('溶解氧', 'dissolved_oxygen')}
     name, field = names[constituent]
@@ -27,10 +27,30 @@ def playback_data(state, monitoring_data, constituent, target_class, max_frames)
             indices.update([max(0, i-1), min(len(times)-1, i)])
     indices = sorted(indices)
     mapping = {'available': False, 'reason': '当前项目没有有效走航轨迹，可查看沿程浓度动画。', 'positions': []}
-    if monitoring_data is not None and {'latitude', 'longitude'} <= set(monitoring_data.columns):
+    if alignment_config is not None:
+        from .cruise_alignment import AlignmentRequest
+        from river_model.cruise_alignment import reference_geometry
+        import json
+        try:
+            config = AlignmentRequest.model_validate_json(json.dumps(alignment_config))
+            reference, axis = reference_geometry(config.reference_path)
+            if chainage[0] < 0 or chainage[-1] > axis[-1]:
+                raise ValueError('已配置参考线未覆盖全部模拟桩号，地图不缩放或外推；仍可查看沿程动画。')
+            lat = np.interp(chainage, axis, reference[:, 0])
+            unwrapped = np.degrees(np.unwrap(np.radians(reference[:, 1])))
+            lon = (np.interp(chainage, axis, unwrapped)+180) % 360-180
+            mapping = {'available':True, 'positions':np.column_stack([lat,lon]).tolist(),
+                'track_length_m':float(axis[-1]), 'confirmation':'user_supplied_not_independently_verified',
+                'reason':'按用户确认的参考线映射，不累计船的返航航程；参考线和流向仍需独立核实。'}
+        except ValueError as exc:
+            mapping['reason'] = str(exc)
+    elif monitoring_data is not None and {'latitude', 'longitude'} <= set(monitoring_data.columns):
         from river_model.geo_mapping import build_chainage_gps_mapping, chainage_array_to_gps
         valid = monitoring_data.loc[monitoring_data.latitude.between(-85, 85) & monitoring_data.longitude.between(-180, 180)]
         try:
+            from river_model.cruise_alignment import audit_track
+            if audit_track(monitoring_data)['warnings']:
+                raise ValueError('走航轨迹存在返航、缺失坐标或时间等待核对项，请先在河道页配置参考线；累计航程不能直接作为河道桩号。')
             gps = build_chainage_gps_mapping(valid, smoothing_sigma=3.0)
             if chainage[0] < 0 or chainage[-1] > gps['total_length_m'] + 1:
                 raise ValueError('当前走航轨迹未覆盖模拟桩号范围；请核对河段长度、起点与方向。')
@@ -41,7 +61,8 @@ def playback_data(state, monitoring_data, constituent, target_class, max_frames)
             if not np.isfinite(positions).all():
                 raise ValueError('轨迹映射包含无效坐标，请核实GPS。')
             mapping = {'available': True, 'reason': '桩号从当前走航起点累计映射；地图为示意，起点、方向及GPS需现场核实。',
-                       'positions': positions.tolist(), 'track_length_m': float(gps['total_length_m'])}
+                       'positions': positions.tolist(), 'track_length_m': float(gps['total_length_m']),
+                       'confirmation':'illustrative_boat_route_not_registered'}
         except (ValueError, KeyError) as exc:
             mapping['reason'] = str(exc)
     limits = GB3838_STANDARDS[target_class]

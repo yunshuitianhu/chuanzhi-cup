@@ -142,9 +142,12 @@ EXPECT_KEYS = {"river_name", "location", "length_m", "width_avg_m",
                "avg_discharge_m3s", "tidal_range_m"}
 for label, cfg in (("数据路径", c1), ("GPS 路径", c2)):
     miss_s = sorted(EXPECT_KEYS - set(cfg.param_sources))
-    miss_c = sorted(EXPECT_KEYS - set(cfg.param_confidence))
+    # 未配准的GPS航程不能提供真实河长的95%置信度；此字段应明确保留为空。
+    miss_c = sorted((EXPECT_KEYS - {'length_m'}) - set(cfg.param_confidence))
     check(f"{label} param_sources 键完整", not miss_s, f"缺失 {miss_s}" if miss_s else "9 项齐全")
-    check(f"{label} param_confidence 键完整", not miss_c, f"缺失 {miss_c}" if miss_c else "9 项齐全")
+    check(f"{label} 不给未配准河长编造置信度", not miss_c and 'length_m' not in cfg.param_confidence
+          and cfg.param_sources.get('length_m') == 'gps_track_unregistered',
+          f"其它字段缺失 {miss_c}" if miss_c else "其余8项齐全，河长来源明确为未配准航程建议")
 
 # 命中已知库时来源标签不应再写死为区域默认值
 check("地名识别不自动套用参考物理参数",

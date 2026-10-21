@@ -216,7 +216,7 @@ class RiverParameterEstimator:
         self._sources.update({
             "river_name": river_identity.get("name_source", "osm"),
             "location": river_identity.get("location_source", "reverse_geocode"),
-            "length_m": "gps",
+            "length_m": "gps_track_unregistered",
             "width_avg_m": width_source,
             "depth_avg_m": depth_source,
             "mannings_n": mannings_source,
@@ -227,7 +227,6 @@ class RiverParameterEstimator:
         self._confidence.update({
             "river_name": river_identity.get("name_confidence", 0.7),
             "location": river_identity.get("location_confidence", 0.9),
-            "length_m": 0.95,
             "width_avg_m": width_conf,
             "depth_avg_m": depth_conf,
             "mannings_n": mannings_conf,
@@ -296,6 +295,11 @@ class RiverParameterEstimator:
         lats, lons = self._get_coords(df)
         if len(lats) < 3:
             return {}
+
+        from .cruise_alignment import audit_track
+        track = audit_track(pd.DataFrame({'latitude':lats,'longitude':lons}))
+        if track['possible_revisit']:
+            raise ValueError('当前轨迹可能包含返航、重复巡测或漂移，不能用累计航程推断河长；请核实参考线并手工配置河段')
 
         center_lat = float(np.mean(lats))
         center_lon = float(np.mean(lons))

@@ -169,7 +169,7 @@ class ToolEvidenceTests(unittest.TestCase):
         self.assertIn('排除', evidence['国控站点查询']['使用状态'])
 
     def test_identity_is_in_agent_system_context_before_any_tool_calls(self):
-        chunk = SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content='说明', tool_calls=[]))])
+        chunk = SimpleNamespace(choices=[SimpleNamespace(finish_reason='stop', delta=SimpleNamespace(content='说明', tool_calls=[]))])
         with patch('backend.agent.loop.resolve_api_key', return_value='test-only'), \
              patch('backend.agent.loop.OpenAI') as client:
             client.return_value.chat.completions.create.return_value = [chunk]
@@ -201,7 +201,7 @@ class ToolEvidenceTests(unittest.TestCase):
              patch('water_quality_mcp.src.water_quality_mcp.report.OpenAI') as factory:
             client = factory.return_value.__enter__.return_value
             client.chat.completions.create.return_value = SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content='需要复测。'))])
+                choices=[SimpleNamespace(finish_reason='stop',message=SimpleNamespace(content='需要复测。'))])
             report = generate_report('test-only', summary)
         self.assertIn('数据身份：仿真数据', report)
         self.assertIn('有效GPS记录：6', report)

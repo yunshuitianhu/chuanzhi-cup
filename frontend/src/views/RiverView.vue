@@ -16,6 +16,7 @@ import Panel from '../components/Panel.vue'
 import EChart from '../components/EChart.vue'
 import PollutionPlayback from '../components/PollutionPlayback.vue'
 import NumericalResolution from '../components/NumericalResolution.vue'
+import CruiseAlignment from '../components/CruiseAlignment.vue'
 import { restoreRiverWorkspace } from '../utils/projectRestore'
 
 const store = useSessionStore()
@@ -25,6 +26,8 @@ const initResult = ref(null)
 const hydroResult = ref(null)
 const pollutionResult = ref(null)
 const busy = ref('')
+const alignmentRevision = ref(0)
+const playbackRevision = computed(()=>({pollution:pollutionResult.value,alignment:alignmentRevision.value}))
 
 const form = ref({
   n_cross_sections: 50,
@@ -193,6 +196,7 @@ async function runPollution() {
 const CONF_LABEL = {
   known_river_database: ['🟢 已知河道库', 'good'],
   gps: ['🟢 GPS 轨迹', 'good'],
+  gps_track_unregistered: ['航程建议·待参考线核实', 'low'],
   osm: ['🟡 OSM', 'mid'],
   regional_defaults: ['🟡 区域默认值', 'mid'],
   estimated_from_width: ['🟡 经验公式', 'mid'],
@@ -412,7 +416,7 @@ const pollutionCompare = computed(() => {
           </div>
           <EChart v-if="pollutionCompare" :option="pollutionCompare" :height="150" />
           <h3 class="st">④ 污染扩散演示</h3>
-          <PollutionPlayback :revision="pollutionResult" />
+          <PollutionPlayback :revision="playbackRevision" />
           <p class="hint">
             两个口径的基准不同，故结论未必一致：左为「是否超 GB3838 限值」，
             右为「本次排放相对监测基线的增量影响」。
@@ -420,6 +424,7 @@ const pollutionCompare = computed(() => {
         </template>
       </section>
     </div>
+    <CruiseAlignment :revision="pollutionResult" :model-busy="!!busy" @updated="alignmentRevision++" />
   </Panel>
 </template>
 

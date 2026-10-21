@@ -83,6 +83,7 @@ def generate_report(api_key, summary):
     overview = overview if isinstance(overview, dict) else {}
     screening = screening if isinstance(screening, dict) else {}
     quality = facts.get('数据质量', {})
+    spatial = facts.get('空间分析', {})
     header = [f"> 数据身份：{label}。",
               '> 结论级别：水质筛查与辅助排查；当前报告没有已确认的污染源或责任主体。']
     header.append('> 治理案例：' + ('已取得参考资料，仅借鉴治理方法。'
@@ -91,6 +92,8 @@ def generate_report(api_key, summary):
         header.append(f"> 数据记录：{overview.get('记录数', '未提供')}；有效GPS记录：{overview.get('有效GPS记录数', '未核对')}。")
     if '黑点总数' in screening:
         header.append(f"> 点级预警：{screening['黑点总数']}；热点数量不能当作污染源数量。")
+    if isinstance(spatial, dict) and '首末直线距离_m' in spatial:
+        header.append(f"> 首末有效GPS直线距离：{spatial['首末直线距离_m']} m；不是河道长度或污染覆盖范围。")
     if isinstance(quality, dict) and '需质控复核预警点数' in quality:
         header.append(f"> 其中需质控复核预警：{quality['需质控复核预警点数']}；仍保留全部预警，标记不能确认仪器故障。")
     prompt += ('\n\n请按数据事实、候选解释、证据缺口、复核建议组织正文。'
@@ -105,7 +108,7 @@ def generate_report(api_key, summary):
             max_tokens=4000,
         )
     finish_reason = getattr(resp.choices[0], 'finish_reason', None)
-    if finish_reason not in ('stop', None):
+    if finish_reason != 'stop':
         raise ValueError(f'报告未完整生成（{finish_reason}），不能标记为完成')
     body = resp.choices[0].message.content
     if not isinstance(body, str) or not body.strip():

@@ -24,8 +24,63 @@ from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
 
 from ..deps import get_session, get_exclusive_session
 from ..session import Session
+from ..cruise_alignment import AlignmentRequest
 
 router = APIRouter(prefix="/river", tags=["river"])
+
+
+@router.get('/alignment/audit')
+def alignment_audit(timezone: str = 'Asia/Shanghai', session: Session = Depends(get_session)):
+    if session.df is None or session.df.empty:
+        raise HTTPException(400, '请先加载走航数据')
+    from river_model.cruise_alignment import audit_track
+    try:
+        return audit_track(session.df, timezone)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get('/alignment')
+def get_alignment(limit: int = Query(100, ge=1, le=500), session: Session = Depends(get_exclusive_session)):
+    from ..cruise_alignment import alignment_result
+    try:
+        result = alignment_result(session)
+        return {**result, 'rows':result['rows'][:limit]}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get('/alignment/reference')
+def reference_candidate(start: int = Query(0, ge=0), end: int = Query(..., ge=1, le=19999),
+                        reverse: bool = False, session: Session = Depends(get_session)):
+    if session.df is None or not start < end < len(session.df):
+        raise HTTPException(400, '请选择当前数据中的有效记录范围，序号从0开始')
+    import numpy as np
+    from river_model.cruise_alignment import audit_track
+    segment = session.df.iloc[start:end+1]
+    audit = audit_track(segment)
+    if audit['warnings']:
+        raise HTTPException(400, '所选参考段有返航、坐标缺失或时间问题，请缩小为单向完整航段，或提供独立测绘参考线')
+    selected = segment.iloc[np.unique(np.linspace(0,len(segment)-1,min(len(segment),200),dtype=int))]
+    points = selected[['latitude','longitude']].to_numpy(dtype=float).tolist()
+    if reverse:
+        points.reverse()
+    return {'reference_path':points, 'reference_note':f'当前走航记录{start}至{end}选段；抽样参考线，尚未独立测绘核验',
+            'notice':'此结果仅是候选参考线；船的行驶方向不等于水流方向，需核对后确认。'}
+
+
+@router.post('/alignment')
+def set_alignment(payload: AlignmentRequest, session: Session = Depends(get_exclusive_session)):
+    from ..cruise_alignment import alignment_result
+    config = payload.model_dump(mode='json')
+    try:
+        result = alignment_result(session, config)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    session.river_ui['alignment'] = config
+    session.invalidate_report()
+    session.results_revision += 1
+    return {**result, 'rows':result['rows'][:100]}
 
 
 @router.get('/playback')
@@ -38,12 +93,14 @@ def playback(constituent: Literal['ammonia', 'cbod', 'do'] = 'ammonia',
         raise HTTPException(400, '当前播放器只支持已运行的一维恒定流情景，请重新运行恒定流模型。')
     from ..river_playback import playback_data
     try:
-        return playback_data(state, session.df, constituent, session.target_water_class, max_frames)
+        return playback_data(state, session.df, constituent, session.target_water_class, max_frames,
+                             alignment_config=session.river_ui.get('alignment'))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
 MODEL_CAVEAT = (
     "当前支持一维恒定流情景；河段几何、边界和反应参数须核实并率定。"
+    "GPS累计航程建议未经参考线配准，不能自动当作真实河长。"
     "潮汐、支汊和二维回流暂不支持。来源估计不能用于直接认定污染责任。"
 )
 
@@ -167,6 +224,8 @@ def init_model(payload: InitRequest | None = None,
     session.river_ui = {'form':session.river_ui.get('form',{})}
     result = _json(tool_river_init(session.get_river_state(), **kwargs))
     session.river_ui['init'] = result
+    session.invalidate_report()
+    session.results_revision += 1
     return {**result, "局限说明": MODEL_CAVEAT}
 
 
@@ -185,6 +244,8 @@ def hydro(payload: HydroRequest | None = None,
     session.river_ui.pop('pollution',None)
     result = _json(tool_river_hydro_simulation(st, **payload.model_dump(exclude_none=True)))
     session.river_ui['hydro'] = result
+    session.invalidate_report()
+    session.results_revision += 1
     amp = payload.tidal_amplitude_m
     return {
         **result,
@@ -210,6 +271,8 @@ def pollution(payload: PollutionRequest | None = None,
     result = _json(tool_river_pollution_event(st, **kwargs, target_water_class=session.target_water_class,
                                             monitoring_data=session.df))
     session.river_ui['pollution'] = result
+    session.invalidate_report()
+    session.results_revision += 1
     return result
 
 

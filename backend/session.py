@@ -94,6 +94,11 @@ class Session:
         st.video_frames = self.video_frames
         st.cross_validation_result = self.cross_validation
         st.national_station_result = self.national_station_result
+        from .cruise_alignment import alignment_result
+        try:
+            st.model_alignment = alignment_result(self)['summary']
+        except ValueError as exc:
+            st.model_alignment = {'status':'unavailable', 'notice':str(exc)}
         return st
 
     def get_river_state(self):
