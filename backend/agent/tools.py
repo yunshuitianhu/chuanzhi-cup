@@ -162,10 +162,13 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 return "未配置 DeepSeek API Key", True
             if session.df is None:
                 return json.dumps({'error': '数据未加载'}, ensure_ascii=False), True
+            report_prerequisites = ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary')
+            if session.video_frames:
+                report_prerequisites += ('analyze_video', 'cross_validate_video')
             if session.analysis_status == 'running' and any(
                     session.analysis_steps.get(step) != 'succeeded'
-                    for step in ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary')):
-                return json.dumps({'error': '请先完成本轮数据摘要、黑臭检测和综合摘要，再生成报告'}, ensure_ascii=False), True
+                    for step in report_prerequisites):
+                return json.dumps({'error': '请先完成本轮数据摘要、黑臭检测和综合摘要；已上传视频时还须完成视觉分析与交叉印证，再生成报告'}, ensure_ascii=False), True
             # 报告以会话内的实际分析数据为依据，不直接信任模型拼写的 summary 数字。
             evidence = build_comprehensive_summary(
                 session.water_quality_state(), session.get_river_state(), cfg)
@@ -258,6 +261,8 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
             ui_key = {'init_river_model':'init','run_hydrodynamic_simulation':'hydro',
                       'simulate_pollution_event':'pollution'}.get(name)
             if ui_key:
+                if ui_key == 'init':
+                    session.river_ui.pop('alignment', None)
                 for key in ({'init':('init','hydro','pollution'),'hydro':('hydro','pollution'),
                              'pollution':('pollution',)}[ui_key]):
                     session.river_ui.pop(key,None)
@@ -266,6 +271,8 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 result = json.loads(raw)
                 if 'error' not in result:
                     session.river_ui[ui_key] = result
+                    session.invalidate_report()
+                    session.results_revision += 1
             return raw, False
 
         return f"未知工具: {name}", True
@@ -332,7 +339,7 @@ def execute_tool(name: str, args: dict, session, api_key: str | None = None,
     if name == 'search_treatment_cases' and isinstance(data, dict) and '状态' in data and '检索结果' not in data:
         failed = True
         error = data['状态']
-    if name == 'generate_final_report' and (not isinstance(data, str) or not data.strip()):
+    if name == 'generate_final_report' and not failed and (not isinstance(data, str) or not data.strip()):
         failed = True
         error = '报告未生成有效正文'
     failed = bool(failed or error)
@@ -353,10 +360,12 @@ def execute_tool(name: str, args: dict, session, api_key: str | None = None,
 # 按 2000 砍一遍，使这里的放宽失效。新后端没有那个二次截断。
 LIMIT_DEFAULT = 2000
 LIMIT_SUMMARY = 4000
+LIMIT_REPORT = 12000
 
 
 def truncate(name: str, text: str) -> str:
-    limit = LIMIT_SUMMARY if name == "get_comprehensive_summary" else LIMIT_DEFAULT
+    limit = (LIMIT_REPORT if name == 'generate_final_report' else
+             LIMIT_SUMMARY if name == "get_comprehensive_summary" else LIMIT_DEFAULT)
     return text if len(text) <= limit else text[:limit] + "\n...(已截断)"
 
 
@@ -370,7 +379,7 @@ SYSTEM_PROMPT_AUTO = (
     "国控站点以本次工具返回的数据来源、含实时监测值、监测时间及查询条件为准。"
     "离线回退只说明该次查询状态，不得推断实时接口普遍不可用；技术页查询也会进入综合摘要。"
     "站点是监测背景，不能当作排污企业；当前站点数据不能冒充历史走航同日实测。\n"
-    "视频可用时可调用 cross_validate_video，随后获取 get_comprehensive_summary，"
+    "已上传视频时须完成 analyze_video 和 cross_validate_video，未上传则跳过；随后获取 get_comprehensive_summary，"
     "按实际污染物检索 search_treatment_cases，最后生成 generate_final_report。\n"
     "遇到工具失败需说明缺失项，不得捏造结果或宣称所有分析成功。"
     "候选企业是排查线索，来源权重不是责任概率；视觉特征不是浊度实测值。"

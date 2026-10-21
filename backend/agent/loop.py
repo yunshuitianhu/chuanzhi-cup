@@ -74,7 +74,8 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
 
     client = None
 
-    msgs = list(session.full_messages)
+    # 自动复跑从当前数据重新取证，避免历史工具输出或旧报告干扰本轮结论。
+    msgs = [] if auto else list(session.full_messages)
     system_prompt = SYSTEM_PROMPT_AUTO if auto else SYSTEM_PROMPT_CHAT
     system_prompt += '\n当前数据身份（服务器核对）：' + json.dumps(session.data_identity, ensure_ascii=False)
     if session.analysis_status == 'stale':
@@ -105,11 +106,15 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
             content_parts: list[str] = []
             # index -> {id, name, arguments}；分片按 index 归并
             calls: dict[int, dict] = {}
+            finish_reason = None
 
             for chunk in stream:
                 if not chunk.choices:
                     continue
-                delta = chunk.choices[0].delta
+                choice = chunk.choices[0]
+                if getattr(choice, 'finish_reason', None) is not None:
+                    finish_reason = choice.finish_reason
+                delta = choice.delta
                 if delta is None:
                     continue
 
@@ -127,6 +132,11 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
                         if tc.function.arguments:
                             slot["arguments"] += tc.function.arguments
 
+            expected_finish = 'tool_calls' if calls else 'stop'
+            if finish_reason != expected_finish:
+                raise RuntimeError(f'模型输出未完整结束（{finish_reason or "缺少结束标记"}），请重试；本轮不标记完成。')
+            if run_revision != session.analysis_revision:
+                raise RuntimeError('监测数据版本已变化，已停止旧分析回合，请重新分析。')
             content = "".join(content_parts)
 
             # ---- 没有工具调用 → 这就是最终回答 ----
@@ -181,20 +191,26 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
                          "content": "已达到最大分析轮次。请基于已完成的分析给出最终结论，禁止再调用工具。"})
             resp = client.chat.completions.create(
                 model=MODEL_NAME, messages=msgs, temperature=0.1, stream=True)
+            finish_reason = None
             for chunk in resp:
+                if chunk.choices and getattr(chunk.choices[0], 'finish_reason', None) is not None:
+                    finish_reason = chunk.choices[0].finish_reason
                 if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                     final_text += chunk.choices[0].delta.content
                     yield _sse("delta", {"text": chunk.choices[0].delta.content})
+            if finish_reason != 'stop':
+                raise RuntimeError(f'收口回答未完整结束（{finish_reason or "缺少结束标记"}），请重试。')
             msgs.append({'role': 'assistant', 'content': final_text})
 
         session.full_messages = msgs
         if final_text:
             session.messages.append({"role": "assistant", "content": final_text})
         if auto:
+            required = REQUIRED_ANALYSIS_STEPS | ({'analyze_video', 'cross_validate_video'} if session.video_frames else set())
             complete = (bool(final_text) and run_revision == session.analysis_revision
                         and session.black_spots is not None
                         and all(session.analysis_steps.get(name) == 'succeeded'
-                                for name in REQUIRED_ANALYSIS_STEPS)
+                                for name in required)
                         and 'failed' not in session.analysis_steps.values())
             session.analysis_done = complete
             session.analysis_status = ('succeeded' if complete else 'partial'

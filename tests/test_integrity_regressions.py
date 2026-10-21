@@ -220,11 +220,11 @@ class AgentCompletionTests(unittest.TestCase):
 
     @staticmethod
     def text_chunk(text):
-        return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text, tool_calls=None))])
+        return SimpleNamespace(choices=[SimpleNamespace(finish_reason='stop', delta=SimpleNamespace(content=text, tool_calls=None))])
 
     @staticmethod
     def tool_chunk(name, args=None):
-        return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=None,
+        return SimpleNamespace(choices=[SimpleNamespace(finish_reason='tool_calls', delta=SimpleNamespace(content=None,
             tool_calls=[SimpleNamespace(index=0, id=f'call-{name}',
                 function=SimpleNamespace(name=name, arguments=json.dumps(args or {})))]))])
 

@@ -147,7 +147,7 @@ class WebRegressionTests(unittest.TestCase):
             {'role': 'user', 'content': '历史问题'},
             {'role': 'assistant', 'content': '历史回答'},
         ]
-        chunk = SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(
+        chunk = SimpleNamespace(choices=[SimpleNamespace(finish_reason='stop', delta=SimpleNamespace(
             content='新回答', tool_calls=None))])
         with patch('backend.agent.loop.resolve_api_key', return_value='test-only'), \
                 patch('backend.agent.loop.OpenAI') as factory:
@@ -178,9 +178,9 @@ class WebRegressionTests(unittest.TestCase):
     def test_failed_tool_does_not_mark_auto_analysis_complete(self):
         tool = SimpleNamespace(index=0, id='test-call', function=SimpleNamespace(
             name='reverse_geocode', arguments='[]'))
-        first = SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(
+        first = SimpleNamespace(choices=[SimpleNamespace(finish_reason='tool_calls', delta=SimpleNamespace(
             content=None, tool_calls=[tool]))])
-        final = SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(
+        final = SimpleNamespace(choices=[SimpleNamespace(finish_reason='stop', delta=SimpleNamespace(
             content='坐标参数缺失，无法完成。', tool_calls=None))])
         with patch('backend.agent.loop.resolve_api_key', return_value='test-only'), \
                 patch('backend.agent.loop.OpenAI') as factory:
