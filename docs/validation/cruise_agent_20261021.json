@@ -1,0 +1,286 @@
+{
+  "date": "2026-10-21",
+  "position_validation": {
+    "scope": "已有V2仿真位置噪声约0.7m、已知参考线与时间原点；非现场定位精度，未检验真实流向或传感器时钟",
+    "gates": {
+      "p95_chainage_error_m": 2.0,
+      "max_time_error_s": 1e-07
+    },
+    "cases": [
+      {
+        "case": "S01",
+        "records": 1801,
+        "p95_chainage_error_m": 1.3453822574192031,
+        "max_chainage_error_m": 2.245495746565666,
+        "max_time_error_s": 3.197442310920451e-12,
+        "ambiguous_records": 0,
+        "track_audit": {
+          "records": 1801,
+          "valid_gps": 1801,
+          "invalid_time": 0,
+          "travelled_distance_m": 10056.238496990303,
+          "endpoint_distance_m": 17.661731124053055,
+          "first_time": "2026-10-21T01:00:00+00:00",
+          "warnings": [
+            "可能存在返航、重复巡测或GPS漂移；累计航程不能直接作为河道长度或桩号。"
+          ],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "passed": true
+      },
+      {
+        "case": "S02",
+        "records": 1801,
+        "p95_chainage_error_m": 1.3819462826822928,
+        "max_chainage_error_m": 2.4277704319774784,
+        "max_time_error_s": 3.197442310920451e-12,
+        "ambiguous_records": 0,
+        "track_audit": {
+          "records": 1801,
+          "valid_gps": 1801,
+          "invalid_time": 0,
+          "travelled_distance_m": 10042.843889956956,
+          "endpoint_distance_m": 15.11202248615759,
+          "first_time": "2026-10-22T01:00:00+00:00",
+          "warnings": [
+            "可能存在返航、重复巡测或GPS漂移；累计航程不能直接作为河道长度或桩号。"
+          ],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "passed": true
+      },
+      {
+        "case": "S03",
+        "records": 1801,
+        "p95_chainage_error_m": 1.3835352801283989,
+        "max_chainage_error_m": 2.396793780593107,
+        "max_time_error_s": 3.197442310920451e-12,
+        "ambiguous_records": 0,
+        "track_audit": {
+          "records": 1801,
+          "valid_gps": 1801,
+          "invalid_time": 0,
+          "travelled_distance_m": 10057.624592466775,
+          "endpoint_distance_m": 248.3751722115888,
+          "first_time": "2026-10-23T01:00:00+00:00",
+          "warnings": [
+            "可能存在返航、重复巡测或GPS漂移；累计航程不能直接作为河道长度或桩号。"
+          ],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "passed": true
+      },
+      {
+        "case": "S04",
+        "records": 1801,
+        "p95_chainage_error_m": 1.3376165187186189,
+        "max_chainage_error_m": 2.4123511515754785,
+        "max_time_error_s": 3.197442310920451e-12,
+        "ambiguous_records": 0,
+        "track_audit": {
+          "records": 1801,
+          "valid_gps": 1801,
+          "invalid_time": 0,
+          "travelled_distance_m": 10057.306807092084,
+          "endpoint_distance_m": 249.59599213854577,
+          "first_time": "2026-10-24T01:00:00+00:00",
+          "warnings": [
+            "可能存在返航、重复巡测或GPS漂移；累计航程不能直接作为河道长度或桩号。"
+          ],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "passed": true
+      },
+      {
+        "case": "S05",
+        "records": 1801,
+        "p95_chainage_error_m": 1.3500481795730366,
+        "max_chainage_error_m": 2.278317083406705,
+        "max_time_error_s": 3.197442310920451e-12,
+        "ambiguous_records": 0,
+        "track_audit": {
+          "records": 1801,
+          "valid_gps": 1801,
+          "invalid_time": 0,
+          "travelled_distance_m": 10031.16324650421,
+          "endpoint_distance_m": 774.3221472214235,
+          "first_time": "2026-10-25T01:00:00+00:00",
+          "warnings": [
+            "可能存在返航、重复巡测或GPS漂移；累计航程不能直接作为河道长度或桩号。"
+          ],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "passed": true
+      },
+      {
+        "case": "S06",
+        "records": 1801,
+        "p95_chainage_error_m": 1.3891309647422077,
+        "max_chainage_error_m": 2.680869768960463,
+        "max_time_error_s": 3.197442310920451e-12,
+        "ambiguous_records": 0,
+        "track_audit": {
+          "records": 1801,
+          "valid_gps": 1801,
+          "invalid_time": 0,
+          "travelled_distance_m": 10035.287342559182,
+          "endpoint_distance_m": 774.0386857577254,
+          "first_time": "2026-10-26T01:00:00+00:00",
+          "warnings": [
+            "可能存在返航、重复巡测或GPS漂移；累计航程不能直接作为河道长度或桩号。"
+          ],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "initial_live_protocol": {
+    "cases": [
+      {
+        "input": "S04_仿真V2_单源两次间歇排放.xlsx",
+        "records": 1801,
+        "data_identity": {
+          "kind": "synthetic",
+          "label": "仿真数据（非现场实测）",
+          "independently_verified": false,
+          "说明": "仅用于受控算法校验，不能用于认定当地污染、真实单位责任或现场准确率。"
+        },
+        "status": "succeeded",
+        "analysis_done": true,
+        "analysis_steps": {
+          "get_data_summary": "succeeded",
+          "find_black_spots": "succeeded",
+          "get_comprehensive_summary": "succeeded",
+          "reverse_geocode": "succeeded",
+          "search_nearby_pollution_sources": "skipped",
+          "get_satellite_image": "succeeded",
+          "get_national_station_data": "skipped",
+          "search_treatment_cases": "succeeded",
+          "generate_final_report": "succeeded"
+        },
+        "report_saved": true,
+        "alert_points": 827,
+        "cluster_count": 2,
+        "track_audit": {
+          "records": 1801,
+          "valid_gps": 1801,
+          "invalid_time": 0,
+          "travelled_distance_m": 10057.305188945638,
+          "endpoint_distance_m": 249.5966042972126,
+          "first_time": "2026-10-24T01:00:00+00:00",
+          "warnings": [
+            "可能存在返航、重复巡测或GPS漂移；累计航程不能直接作为河道长度或桩号。"
+          ],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "scope": "实际LLM与原生工具；独立临时会话；未做浏览器视觉验收",
+        "passed": true
+      },
+      {
+        "input": "河道巡航走航样本数据.xlsx",
+        "records": 1805,
+        "data_identity": {
+          "kind": "unknown",
+          "label": "来源未核验的数据",
+          "independently_verified": false,
+          "说明": "数据来源、仪器校准和人工复核尚未独立核验。"
+        },
+        "status": "succeeded",
+        "analysis_done": true,
+        "analysis_steps": {
+          "get_data_summary": "succeeded",
+          "find_black_spots": "succeeded",
+          "get_comprehensive_summary": "succeeded",
+          "reverse_geocode": "succeeded",
+          "search_nearby_pollution_sources": "succeeded",
+          "get_national_station_data": "succeeded",
+          "get_satellite_image": "succeeded",
+          "search_treatment_cases": "succeeded",
+          "generate_final_report": "succeeded"
+        },
+        "report_saved": true,
+        "alert_points": 1230,
+        "cluster_count": 10,
+        "track_audit": {
+          "records": 1805,
+          "valid_gps": 1805,
+          "invalid_time": 0,
+          "travelled_distance_m": 4459.73748655404,
+          "endpoint_distance_m": 2319.4530498307645,
+          "first_time": "2025-08-01T02:33:00+00:00",
+          "warnings": [],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "scope": "实际LLM与原生工具；独立临时会话；未做浏览器视觉验收",
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "final_live_video_recheck": {
+    "cases": [
+      {
+        "input": "河道巡航走航样本数据.xlsx",
+        "records": 1805,
+        "data_identity": {
+          "kind": "unknown",
+          "label": "来源未核验的数据",
+          "independently_verified": false,
+          "说明": "数据来源、仪器校准和人工复核尚未独立核验。"
+        },
+        "status": "succeeded",
+        "analysis_done": true,
+        "analysis_steps": {
+          "get_data_summary": "succeeded",
+          "find_black_spots": "succeeded",
+          "analyze_video": "succeeded",
+          "cross_validate_video": "succeeded",
+          "search_treatment_cases": "succeeded",
+          "generate_final_report": "succeeded",
+          "get_comprehensive_summary": "succeeded"
+        },
+        "report_saved": true,
+        "alert_points": 1230,
+        "cluster_count": 10,
+        "video_frames": 13,
+        "cross_validation_available": true,
+        "track_audit": {
+          "records": 1805,
+          "valid_gps": 1805,
+          "invalid_time": 0,
+          "travelled_distance_m": 4459.73748655404,
+          "endpoint_distance_m": 2319.4530498307645,
+          "first_time": "2025-08-01T02:33:00+00:00",
+          "warnings": [],
+          "status": "reference_required",
+          "notice": "船的航行方向不能证明水流方向。参考线须由用户核实，不自动压缩返航轨迹或缩放到模型河长。"
+        },
+        "scope": "实际LLM与原生工具；独立临时会话；未做浏览器视觉验收",
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "scope": "协议/工具实际执行与受控位置时间验证；未核实现场流向、时钟、测绘或真实检测准确率",
+  "semantic_review": {
+    "initial_issue": "首次无视频报告把首末约2.3km描述为接近；协议成功不等于正文每句话正确",
+    "change": "加入首末直线距离事实、确定性报告抬头和v3空间解释规则",
+    "final_recheck": "真实视频13帧复验报告按2319.45m描述，不再宣称起终点接近",
+    "remaining_limit": "视频偏移0秒为未核实情景；解码器有尾帧H264警告，未验全视频逐帧质量；LLM正文仍需人工复核"
+  },
+  "python_regressions": 311,
+  "frontend_tests": 56,
+  "frontend_build": true,
+  "component_ssr": true,
+  "browser_visual_verified": false
+}
