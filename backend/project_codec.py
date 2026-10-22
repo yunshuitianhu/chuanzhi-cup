@@ -25,7 +25,7 @@ MODEL_FILES = {'river_hydro_profile.png', 'river_discharge_profile.png', 'river_
 STATE_FIELDS = ('df', 'video_frames', 'data_filename', 'video_filename', 'black_spots',
     'black_spots_json', 'cross_validation', 'comprehensive_summary', 'national_station_result',
     'captions', 'tool_evidence', 'target_water_class', 'messages', 'full_messages',
-    'analysis_done', 'analysis_status', 'analysis_steps', 'analysis_revision', 'river_state', 'river_ui')
+    'analysis_done', 'analysis_status', 'analysis_steps', 'analysis_revision', 'river_state', 'river_ui', 'investigations')
 CLASSES = {cls.__name__: cls for cls in (RiverConfig, CrossSection, RiverModelState, HydroResult, WQResult)}
 
 
@@ -123,7 +123,7 @@ def dump_project(session, name):
     entries['state.json'] = _json(pack({key:getattr(session,key) for key in STATE_FIELDS}))
     if sum(map(len,entries.values())) > MAX_EXPANDED:
         raise ProjectError('项目超过512MB展开大小限制，请减少视频抽帧或模拟输出')
-    manifest = {'format':'water-quality-project', 'schema_version':1, 'name':scrub(name),
+    manifest = {'format':'water-quality-project', 'schema_version':2, 'name':scrub(name),
         'created_at':datetime.now(timezone.utc).isoformat(),
         'runtime':{'python':platform.python_version(),'numpy':np.__version__,'pandas':pd.__version__},
         'contents':{k:{'bytes':len(v),'sha256':sha256(v).hexdigest()} for k,v in entries.items()}}
@@ -159,7 +159,7 @@ def load_project(raw):
             if 'manifest.json' not in names or archive.getinfo('manifest.json').file_size>1024**2:
                 raise ProjectError('缺少有效项目清单')
             manifest=_read_json(archive.read('manifest.json'))
-            if manifest.get('format')!='water-quality-project' or manifest.get('schema_version')!=1:
+            if manifest.get('format')!='water-quality-project' or type(manifest.get('schema_version')) is not int or manifest.get('schema_version') not in (1,2):
                 raise ProjectError('不支持的项目格式或版本')
             contents=manifest['contents']
             if set(contents)!=(set(names)-{'manifest.json'}) or 'state.json' not in contents:
@@ -231,6 +231,9 @@ def load_project(raw):
             raise ProjectError('项目包含未知的数据类型')
 
         state=unpack(_read_json(entries['state.json']))
+        if manifest['schema_version']==1 and isinstance(state,dict) and set(state)==set(STATE_FIELDS)-{'investigations'}:
+            from .investigations import empty_board
+            state['investigations']=empty_board()
         if not isinstance(state,dict) or set(state)!=set(STATE_FIELDS):
             raise ProjectError('项目状态字段不完整')
         _validate_state(state)
@@ -245,6 +248,12 @@ def load_project(raw):
 
 
 def _validate_state(state):
+    from .investigations import validate_board
+    try:
+        validate_board(state['investigations'])
+    except (ValueError,TypeError,KeyError) as exc:
+        raise ProjectError('项目排查任务格式无效') from exc
+    _json(state['investigations'])
     for key in ('data_filename','video_filename','analysis_status'):
         if not isinstance(state[key],str):
             raise ProjectError('项目文本字段无效')

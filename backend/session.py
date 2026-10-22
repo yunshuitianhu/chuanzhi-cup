@@ -52,6 +52,7 @@ class Session:
     # ---- 图表说明（数据驱动生成的文字，供前端展示）----
     captions: dict[str, str] = field(default_factory=dict)
     tool_evidence: dict[str, str] = field(default_factory=dict)
+    investigations: dict = field(default_factory=lambda: {'version':1,'revision':0,'items':[]})
 
     # ---- 配置 ----
     target_water_class: str = "V"
