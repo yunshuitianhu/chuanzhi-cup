@@ -1,6 +1,6 @@
 """RAG 知识库路由：状态查询与语义检索。
 
-知识库为 29 个真实治理案例（Markdown + YAML frontmatter），
+知识库为本地整理的治理参考资料（Markdown + YAML frontmatter），
 经 text2vec-base-chinese 嵌入后存入 ChromaDB（`.rag_index/`）。
 """
 
@@ -10,6 +10,7 @@ import json
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 
 from water_quality_mcp.src.water_quality_mcp.rag_engine import (
     COLLECTION_NAME, EMBEDDING_MODEL_NAME, get_rag_engine, search_treatment_cases,
@@ -66,16 +67,22 @@ def status(session: Session = Depends(get_session)) -> dict:
     }
 
 
+class SearchRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    query: str = Field(min_length=1,max_length=1000)
+    top_k: int = Field(default=5,ge=1,le=10)
+
+
 @router.post("/search")
-def search(payload: dict, session: Session = Depends(get_session)) -> dict:
+def search(payload: SearchRequest, session: Session = Depends(get_session)) -> dict:
     """语义检索治理案例。
 
     Body: { query: str, top_k?: int }
     """
-    query = str(payload.get("query", "") or "").strip()
+    query = payload.query.strip()
     if not query:
         raise HTTPException(400, "查询不能为空")
-    top_k = max(1, min(int(payload.get("top_k", 5) or 5), 10))
+    top_k = payload.top_k
 
     raw = search_treatment_cases(query, top_k)
     data = json.loads(raw) if isinstance(raw, str) else raw

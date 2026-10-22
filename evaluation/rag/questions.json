@@ -1,0 +1,582 @@
+{
+  "version": 1,
+  "annotation": "Agent-authored local-corpus lookup labels; not independent expert labels or verified environmental facts.",
+  "protocol": "Frozen before baseline retrieval; dev used for tuning; holdout evaluated after implementation. Negative labels mean absent in this local corpus.",
+  "corpus": [
+    {
+      "source_file": "富营养化/武汉市外沙湖湖泊富营养化综合治理案例.md",
+      "sha256_prefix": "fb4ef250a815"
+    },
+    {
+      "source_file": "氨氮治理/制药行业高盐高氨氮废水处理升级工程案例.md",
+      "sha256_prefix": "01feb805d66e"
+    },
+    {
+      "source_file": "氨氮治理/化工行业高效吹脱折点氯化处理高氨氮废水工程案例.md",
+      "sha256_prefix": "e8c0b8f4b51d"
+    },
+    {
+      "source_file": "氨氮治理/味精行业高浓度氨氮废水处理工程案例.md",
+      "sha256_prefix": "1b5c540400c4"
+    },
+    {
+      "source_file": "氨氮治理/垃圾渗滤液高浓度氨氮废水处理工程案例.md",
+      "sha256_prefix": "465d9cdaa0cb"
+    },
+    {
+      "source_file": "综合/开封市一渠六河黑臭水体综合治理工程案例.md",
+      "sha256_prefix": "a0df0be03c58"
+    },
+    {
+      "source_file": "综合/济南市小清河环境综合整治工程案例.md",
+      "sha256_prefix": "71de704ec465"
+    },
+    {
+      "source_file": "综合/海口市美舍河流域水环境综合治理工程案例.md",
+      "sha256_prefix": "249622d45457"
+    },
+    {
+      "source_file": "综合/深圳茅洲河流域水环境综合整治工程案例.md",
+      "sha256_prefix": "99770dc56efd"
+    },
+    {
+      "source_file": "黑臭水体/上海苏州河黑臭水体综合治理案例.md",
+      "sha256_prefix": "b1ffce832603"
+    },
+    {
+      "source_file": "黑臭水体/东莞高埗凌屋村一支渠农村黑臭水体治理案例.md",
+      "sha256_prefix": "7fcc2ad05d06"
+    },
+    {
+      "source_file": "黑臭水体/云南宣威城区6条水体黑臭水体综合治理案例.md",
+      "sha256_prefix": "c2a88b092450"
+    },
+    {
+      "source_file": "黑臭水体/南京秦淮河黑臭水体综合治理案例.md",
+      "sha256_prefix": "d5abb29c3c37"
+    },
+    {
+      "source_file": "黑臭水体/合肥南淝河黑臭水体综合治理案例.md",
+      "sha256_prefix": "c7bb8807b6f8"
+    },
+    {
+      "source_file": "黑臭水体/安徽怀远大观塘农村黑臭水体治理案例.md",
+      "sha256_prefix": "d6437841d91f"
+    },
+    {
+      "source_file": "黑臭水体/广州增城百花涌城市河道黑臭水体治理案例.md",
+      "sha256_prefix": "a6a3810f4645"
+    },
+    {
+      "source_file": "黑臭水体/广州市驷马涌城市河道黑臭水体治理案例.md",
+      "sha256_prefix": "eb2ad9ebf29e"
+    },
+    {
+      "source_file": "黑臭水体/扬州童套河西沙河黑臭水体综合治理案例.md",
+      "sha256_prefix": "22b753258918"
+    },
+    {
+      "source_file": "黑臭水体/杭州横一港黑臭河道治理案例.md",
+      "sha256_prefix": "edbe38945c0b"
+    },
+    {
+      "source_file": "黑臭水体/江苏常州龙城河人工湿地黑臭水体治理案例.md",
+      "sha256_prefix": "c1fc4c07666a"
+    },
+    {
+      "source_file": "黑臭水体/济南小清河黑臭水体综合治理案例.md",
+      "sha256_prefix": "121ff1024343"
+    },
+    {
+      "source_file": "黑臭水体/海口市美舍河感潮河段黑臭水体综合治理案例.md",
+      "sha256_prefix": "0a4cbbd1bb13"
+    },
+    {
+      "source_file": "黑臭水体/深圳茅洲河黑臭水体综合治理案例.md",
+      "sha256_prefix": "bf80c05306ba"
+    },
+    {
+      "source_file": "黑臭水体/温州平原河网黑臭水体综合治理案例.md",
+      "sha256_prefix": "ba4ea2d2c4bd"
+    },
+    {
+      "source_file": "黑臭水体/珠三角感潮河段氨氮超标综合治理案例.md",
+      "sha256_prefix": "7b27e559dc62"
+    },
+    {
+      "source_file": "黑臭水体/福州内河黑臭水体综合治理案例.md",
+      "sha256_prefix": "83e19c12f4d7"
+    },
+    {
+      "source_file": "黑臭水体/苏州河道黑臭水体治理案例.md",
+      "sha256_prefix": "6f7f75793f46"
+    },
+    {
+      "source_file": "黑臭水体/重庆璧山区农村黑臭水体综合治理案例.md",
+      "sha256_prefix": "ece543be2630"
+    },
+    {
+      "source_file": "黑臭水体/长沙圭塘河黑臭水体综合治理案例.md",
+      "sha256_prefix": "8a353f202fe4"
+    }
+  ],
+  "questions": [
+    {
+      "id": "D01",
+      "split": "dev",
+      "query": "外沙湖修复资料中，沉水植物覆盖率记为多少？",
+      "relevant_sources": [
+        "富营养化/武汉市外沙湖湖泊富营养化综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "富营养化/武汉市外沙湖湖泊富营养化综合治理案例.md",
+          "quote": "- 沉水植物覆盖率达55.8%",
+          "required_text": "55.8%"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D02",
+      "split": "dev",
+      "query": "制药行业高盐高氨氮废水案例采用哪条四单元工艺路线？",
+      "relevant_sources": [
+        "氨氮治理/制药行业高盐高氨氮废水处理升级工程案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "氨氮治理/制药行业高盐高氨氮废水处理升级工程案例.md",
+          "quote": "MVR蒸发脱盐 → 铁碳微电解 → 两级吹脱 → 厌氧氨氧化（Anammox）",
+          "required_text": "MVR蒸发脱盐 → 铁碳微电解 → 两级吹脱 → 厌氧氨氧化"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D03",
+      "split": "dev",
+      "query": "按南淝河案例资料，2023年的氨氮浓度是多少？",
+      "relevant_sources": [
+        "黑臭水体/合肥南淝河黑臭水体综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/合肥南淝河黑臭水体综合治理案例.md",
+          "quote": "- **氨氮下降**：2021年1-11月氨氮浓度1.53 mg/L，2023年氨氮0.91 mg/L（达到地表水Ⅲ类标准）",
+          "required_text": "0.91 mg/L"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D04",
+      "split": "dev",
+      "query": "珠三角感潮河段案例新建截污管道多长、收集多少个排污口？",
+      "relevant_sources": [
+        "黑臭水体/珠三角感潮河段氨氮超标综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/珠三角感潮河段氨氮超标综合治理案例.md",
+          "quote": "1. **截污纳管**：沿河新建截污管道2.1公里，收集沿岸23个排污口生活污水接入市政管网，削减外源污染负荷约70%",
+          "required_text": "2.1公里"
+        },
+        {
+          "source_file": "黑臭水体/珠三角感潮河段氨氮超标综合治理案例.md",
+          "quote": "1. **截污纳管**：沿河新建截污管道2.1公里，收集沿岸23个排污口生活污水接入市政管网，削减外源污染负荷约70%",
+          "required_text": "23个排污口"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D05",
+      "split": "dev",
+      "query": "常州龙城河河畔人工湿地的占地规模是多少？",
+      "relevant_sources": [
+        "黑臭水体/江苏常州龙城河人工湿地黑臭水体治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/江苏常州龙城河人工湿地黑臭水体治理案例.md",
+          "quote": "- 在龙城河畔建设占地120亩的人工湿地",
+          "required_text": "120亩"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D06",
+      "split": "dev",
+      "query": "重庆璧山资料记录了多少条农村黑臭水体动态清零？",
+      "relevant_sources": [
+        "黑臭水体/重庆璧山区农村黑臭水体综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/重庆璧山区农村黑臭水体综合治理案例.md",
+          "quote": "- **水体名称与位置**：璧山区农村黑臭水体，位于重庆市璧山区，包括29条农村黑臭水体",
+          "required_text": "29条"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D07",
+      "split": "dev",
+      "query": "开封一渠六河工程资料的项目总投资是多少？",
+      "relevant_sources": [
+        "综合/开封市一渠六河黑臭水体综合治理工程案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "综合/开封市一渠六河黑臭水体综合治理工程案例.md",
+          "quote": "- **项目总投资**：67.9亿元",
+          "required_text": "67.9亿元"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D08",
+      "split": "dev",
+      "query": "味精废水处理工程连续运行后的出水氨氮读数是多少？",
+      "relevant_sources": [
+        "氨氮治理/味精行业高浓度氨氮废水处理工程案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "氨氮治理/味精行业高浓度氨氮废水处理工程案例.md",
+          "quote": "- **氨氮**：进水5500 mg/L → 出水11 mg/L，总去除率99.8%",
+          "required_text": "出水11 mg/L"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D09",
+      "split": "dev",
+      "query": "外沙湖案例逐种PFAS去除率与氟质量平衡是多少？",
+      "relevant_sources": [],
+      "evidence": [],
+      "answer_evaluation": false
+    },
+    {
+      "id": "D10",
+      "split": "dev",
+      "query": "本知识库中Kubernetes集群部署教程有哪些具体命令？",
+      "relevant_sources": [],
+      "evidence": [],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H01",
+      "split": "holdout",
+      "query": "含铁颜料废水采用吹脱和折点氯化后，吹脱后及最终出水氨氮分别是多少？",
+      "relevant_sources": [
+        "氨氮治理/化工行业高效吹脱折点氯化处理高氨氮废水工程案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "氨氮治理/化工行业高效吹脱折点氯化处理高氨氮废水工程案例.md",
+          "quote": "- **氨氮**：进水1200 mg/L → 吹脱后65 mg/L → 出水<15 mg/L",
+          "required_text": "吹脱后65 mg/L"
+        },
+        {
+          "source_file": "氨氮治理/化工行业高效吹脱折点氯化处理高氨氮废水工程案例.md",
+          "quote": "- **氨氮**：进水1200 mg/L → 吹脱后65 mg/L → 出水<15 mg/L",
+          "required_text": "出水<15 mg/L"
+        }
+      ],
+      "answer_evaluation": true
+    },
+    {
+      "id": "H02",
+      "split": "holdout",
+      "query": "垃圾渗滤液高氨氮案例最终出水氨氮是多少？",
+      "relevant_sources": [
+        "氨氮治理/垃圾渗滤液高浓度氨氮废水处理工程案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "氨氮治理/垃圾渗滤液高浓度氨氮废水处理工程案例.md",
+          "quote": "- **氨氮**：进水3050 mg/L → 出水22 mg/L，总去除率99.3%",
+          "required_text": "出水22 mg/L"
+        }
+      ],
+      "answer_evaluation": true
+    },
+    {
+      "id": "H03",
+      "split": "holdout",
+      "query": "济南小清河综合整治工程中，主力污水处理厂的日处理能力是多少？",
+      "relevant_sources": [
+        "综合/济南市小清河环境综合整治工程案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "综合/济南市小清河环境综合整治工程案例.md",
+          "quote": "- **主力污水处理厂**：处理能力45万吨/日",
+          "required_text": "45万吨/日"
+        }
+      ],
+      "answer_evaluation": true
+    },
+    {
+      "id": "H04",
+      "split": "holdout",
+      "query": "海口美舍河流域治理资料排查的管网长度是多少？",
+      "relevant_sources": [
+        "综合/海口市美舍河流域水环境综合治理工程案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "综合/海口市美舍河流域水环境综合治理工程案例.md",
+          "quote": "- **排查管网长度**：216.8公里",
+          "required_text": "216.8公里"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H05",
+      "split": "holdout",
+      "query": "茅洲河流域综合整治工程参数表中，管网工程长度是多少？",
+      "relevant_sources": [
+        "综合/深圳茅洲河流域水环境综合整治工程案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "综合/深圳茅洲河流域水环境综合整治工程案例.md",
+          "quote": "| 管网工程 | 916 km |",
+          "required_text": "916 km"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H06",
+      "split": "holdout",
+      "query": "上海苏州河案例的持续治理周期起止年份与时长是什么？",
+      "relevant_sources": [
+        "黑臭水体/上海苏州河黑臭水体综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/上海苏州河黑臭水体综合治理案例.md",
+          "quote": "- **治理周期**：1998-2012年（约14年）",
+          "required_text": "1998-2012年"
+        },
+        {
+          "source_file": "黑臭水体/上海苏州河黑臭水体综合治理案例.md",
+          "quote": "- **治理周期**：1998-2012年（约14年）",
+          "required_text": "约14年"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H07",
+      "split": "holdout",
+      "query": "凌屋村一支渠针对死水不流动采用什么核心措施？",
+      "relevant_sources": [
+        "黑臭水体/东莞高埗凌屋村一支渠农村黑臭水体治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/东莞高埗凌屋村一支渠农村黑臭水体治理案例.md",
+          "quote": "1. **畅流活水工程（核心措施）**：",
+          "required_text": "畅流活水工程"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H08",
+      "split": "holdout",
+      "query": "宣威城区六条黑臭水体案例出水氨氮记录是多少？",
+      "relevant_sources": [
+        "黑臭水体/云南宣威城区6条水体黑臭水体综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/云南宣威城区6条水体黑臭水体综合治理案例.md",
+          "quote": "- **氨氮下降**：从进水 24.25 mg/L 降至出水 1.37 mg/L（去除率94.3%）",
+          "required_text": "1.37 mg/L"
+        }
+      ],
+      "answer_evaluation": true
+    },
+    {
+      "id": "H09",
+      "split": "holdout",
+      "query": "秦淮河治理资料记载的治理后氨氮浓度是多少？",
+      "relevant_sources": [
+        "黑臭水体/南京秦淮河黑臭水体综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/南京秦淮河黑臭水体综合治理案例.md",
+          "quote": "- **氨氮下降**：从超过15 mg/L降至0.994 mg/L（下降93.4%，达到地表水Ⅲ类标准）",
+          "required_text": "0.994 mg/L"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H10",
+      "split": "holdout",
+      "query": "怀远大观塘如何资源化利用稻虾种养退水及处理后的底泥？",
+      "relevant_sources": [
+        "黑臭水体/安徽怀远大观塘农村黑臭水体治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/安徽怀远大观塘农村黑臭水体治理案例.md",
+          "quote": "- 将稻虾种养退水直接用于果树灌溉",
+          "required_text": "果树灌溉"
+        },
+        {
+          "source_file": "黑臭水体/安徽怀远大观塘农村黑臭水体治理案例.md",
+          "quote": "- 把处理达标的水体底泥用作育苗基质",
+          "required_text": "育苗基质"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H11",
+      "split": "holdout",
+      "query": "百花涌又叫什么名称，资料记载的河长约多少？",
+      "relevant_sources": [
+        "黑臭水体/广州增城百花涌城市河道黑臭水体治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/广州增城百花涌城市河道黑臭水体治理案例.md",
+          "quote": "- **水体名称与位置**：百花涌（又称附城河），位于广州市增城区城央，是增城区重点河涌之一，全长约2.5公里",
+          "required_text": "附城河"
+        },
+        {
+          "source_file": "黑臭水体/广州增城百花涌城市河道黑臭水体治理案例.md",
+          "quote": "- **水体名称与位置**：百花涌（又称附城河），位于广州市增城区城央，是增城区重点河涌之一，全长约2.5公里",
+          "required_text": "2.5公里"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H12",
+      "split": "holdout",
+      "query": "广州驷马涌治理后溶解氧恢复到什么水平？",
+      "relevant_sources": [
+        "黑臭水体/广州市驷马涌城市河道黑臭水体治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/广州市驷马涌城市河道黑臭水体治理案例.md",
+          "quote": "- **DO恢复**：从 <1 mg/L 升至 >4 mg/L（提升4倍以上）",
+          "required_text": ">4 mg/L"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H13",
+      "split": "holdout",
+      "query": "扬州黑臭水体案例治理后的透明度提高到多少厘米？",
+      "relevant_sources": [
+        "黑臭水体/扬州童套河西沙河黑臭水体综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/扬州童套河西沙河黑臭水体综合治理案例.md",
+          "quote": "- **透明度**：从35.8厘米提高到47.6厘米",
+          "required_text": "47.6厘米"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H14",
+      "split": "holdout",
+      "query": "杭州横一港案例治理后溶解氧是多少？",
+      "relevant_sources": [
+        "黑臭水体/杭州横一港黑臭河道治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/杭州横一港黑臭河道治理案例.md",
+          "quote": "- **DO恢复**：从<1 mg/L升至4.2 mg/L（提升4.2倍，超过消除黑臭标准2mg/L）",
+          "required_text": "4.2 mg/L"
+        }
+      ],
+      "answer_evaluation": true
+    },
+    {
+      "id": "H15",
+      "split": "holdout",
+      "query": "温州平原河网案例采取了什么生猪养殖污染源控制措施？",
+      "relevant_sources": [
+        "黑臭水体/温州平原河网黑臭水体综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/温州平原河网黑臭水体综合治理案例.md",
+          "quote": "- 关闭取缔生猪养殖场",
+          "required_text": "关闭取缔生猪养殖场"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H16",
+      "split": "holdout",
+      "query": "长沙圭塘河治理资料记载总磷下降了多少？",
+      "relevant_sources": [
+        "黑臭水体/长沙圭塘河黑臭水体综合治理案例.md"
+      ],
+      "evidence": [
+        {
+          "source_file": "黑臭水体/长沙圭塘河黑臭水体综合治理案例.md",
+          "quote": "- **总磷下降**：下降90%以上（从约1.0 mg/L降至<0.1 mg/L，达到地表水Ⅱ类标准）",
+          "required_text": "90%以上"
+        }
+      ],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H17",
+      "split": "holdout",
+      "query": "请给出南淝河2026年10月22日的实时氨氮监测值。",
+      "relevant_sources": [],
+      "evidence": [],
+      "answer_evaluation": true
+    },
+    {
+      "id": "H18",
+      "split": "holdout",
+      "query": "只根据这些治理案例，确认本次走航附近哪家企业违法排污并承担责任。",
+      "relevant_sources": [],
+      "evidence": [],
+      "answer_evaluation": false
+    },
+    {
+      "id": "H19",
+      "split": "holdout",
+      "query": "拉普拉塔河2026年PFOS治理工程的吨水成本是多少？",
+      "relevant_sources": [],
+      "evidence": [],
+      "answer_evaluation": true
+    },
+    {
+      "id": "H20",
+      "split": "holdout",
+      "query": "本库哪个海水铯137核污染治理案例报告了放射性去除率？",
+      "relevant_sources": [],
+      "evidence": [],
+      "answer_evaluation": true
+    }
+  ]
+}

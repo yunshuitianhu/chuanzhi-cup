@@ -35,6 +35,7 @@ from water_quality_mcp.src.water_quality_mcp.geo_tools import (
 )
 from water_quality_mcp.src.water_quality_mcp.national_station import get_national_station_data
 from water_quality_mcp.src.water_quality_mcp.rag_engine import search_treatment_cases
+from water_quality_mcp.src.water_quality_mcp.rag_retrieval import compact_tool_result
 from water_quality_mcp.src.water_quality_mcp.report import generate_report
 from water_quality_mcp.src.water_quality_mcp.evidence import EVIDENCE_RULES
 from water_quality_mcp.src.water_quality_mcp.trace_engine import multi_source_trace
@@ -71,7 +72,7 @@ TOOLS: list[dict] = [
     _tool("get_comprehensive_summary",
           "获取综合分析摘要 JSON，聚合数据概览/黑臭检测/空间分析/交叉印证/河道模型"),
     _tool("search_treatment_cases",
-          "从治理方案知识库检索相似污染治理案例，返回案例标题、治理方法与效果",
+          "检索并合并同来源治理参考案例；具体方法或数值须引用返回的证据ID和原文片段，资料未核验且不是责任依据",
           {"query": {"type": "string", "description": "检索查询，如「氨氮超标 黑臭水体 城市河道治理」"},
            "top_k": {"type": "integer", "description": "返回案例数，默认 5"}},
           required=["query"]),
@@ -364,6 +365,8 @@ LIMIT_REPORT = 12000
 
 
 def truncate(name: str, text: str) -> str:
+    if name=='search_treatment_cases':
+        return compact_tool_result(text)
     limit = (LIMIT_REPORT if name == 'generate_final_report' else
              LIMIT_SUMMARY if name == "get_comprehensive_summary" else LIMIT_DEFAULT)
     return text if len(text) <= limit else text[:limit] + "\n...(已截断)"

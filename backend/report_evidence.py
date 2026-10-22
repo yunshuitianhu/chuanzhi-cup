@@ -200,7 +200,9 @@ def build_bundle(session, traces, run_id):
                 if isinstance(case, dict):
                     references.append({'title': str(case.get('标题', '未提供标题'))[:300],
                         'location': str(case.get('地点', ''))[:300], 'tool_id': trace['id'],
-                        'notice': '本轮知识库返回；仅供治理参考。原工具未提供可核验原文链接。'})
+                        'source_file': str(case.get('来源文件',''))[:500],
+                        'evidence_ids': [str(s.get('证据ID',''))[:1000] for s in case.get('证据片段',[])[:2] if isinstance(s,dict)],
+                        'notice': str(case.get('出处状态') or '本轮知识库返回；仅供治理参考。原工具未提供可核验原文链接。')[:500]})
     return {'id': str(uuid4()), 'version': VERSION, 'run_id': run_id, 'created_at': utc_now(),
         'fingerprints': fingerprints(session), 'data_identity': session.data_identity,
         'filename': session.data_filename, 'target_water_class': session.target_water_class,

@@ -280,7 +280,7 @@ class KnowledgeBaseManager:
                     val = meta.get(key)
                     if isinstance(val, str):
                         chroma_meta[key] = val
-                # 列表字段转为逗号分隔字符串（ChromaDB 支持 $contains）
+                # 列表字段转展示字符串；不能把标量字符串当数组使用$contains筛选。
                 for key in ("pollutant_types", "treatment_methods"):
                     val = meta.get(key)
                     if isinstance(val, list):
