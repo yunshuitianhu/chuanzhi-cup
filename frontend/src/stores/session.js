@@ -42,6 +42,8 @@ export const useSessionStore = defineStore('session', {
     statusRequest: 0,
     resultsRequest: 0,
     projectRequest: 0,
+    investigationRevision: 0,
+    selectedInvestigationId: '',
   }),
 
   getters: {
@@ -50,6 +52,38 @@ export const useSessionStore = defineStore('session', {
   },
 
   actions: {
+    async saveInvestigation(id,payload) {
+      return this._run(async()=>{
+        const workspace=this.workspaceRevision
+        const result=id?await api.updateInvestigation(id,payload):await api.createInvestigation(payload)
+        if(workspace!==this.workspaceRevision)throw new Error('项目已切换，排查结果未应用到当前页面，请重新载入核对。')
+        this.selectedInvestigationId=result.task_id
+        this.investigationRevision++
+        // 已绑定项目的排查修改在后端同步保存；刷新版本号，避免下次另存冲突。
+        if(this.projectState.current?.id) {
+          try {await this.refreshProjects()}
+          catch(e) {result.refresh_warning='记录已保存，但项目列表刷新失败，请刷新任务后核对项目版本。'}
+        }
+        return result
+      })
+    },
+    async investigateRecord(bundle,position) {
+      return this._run(async()=>{
+        const workspace=this.workspaceRevision
+        const board=await api.investigations()
+        if(workspace!==this.workspaceRevision)throw new Error('项目已切换，请从当前项目重新选择报告记录。')
+        const result=await api.createInvestigation({scope_id:board.scope_id,expected_revision:board.revision,
+          reference:{bundle_id:bundle,position}})
+        if(workspace!==this.workspaceRevision)throw new Error('项目已切换，排查结果未应用到当前页面，请重新载入核对。')
+        this.selectedInvestigationId=result.task_id
+        this.investigationRevision++
+        if(this.projectState.current?.id) {
+          try {await this.refreshProjects()}
+          catch(e) {result.refresh_warning='记录已保存，但项目列表刷新失败，请刷新任务后核对项目版本。'}
+        }
+        return result
+      })
+    },
     beginAgentStream() {
       if(this.chatRunning || this.loading || !this.ready)return false
       this.agentRunRequest++; this.statusRequest++; this.resultsRequest++

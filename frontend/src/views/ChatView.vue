@@ -13,6 +13,7 @@ import { toastErr } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import ChatBubble from '../components/ChatBubble.vue'
 import AgentProgress from '../components/AgentProgress.vue'
+import InvestigationBoard from '../components/InvestigationBoard.vue'
 import { consumeAgentStream } from '../utils/agentStream'
 
 const store = useSessionStore()
@@ -162,6 +163,9 @@ async function submit(text,auto) {
       />
       <button type="submit" :disabled="!input.trim() || running">发送</button>
     </form>
+  </Panel>
+  <Panel title="排查任务闭环" subtitle="候选假设 · 支持与反对依据 · 复测 · 人工复核">
+    <InvestigationBoard />
   </Panel>
 </template>
 

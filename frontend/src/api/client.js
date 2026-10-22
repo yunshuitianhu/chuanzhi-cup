@@ -127,6 +127,9 @@ export const api = {
   evidenceRows: (id, fact, offset=0) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/facts/${encodeURIComponent(fact)}/rows?offset=${offset}&limit=20`),
   evidenceRecord: (id, position) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/records/${position}`),
   evidenceTool: (id, tool) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/tools/${encodeURIComponent(tool)}`),
+  investigations: () => consistentRead('/investigations'),
+  createInvestigation: (body) => request('/investigations',{method:'POST',body}),
+  updateInvestigation: (id,body) => request(`/investigations/${encodeURIComponent(id)}`,{method:'PUT',body}),
   config: () => request('/config'),
   setTargetClass: (val) => request('/config/target-class', { method: 'POST', body: { target_water_class: val } }),
 

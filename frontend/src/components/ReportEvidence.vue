@@ -4,6 +4,7 @@ import {RouterLink} from 'vue-router'
 import {api} from '../api/client'
 import {useSessionStore} from '../stores/session'
 import {numberText} from '../utils/mapInteraction'
+import {toastErr,toastOk} from '../composables/useToast'
 
 const props=defineProps({id:{type:String,required:true}})
 const store=useSessionStore()
@@ -45,6 +46,13 @@ function toggle() {
   if(expanded.value)load()
   else {version++;busy.value=false}
 }
+async function investigate(row) {
+  try {
+    const result=await store.investigateRecord(props.id,row.position)
+    toastOk('已加入排查任务；请补充支持/反对依据与复测计划。'+(result.refresh_warning||''))
+    document.getElementById('investigation-board')?.scrollIntoView({block:'start'})
+  } catch(e){toastErr(e.message)}
+}
 watch(()=>[props.id,store.workspaceRevision,store.status.analysis_revision,
   store.status.results_revision,store.status.target_water_class,store.chatRunning],()=>{
   version++;busy.value=false;error.value='';snapshot.value=null;rows.value=null;tool.value=null
@@ -74,11 +82,11 @@ onBeforeUnmount(()=>{version++})
         <p v-if="rows"><strong>{{selected?.label}}</strong> · 支持集合共 {{rows.total}} 条；当前 {{rows.total?rows.offset+1:0}}–{{Math.min(rows.offset+rows.limit,rows.total)}} 条。</p>
         <div v-if="rows" class="records">
           <table>
-            <thead><tr><th>采样记录</th><th>时间</th><th>氨氮 mg/L</th><th>DO mg/L</th><th>定位</th></tr></thead>
+            <thead><tr><th>采样记录</th><th>时间</th><th>氨氮 mg/L</th><th>DO mg/L</th><th>定位与排查</th></tr></thead>
             <tbody><tr v-for="row in rows.rows" :key="row.position">
               <td><details><summary>#{{row.record_number}}</summary><p>输入记录ID：{{row.input_record_id??'未保留'}}</p><p>{{row.quality?.label}}</p><pre>{{JSON.stringify({观测值:row.values,插值参考:row.interpolated,清洗前读数:row.quality?.raw_text},null,2)}}</pre></details></td>
               <td>{{row.time??'未提供'}}</td><td>{{numberText(row.values.ammonia_nitrogen)}}</td><td>{{numberText(row.values.dissolved_oxygen)}}</td>
-              <td><RouterLink v-if="row.map_sample_id!==null" :to="{path:'/charts',query:{evidence:id,row:String(row.position)},hash:'#trace-map'}">地图查看</RouterLink><span v-else>无有效GPS</span></td>
+              <td><RouterLink v-if="row.map_sample_id!==null" :to="{path:'/charts',query:{evidence:id,row:String(row.position)},hash:'#trace-map'}">地图查看</RouterLink><span v-else>无有效GPS</span><br /><button :disabled="store.loading || store.chatRunning || busy || snapshot.status!=='current'" @click="investigate(row)">加入排查任务</button></td>
             </tr></tbody>
           </table>
           <button :disabled="busy || rows.offset===0" @click="showRows(selected,Math.max(0,rows.offset-rows.limit))">上一页</button>
