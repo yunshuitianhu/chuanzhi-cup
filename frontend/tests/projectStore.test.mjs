@@ -13,6 +13,50 @@ const reply = (body, status=200) => new Response(JSON.stringify(body),{
   status, headers:{'Content-Type':'application/json','X-Session-Id':'test-session'},
 })
 
+test('启动失败保留具体阶段，重连成功会清除错误并恢复历史和项目', async()=>{
+  const store=useSessionStore(createPinia())
+  let fail=true
+  globalThis.fetch=async path=>{
+    if(path==='/api/health')return reply({status:'ok'})
+    if(path==='/api/config')return reply({keys:{}})
+    if(path==='/api/data/status')return reply({has_data:false,analysis_revision:0,results_revision:0})
+    if(path==='/api/analysis/results')return reply({warnings:[]})
+    if(path==='/api/agent/history'){
+      if(fail)return reply({detail:'历史存储不可读'},503)
+      return reply({messages:[{content:'已有对话'}]})
+    }
+    if(path==='/api/projects')return reply({current:{id:'saved'},projects:[{id:'saved'}],river_ui:{}})
+    throw new Error(path)
+  }
+  await store.bootstrap()
+  assert.equal(store.ready,false)
+  assert.equal(store.connecting,false)
+  assert.match(store.error,/恢复对话.*历史存储不可读/)
+  fail=false
+  await store.bootstrap()
+  assert.equal(store.ready,true)
+  assert.equal(store.error,'')
+  assert.equal(store.bootstrapStage,'已连接')
+  assert.equal(store.projectState.current.id,'saved')
+  assert.equal(store.chatMessages[0].content,'已有对话')
+})
+
+test('重连不并发请求且不会在分析运行时重新初始化',async()=>{
+  const store=useSessionStore(createPinia())
+  let calls=0, release
+  globalThis.fetch=async()=>{
+    calls++
+    return new Promise(resolve=>{release=()=>resolve(reply({detail:'服务离线'},503))})
+  }
+  const pending=store.bootstrap()
+  await store.bootstrap()
+  assert.equal(calls,1)
+  release();await pending
+  store.chatRunning=true
+  await store.bootstrap()
+  assert.equal(calls,1)
+})
+
 test('切换请求发出时隐藏旧视图，版本相同时仍清空缓存并恢复新历史', async () => {
   const store=useSessionStore(createPinia())
   store.ready=true

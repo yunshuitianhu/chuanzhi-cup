@@ -10,6 +10,8 @@ import { api } from '../api/client'
 export const useSessionStore = defineStore('session', {
   state: () => ({
     ready: false,            // 后端连通性
+    connecting: false,
+    bootstrapStage: '',
     loading: false,
     error: '',
     chatMessages: [],
@@ -110,19 +112,30 @@ export const useSessionStore = defineStore('session', {
     },
 
     async bootstrap() {
+      if (this.connecting || this.loading || this.chatRunning || this.switchingProject) return
+      this.connecting = true
+      this.ready = false
+      this.error = ''
       try {
-        await api.health()
+        this.bootstrapStage = '检查服务连接'
+        await api.health(AbortSignal.timeout(10000))
+        this.bootstrapStage = '读取配置'
         this.config = await api.config()
+        this.bootstrapStage = '恢复数据与分析结果'
         await this.refreshStatus()
+        this.bootstrapStage = '恢复对话'
         const history = await api.chatHistory()
         this.chatMessages = history.messages
+        this.bootstrapStage = '读取项目目录'
         await this.refreshProjects()
-        this.ready = true
+        this.bootstrapStage = '读取数据预览'
         if (this.status.has_data) await this.refreshPreview()
+        this.ready = true
+        this.bootstrapStage = '已连接'
       } catch (e) {
         this.ready = false
-        this.error = `无法连接后端：${e.message}`
-      }
+        this.error = `启动检查失败（${this.bootstrapStage}）：${e.message}`
+      } finally { this.connecting = false }
     },
 
     async _run(fn) {

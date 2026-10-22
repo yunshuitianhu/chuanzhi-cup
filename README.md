@@ -7,6 +7,8 @@
 
 ## 项目介绍
 
+当前任务与进度：[项目完善任务队列](docs/任务队列.md)。最新阶段的算法、数值及智能体记录见[走航时空配准与流程验收](docs/走航时空配准与智能体流程验收.md)。下方早期记录保留对应阶段的验证范围，测试数不代表当前完整清单。
+
 面向河道走航监测，将上传的 CSV/Excel 数据转为水质趋势、异常聚类和地图线索，
 由 Agent 调用分析工具、检索治理案例，辅助形成现场排查与复测建议。
 候选企业和地图 POI 仅作为排查线索，来源权重不代表污染责任概率。
@@ -114,18 +116,34 @@ python scripts/validate_inverse_robustness.py
 
 | 项 | 版本 |
 |---|---|
-| Python | 3.10+（本项目在 3.14 上验证通过） |
-| Node.js | 18+（前端已实现，本轮使用 Node.js 24 验证） |
+| Python | 推荐3.12；当前锁定依赖与交付检查使用3.12，至少3.11 |
+| Node.js | 构建前端使用Node.js 22或24；已构建版本运行时无需Node.js服务 |
 | 网络 | 需可访问 `api.deepseek.com` |
 
 ## 安装
 
 ```bash
-pip install -r requirements.txt
-pip install -e water_quality_mcp/
+python -m pip install -r requirements-lock.txt
 ```
 
 ## 启动 Web 应用
+
+推荐评审与本地使用采用**单服务启动**，网页和API共用一个端口。首次安装依赖后，构建前端：
+
+```powershell
+cd frontend
+npm ci
+npm run build
+cd ..
+python scripts/serve_web.py --check
+python scripts/serve_web.py
+```
+
+打开终端显示的地址，默认`http://127.0.0.1:5174/chat`。Windows也可双击根目录`start_web.cmd`；如需指定Python，设置`WQ_PYTHON`为该解释器的完整路径。请保持启动终端运行；关闭后服务停止。端口占用时可使用`python scripts/serve_web.py --port 5175`，检查不会终止其它程序。更换端口后浏览器会话独立，可从左侧打开已有项目。
+
+启动前检查构建清单及资源、API依赖、项目目录写权限、端口和密钥配置状态；检查不会调用收费模型或下载RAG模型。无密钥仍可进行基础检测和手工模型；模型首次下载、RAG索引准备与外部接口可达性另行检查。详细步骤见[统一启动与故障诊断](docs/统一启动与故障诊断.md)。修改前端代码后应重新构建。
+
+开发时仍可采用下面的双服务方式：
 
 在项目根目录启动后端：
 

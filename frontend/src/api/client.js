@@ -107,7 +107,7 @@ export const api = {
     fd.append('river_form', JSON.stringify(riverForm))
     return request('/projects/import', { method:'POST', body:fd, isForm:true })
   },
-  health: () => request('/health'),
+  health: (signal) => request('/health', { signal }),
   chatHistory: () => request('/agent/history'),
   config: () => request('/config'),
   setTargetClass: (val) => request('/config/target-class', { method: 'POST', body: { target_water_class: val } }),

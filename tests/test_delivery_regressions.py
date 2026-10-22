@@ -1,0 +1,81 @@
+"""交付入口契约：网页/API同源，资源缺失不伪装成功，不暴露项目文件。"""
+
+import json
+import socket
+import tempfile
+import unittest
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from backend.main import app as api_app
+from backend.session import STORE
+from backend.web import create_app
+from scripts.serve_web import check_frontend, check_port
+
+
+class DeliveryTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.dist = Path(self.temp.name) / 'dist'
+        (self.dist / 'assets').mkdir(parents=True)
+        (self.dist / 'assets' / 'app-abcd.js').write_text('export const ok=true;', encoding='utf-8')
+        (self.dist / 'index.html').write_text('<html><script src="/assets/app-abcd.js"></script></html>', encoding='utf-8')
+        (self.dist / '.vite').mkdir()
+        (self.dist / '.vite' / 'manifest.json').write_text(json.dumps({'index.html': {'file': 'assets/app-abcd.js'}}), encoding='utf-8')
+        self.client = TestClient(create_app(self.dist))
+
+    def test_routes_refresh_without_creating_sessions(self):
+        before = STORE.count
+        for path in ('/', '/chat', '/charts', '/river', '/tech'):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('text/html', response.headers['content-type'])
+            self.assertEqual(response.headers['cache-control'], 'no-cache')
+            self.assertNotIn('x-session-id', response.headers)
+            self.assertEqual(self.client.head(path).status_code, 200)
+        self.assertEqual(STORE.count, before)
+
+    def test_api_same_origin_and_separate_api_entry_still_work(self):
+        self.assertEqual(self.client.get('/api/health').json()['service'], 'water-quality-api')
+        self.assertEqual(TestClient(api_app).get('/').json()['service'], '水质监测与污染溯源 API')
+        self.assertEqual(self.client.get('/openapi.json').status_code, 200)
+
+    def test_static_missing_and_sensitive_paths_never_return_spa(self):
+        self.assertEqual(self.client.get('/assets/app-abcd.js').status_code, 200)
+        for path in ('/assets/missing.js', '/api/missing', '/.env', '/README.md', '/data/projects/projects.sqlite3', '/assets/%2e%2e/%2e%2e/.env'):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 404, path)
+            self.assertNotIn('<html>', response.text)
+
+    def test_incomplete_frontend_fails_preflight(self):
+        check_frontend(self.dist)
+        (self.dist / 'assets' / 'app-abcd.js').unlink()
+        with self.assertRaisesRegex(RuntimeError, '资源不完整'):
+            check_frontend(self.dist)
+        (self.dist / 'index.html').unlink()
+        with self.assertRaisesRegex(RuntimeError, '缺少前端构建'):
+            check_frontend(self.dist)
+        with self.assertRaisesRegex(RuntimeError, '缺少前端构建'):
+            create_app(self.dist)
+
+    def test_occupied_port_is_reported_and_not_stopped(self):
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', 0))
+            listener.listen()
+            with self.assertRaisesRegex(RuntimeError, '不可绑定或已占用'):
+                check_port(listener.getsockname()[1])
+            self.assertGreater(listener.fileno(), -1)
+
+    def test_missing_lazy_chunk_and_traversal_in_manifest_are_rejected(self):
+        manifest = self.dist / '.vite' / 'manifest.json'
+        for entry in ({'file': 'assets/missing-river.js'}, {'file': '../private.txt'},
+                      {'file': 'assets/app-abcd.js', 'dynamicImports': ['missing']}):
+            manifest.write_text(json.dumps({'index.html': entry}), encoding='utf-8')
+            with self.assertRaisesRegex(RuntimeError, '构建清单缺失或资源不完整'):
+                check_frontend(self.dist)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -22,6 +22,7 @@ export default defineConfig(({mode}) => {
     },
   },
   build: {
+    manifest: true,
     outDir: 'dist',
     chunkSizeWarningLimit: 1200,   // echarts 体积较大，属预期
   },

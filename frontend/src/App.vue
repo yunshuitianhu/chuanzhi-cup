@@ -103,6 +103,18 @@ const keySummary = computed(() => {
       </nav>
 
       <div class="content">
+        <section v-if="!store.ready" class="connection-panel" aria-live="polite">
+          <h2>{{ store.connecting ? '正在连接项目服务' : '项目服务尚未就绪' }}</h2>
+          <p v-if="store.connecting">{{ store.bootstrapStage }}…</p>
+          <template v-else>
+            <p>在项目目录运行 <code>python scripts/serve_web.py</code>，或双击 <code>start_web.cmd</code>，并保持终端运行。</p>
+            <p>启动入口默认提供 <code>http://127.0.0.1:5174/</code>；自定义端口时请打开终端显示的地址。开发模式仍需同时运行前端和后端。</p>
+            <p>若下方提示项目目录或数据恢复失败，请按对应阶段排查。已有项目不会因点击重连而被删除。</p>
+          </template>
+          <button :disabled="store.connecting || store.loading || store.chatRunning || store.switchingProject" @click="store.bootstrap()">
+            {{ store.connecting ? '连接中…' : '重新连接' }}
+          </button>
+        </section>
         <div v-if="store.error" class="error-bar">
           <strong>出错了：</strong>{{ store.error }}
         </div>
@@ -192,6 +204,10 @@ const keySummary = computed(() => {
 .pill.muted { opacity: .7; }
 
 .content { flex: 1; padding: 20px; min-width: 0; }
+.connection-panel { border: 1px solid var(--c-border); background: var(--c-surface-2); padding: 20px; border-radius: 8px; margin-bottom: 16px; }
+.connection-panel h2 { margin-top: 0; font-size: 18px; }
+.connection-panel p { color: var(--c-sub); overflow-wrap: anywhere; }
+.connection-panel button { padding: 8px 14px; color: var(--c-ink); background: var(--c-surface); border: 1px solid var(--c-accent); border-radius: 6px; }
 
 .error-bar {
   background: #3a1620; border: 1px solid #7b2740; color: #ffb3c1;

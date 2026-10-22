@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-22",
+  "task": "Q01",
+  "python_regressions": 317,
+  "frontend_tests": 58,
+  "frontend_build": true,
+  "preflight": true,
+  "host": "127.0.0.1",
+  "port": 5174,
+  "single_service": true,
+  "health": {
+    "status": "ok",
+    "service": "water-quality-api"
+  },
+  "spa_routes": [
+    "/chat",
+    "/charts",
+    "/river",
+    "/tech"
+  ],
+  "unknown_api_status": 404,
+  "sensitive_path_status": 404,
+  "browser_visual_verified": true,
+  "browser_scope": "当前河道页已连接并显示手工建模控件；未点击或替换用户项目",
+  "existing_project_count": 5,
+  "bound_sessions": 2,
+  "restored": [
+    {
+      "rows": 1805,
+      "video_frames": 147,
+      "restored": true
+    },
+    {
+      "rows": 1805,
+      "video_frames": 3,
+      "restored": true
+    }
+  ],
+  "catalog_counts_unchanged": true,
+  "checks": {
+    "frontend_fields": true,
+    "generic_river": true,
+    "backend_api": true,
+    "secrets": true
+  },
+  "limits": [
+    "仅本机验收；异机依赖安装及完整迁移属于Q02",
+    "预检不验证外部服务、RAG模型缓存或现场准确率"
+  ]
+}
