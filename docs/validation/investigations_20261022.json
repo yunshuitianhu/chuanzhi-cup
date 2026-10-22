@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-22",
+  "scope": "controlled workflow only; no field retest or source attribution",
+  "project": {
+    "name": "Q05 排查流程验收（非现场复测）",
+    "revision": 6,
+    "rows": 6,
+    "tasks": 1
+  },
+  "restart_restore": {
+    "task": true,
+    "source_do_zero": true,
+    "notes_and_history": true,
+    "effective_status": "needs_recheck",
+    "source_reference": "missing after explicit target-class reset; immutable excerpt retained"
+  },
+  "prior_projects": [
+    {
+      "name": "Q04 仿真证据验收（非实测）",
+      "before_revision": 2,
+      "after_revision": 2,
+      "prior_snapshot_intact": true,
+      "data_and_analysis_fingerprints_unchanged": true
+    },
+    {
+      "name": "更新前保留的项目副本",
+      "before_revision": 10,
+      "after_revision": 10,
+      "prior_snapshot_intact": true,
+      "data_and_analysis_fingerprints_unchanged": true
+    },
+    {
+      "name": "111",
+      "before_revision": 13,
+      "after_revision": 14,
+      "prior_snapshot_intact": true,
+      "data_and_analysis_fingerprints_unchanged": true
+    },
+    {
+      "name": "test1",
+      "before_revision": 5,
+      "after_revision": 5,
+      "prior_snapshot_intact": true,
+      "data_and_analysis_fingerprints_unchanged": true
+    },
+    {
+      "name": "真实样例迁移验证",
+      "before_revision": 9,
+      "after_revision": 9,
+      "prior_snapshot_intact": true,
+      "data_and_analysis_fingerprints_unchanged": true
+    },
+    {
+      "name": "隔离示例：自定义空河段",
+      "before_revision": 7,
+      "after_revision": 7,
+      "prior_snapshot_intact": true,
+      "data_and_analysis_fingerprints_unchanged": true
+    }
+  ],
+  "prior_project_count": 6,
+  "current_project_count": 7,
+  "routes_200": [
+    "chat",
+    "charts",
+    "river",
+    "tech"
+  ],
+  "checks": {
+    "python_regressions": 356,
+    "new_investigation_cases": 14,
+    "frontend_tests": 82,
+    "production_build": "passed",
+    "field_names": "passed",
+    "generalization": 21,
+    "backend_api": 16,
+    "tracked_secret_checks": 9
+  },
+  "rag_availability": {
+    "vector_records": 147,
+    "hits": 1,
+    "quality_evaluation": false
+  },
+  "git": {
+    "new_commits_created": false,
+    "local_head": "5d70e33",
+    "remote_main": "a37775d",
+    "ahead_before_q05": 12,
+    "blocker": "index.lock permission denied after explicit filesystem grant",
+    "runtime_index_and_simulations_excluded": true
+  }
+}
