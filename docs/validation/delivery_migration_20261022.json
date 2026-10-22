@@ -1,0 +1,34 @@
+{
+  "passed": true,
+  "rows": 180,
+  "unchanged_model_arrays": 24,
+  "independent_process_restore": true,
+  "import_creates_new_id": true,
+  "projects": 2,
+  "requests_httpx_external_requests_forbidden": true,
+  "scope": "无密钥交付副本，两次独立进程的ASGI接口验收；已有依赖环境；非异机安装或现场准确率",
+  "demo": "公式示例无GPS，非实测，不用于正演或反演精度评测",
+  "limitations": [
+    "未验证新机器依赖安装",
+    "RAG索引及模型缓存不随交付包提供",
+    "本验收不替代真实DeepSeek和外部查询验收"
+  ],
+  "date": "2026-10-22",
+  "task": "Q02",
+  "validated_code_revision": "0204cebae9f514e6a217aa6b30cfe893a611c460",
+  "package_files": 285,
+  "all_hashes_verified": true,
+  "source_package_sha256": "e57783cbebad277b676bf383b9c2e62ac782719cb3d330abd4e7b576166d769b",
+  "python": "3.12.14",
+  "python_regressions": 320,
+  "frontend_tests": 58,
+  "preserved_artifacts": 6,
+  "zero_measurement_preserved": true,
+  "synthetic_identity_preserved": true,
+  "original_catalog_untouched": true,
+  "prior_attempt": {
+    "result": "验收脚本比较了迁移前后绝对附件路径，因目录重映射而停止",
+    "correction": "改为验证当前目录合法性、附件内容哈希、数据与模型数组；未改变产品数值"
+  },
+  "new_machine_install_verified": false
+}
