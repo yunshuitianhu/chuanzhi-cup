@@ -105,7 +105,7 @@ onBeforeUnmount(()=>{version++})
         </div>
         <div v-if="snapshot.references.length" class="references">
           <strong>本轮知识库参考资料</strong>
-          <p v-for="(item,i) in snapshot.references" :key="i">{{item.title}} · {{item.location}}<br /><small>{{item.notice}}</small> <button :disabled="busy" @click="showTool(item.tool_id)">查看检索返回</button></p>
+          <p v-for="(item,i) in snapshot.references" :key="i">{{item.title}} · {{item.location}}<br /><small>{{item.notice}}</small><br v-if="item.source_file" /><small v-if="item.source_file">{{item.source_file}}<br />{{item.evidence_ids?.join(' · ')}}</small> <button :disabled="busy" @click="showTool(item.tool_id)">查看检索返回</button></p>
         </div>
         <button :disabled="busy || store.chatRunning" @click="load">重新核对快照</button>
       </template>

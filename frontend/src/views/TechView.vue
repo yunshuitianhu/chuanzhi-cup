@@ -18,6 +18,7 @@ import MultiSourceTrace from '../components/MultiSourceTrace.vue'
 import RagSearch from '../components/RagSearch.vue'
 import WaterQualityGridTech from '../components/WaterQualityGridTech.vue'
 import InverseValidationTech from '../components/InverseValidationTech.vue'
+import RagEvaluationTech from '../components/RagEvaluationTech.vue'
 
 const store = useSessionStore()
 const running = ref(false)
@@ -79,12 +80,13 @@ async function runBlackSpots() {
     <section class="block">
       <h2 class="bt">📚 RAG 知识库智能检索</h2>
       <p class="desc">
-        <b>29 个真实治理案例</b>（黑臭水体 20 / 氨氮治理 4 / 富营养化 1 / 综合 4），
-        经 text2vec-base-chinese 嵌入（768 维）存入 ChromaDB，按余弦相似度检索。
-        生成溯源报告时也会走同一条链路自动注入参考案例。
+        本地整理的治理资料经 text2vec-base-chinese 嵌入存入 ChromaDB，
+        结合向量与词面检索，按来源合并，再选择与问题相关的原文片段。
+        对话和报告使用同一检索内核；具体引用带片段编号，原始发布内容仍需核验。
       </p>
       <p class="hint">💡 无需上传数据即可体验</p>
       <RagSearch />
+      <RagEvaluationTech />
     </section>
 
     <section class="block" id="water-quality-grid">

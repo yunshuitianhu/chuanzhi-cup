@@ -2,12 +2,13 @@
 /**
  * RAG 知识库检索 —— 对应 app.py tab4 的第 5 区。
  *
- * 29 个真实治理案例，经 text2vec-base-chinese 嵌入后存 ChromaDB，
- * 按余弦相似度检索。报告生成时也会自动走同一条链路注入参考案例。
+ * 本地整理的治理参考资料，经向量与词面融合后按来源合并。
+ * 对话和报告共用检索内核，具体引用须核对片段；原始发布内容未独立核验。
  */
 import { onMounted, ref } from 'vue'
 import { api } from '../api/client'
 import { toastErr, toastOk } from '../composables/useToast'
+import RagCase from './RagCase.vue'
 
 const status = ref(null)
 const query = ref('')
@@ -42,10 +43,11 @@ async function run(q) {
   // 空输入走默认查询，而不是直接 return —— 后者会让用户以为按钮坏了
   const text = (q || query.value).trim() || DEFAULT_QUERY
   query.value = text
+  data.value = null
   loading.value = true
   try {
     data.value = await api.ragSearch(text, topK.value)
-    toastOk(`检索到 ${data.value['共检索到']} 个相似案例`)
+    toastOk(`检索到 ${data.value['共检索到']} 份参考资料`)
   } catch (e) {
     toastErr(`检索失败：${e.message}`)
   } finally {
@@ -53,12 +55,6 @@ async function run(q) {
   }
 }
 
-/** 相似度 → 颜色（越高越绿）。阈值取自 SKILL 文档的经验区间。 */
-function simColor(s) {
-  if (s >= 0.8) return '#2E8B57'
-  if (s >= 0.6) return '#FFA500'
-  return '#8495AA'
-}
 </script>
 
 <template>
@@ -67,7 +63,7 @@ function simColor(s) {
     <div v-if="status" class="status">
       <template v-if="status.available">
         <span class="ok">● 知识库就绪</span>
-        <span class="dim">{{ status.source_documents }} 个案例 · {{ status.chunks }} 个向量块</span>
+        <span class="dim">{{ status.source_documents }} 份资料 · {{ status.chunks }} 个向量块</span>
         <span class="dim">{{ status.embedding_model }}</span>
       </template>
       <template v-else>
@@ -81,6 +77,8 @@ function simColor(s) {
       <input
         v-model="query"
         placeholder="例如：氨氮超标 黑臭水体 城市河道治理"
+        aria-label="治理资料查询"
+        maxlength="1000"
         :disabled="loading"
         @keyup.enter="run()"
       />
@@ -104,25 +102,9 @@ function simColor(s) {
 
     <!-- 结果 -->
     <template v-if="data">
-      <p class="note">查询：{{ data['查询'] }} · 命中 {{ data['共检索到'] }} 个案例</p>
+      <p class="note">查询：{{ data['查询'] }} · 返回 {{ data['共检索到'] }} 份按来源文件合并的参考资料。近似匹配不代表资料包含所问答案；相似度不是治理效果或责任概率。</p>
       <div class="cards">
-        <article v-for="(c, i) in data['检索结果']" :key="i" class="case">
-          <header>
-            <h4>{{ c['标题'] }}</h4>
-            <span class="sim" :style="{ borderColor: simColor(c['相似度']), color: simColor(c['相似度']) }">
-              {{ (c['相似度'] * 100).toFixed(0) }}%
-            </span>
-          </header>
-          <div class="tags">
-            <span v-if="c['地点']">📍 {{ c['地点'] }}</span>
-            <span v-if="c['污染程度']">🏷️ {{ c['污染程度'] }}</span>
-          </div>
-          <p v-if="c['治理方法']" class="methods">治理方法：{{ c['治理方法'] }}</p>
-          <details v-if="c['内容摘要']">
-            <summary>查看摘要</summary>
-            <p class="summary">{{ c['内容摘要'] }}</p>
-          </details>
-        </article>
+        <RagCase v-for="(c,i) in data['检索结果']" :key="c['来源文件']||i" :item="c" />
       </div>
     </template>
   </div>
