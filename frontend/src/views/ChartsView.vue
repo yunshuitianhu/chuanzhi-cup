@@ -11,6 +11,7 @@ import { useSessionStore } from '../stores/session'
 import EChart from '../components/EChart.vue'
 import Panel from '../components/Panel.vue'
 import TraceMap from '../components/TraceMap.vue'
+import EvidenceFocus from '../components/EvidenceFocus.vue'
 import CrossValidation from '../components/CrossValidation.vue'
 import PollutionPlayback from '../components/PollutionPlayback.vue'
 import DataQualityPanel from '../components/DataQualityPanel.vue'
@@ -19,6 +20,7 @@ import { toastErr } from '../composables/useToast'
 const store = useSessionStore()
 const ts = ref(null)          // time-series 数据
 const loading = ref(false)
+const evidenceSampleId=ref(null)
 let requestVersion = 0
 
 async function loadTimeSeries() {
@@ -160,8 +162,9 @@ const caption = computed(() => store.status.has_data
       </div>
     </Panel>
 
-    <Panel title="交互式溯源地图" subtitle="严重程度渐变热力图 · 轨迹 · 可选聚类与 Top5 点位">
-      <TraceMap />
+    <Panel id="trace-map" style="scroll-margin-top:80px" title="交互式溯源地图" subtitle="严重程度渐变热力图 · 轨迹 · 可选聚类与 Top5 点位">
+      <EvidenceFocus @focus="evidenceSampleId=$event" />
+      <TraceMap :focus-sample-id="evidenceSampleId" />
     </Panel>
 
     <Panel title="污染扩散演示" subtitle="当前项目模拟结果 · 时间轴播放 · 沿程浓度与卫星地图同步">

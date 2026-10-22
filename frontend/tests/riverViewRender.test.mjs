@@ -59,3 +59,24 @@ test('任务进度提供停止按钮与中文工具阶段，结束后不再显�
   assert.doesNotMatch(ended,/停止本轮/);assert.match(ended,/已停止/)
   assert.doesNotMatch(ended,/等待当前调用收尾|仍保持锁定/)
 })
+
+test('新回答提供证据入口，历史与未完成回答不补造入口',async()=>{
+  const {default:Bubble}=await server.ssrLoadModule('/src/components/ChatBubble.vue')
+  async function render(props) {
+    const app=createSSRApp(Bubble,{role:'assistant',content:'氨氮均值为0。',...props});app.use(createPinia())
+    return renderToString(app)
+  }
+  assert.match(await render({evidence:{id:'actual-bundle'}}),/查看本轮数据与工具证据/)
+  assert.doesNotMatch(await render({}),/查看本轮数据与工具证据/)
+  assert.doesNotMatch(await render({evidence:{id:'actual-bundle'},incomplete:true}),/查看本轮数据与工具证据/)
+  assert.doesNotMatch(await render({role:'user',evidence:{id:'foreign'}}),/查看本轮数据与工具证据/)
+})
+
+test('工具和报告中的HTML仅显示为文本',async()=>{
+  const {default:Bubble}=await server.ssrLoadModule('/src/components/ChatBubble.vue')
+  const app=createSSRApp(Bubble,{role:'assistant',content:'<img src=x onerror="alert(1)">'})
+  app.use(createPinia())
+  const html=await renderToString(app)
+  assert.doesNotMatch(html,/<img\b/)
+  assert.match(html,/&lt;img/)
+})

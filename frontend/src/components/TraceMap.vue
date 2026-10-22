@@ -22,7 +22,7 @@ import { toastErr } from '../composables/useToast'
 import { nearestSamples, sampleMetrics, numberText } from '../utils/mapInteraction'
 import { simulationColor } from '../utils/playback'
 
-const props = defineProps({simulation:{type:Object,default:null}, frameIndex:{type:Number,default:0}})
+const props = defineProps({simulation:{type:Object,default:null}, frameIndex:{type:Number,default:0}, focusSampleId:{type:Number,default:null}})
 
 const store = useSessionStore()
 const el = ref(null)
@@ -110,6 +110,7 @@ function selectSource(source, automatic = false) {
 function initMap() {
   if (map || !el.value) return
   map = L.map(el.value, { zoomControl: true, attributionControl: true, minZoom:1, worldCopyJump:true })
+  map.createPane('sampleFocus').style.zIndex = '625' // 高于Top5标记，低于提示和弹窗。
   layerGroup = L.layerGroup().addTo(map)
   map.setView([30, 105], 3)   // 中性初始视角；有数据后 fitBounds
   map.on('click', onMapClick)
@@ -224,7 +225,7 @@ function render(fit = false) {
       `原始综合指数：${numberText(selected.raw_score)}`].join('\n')
     if (selected.quality) node.textContent += '\n质控：' + selected.quality.label
       + '\n' + selected.quality.reasons.map(r=>r.message).join('、') + '\n标记不撤销阈值预警，不能确认仪器故障。'
-    L.circleMarker(selected.coord,{radius:8,color:'#fff',weight:3,fillColor:'#159aff',fillOpacity:1})
+    L.circleMarker(selected.coord,{pane:'sampleFocus',radius:9,color:'#fff',weight:3,fillColor:'#159aff',fillOpacity:1})
       .addTo(layerGroup).bindPopup(node,{minWidth:240,maxWidth:310,maxHeight:280}).openPopup()
   }
 }
@@ -240,6 +241,7 @@ async function load() {
     if (disposed || version !== loadVersion) return
     data.value = result
     render(true)
+    focusEvidence()
   } catch (e) {
     if (!disposed && version === loadVersion) toastErr(`地图数据加载失败：${e.message}`)
   } finally {
@@ -257,6 +259,12 @@ onBeforeUnmount(() => {
 watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision, store.status.detection_algorithm_version, store.status.results_revision], load)
 watch([showHeat, showClusters, showTop5, showTrack, heatRadius, heatOpacity], () => render())
 watch(selectedId,()=>render())
+function focusEvidence() {
+  const sample=data.value?.samples?.find(s=>s.id===props.focusSampleId)
+  selectedId.value=sample?.id??null
+  nearbyIds.value=sample?[sample.id]:[]
+}
+watch(()=>props.focusSampleId,focusEvidence)
 watch(()=>props.simulation,load)
 watch(()=>props.frameIndex,()=>render())
 watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, amap]) => {

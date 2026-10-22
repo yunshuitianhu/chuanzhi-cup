@@ -1,8 +1,10 @@
 <script setup>
+import ReportEvidence from './ReportEvidence.vue'
 defineProps({
   role: { type: String, required: true },
   content: { type: String, default: '' },
   incomplete: Boolean,
+  evidence: {type:Object,default:null},
 })
 const LABEL = { user: '我', assistant: 'Agent', tool: '工具调用', error: '错误' }
 </script>
@@ -14,6 +16,7 @@ const LABEL = { user: '我', assistant: 'Agent', tool: '工具调用', error: '�
       <div class="who">{{ LABEL[role] || role }}</div>
       <div v-if="incomplete" class="who">未完成输出，请以重新分析后的结果为准</div>
       <div class="text">{{ content }}</div>
+      <ReportEvidence v-if="role==='assistant' && !incomplete && evidence?.id" :key="evidence.id" :id="evidence.id" />
     </div>
   </div>
 </template>

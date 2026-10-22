@@ -93,6 +93,18 @@ async function request(path, { method = 'GET', body, isForm = false, binary = fa
   return payload
 }
 
+// 只读快照与播放器可能同时取得会话锁。仅对短暂占用有限重试；过期证据不重试。
+async function consistentRead(path, options={}) {
+  for(let attempt=0;;attempt++) {
+    options.signal?.throwIfAborted()
+    try {return await request(path,options)} catch(error) {
+      if(error.status!==409 || error.payload?.detail!=='当前会话正在处理任务，请完成后再重试'
+        || attempt>=2 || options.signal?.aborted)throw error
+      await new Promise(resolve=>setTimeout(resolve,attempt===0?150:450))
+    }
+  }
+}
+
 export const api = {
   dataQuality: (params = {}) => request('/analysis/quality?' + new URLSearchParams(params)),
   updateQualityConfig: (body) => request('/analysis/quality-config', { method:'POST', body }),
@@ -111,6 +123,10 @@ export const api = {
   agentRun: () => request('/agent/run', { signal:AbortSignal.timeout(10000) }),
   stopAgentRun: (id) => request(`/agent/runs/${encodeURIComponent(id)}/stop`, { method:'POST', signal:AbortSignal.timeout(10000) }),
   chatHistory: () => request('/agent/history'),
+  reportEvidence: (id) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}`),
+  evidenceRows: (id, fact, offset=0) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/facts/${encodeURIComponent(fact)}/rows?offset=${offset}&limit=20`),
+  evidenceRecord: (id, position) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/records/${position}`),
+  evidenceTool: (id, tool) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/tools/${encodeURIComponent(tool)}`),
   config: () => request('/config'),
   setTargetClass: (val) => request('/config/target-class', { method: 'POST', body: { target_water_class: val } }),
 
@@ -161,7 +177,7 @@ export const api = {
   riverHydro: (payload) => request('/river/hydro', { method: 'POST', body: payload || {} }),
   riverPollution: (payload) => request('/river/pollution', { method: 'POST', body: payload || {} }),
   riverProfile: (timeH, constituent) => request(`/river/profile?time_h=${timeH}&constituent=${constituent}`),
-  riverPlayback: (constituent = 'ammonia', signal) => request(`/river/playback?constituent=${encodeURIComponent(constituent)}`, {signal}),
+  riverPlayback: (constituent = 'ammonia', signal) => consistentRead(`/river/playback?constituent=${encodeURIComponent(constituent)}`, {signal}),
 }
 
 export { ApiError }

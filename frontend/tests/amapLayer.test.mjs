@@ -5,6 +5,7 @@ import { createServer } from 'vite'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 import { createPinia } from 'pinia'
+import { createRouter, createMemoryHistory } from 'vue-router'
 
 const server=await createServer({
   configLoader:'runner',
@@ -204,6 +205,10 @@ test('统计与时间序列的迟到响应不能覆盖较新数据',async()=>{
     const pinia=createPinia(),store=useSessionStore(pinia);store.status.has_data=true
     let controls
     const app=createSSRApp(Component);app.use(pinia)
+    if(file.endsWith('ChartsView.vue')) {
+      const router=createRouter({history:createMemoryHistory(),routes:[{path:'/',component:{render:()=>null}}]})
+      await router.push('/');await router.isReady();app.use(router)
+    }
     app.component('RouterLink',{props:['to'],setup(props,{slots}){return()=>h('a',{href:props.to},slots.default?.())}})
     app.mixin({created(){if(this.$options.__file?.endsWith(file.split('/').at(-1)))controls=this.$.setupState}})
     await renderToString(app)
@@ -214,6 +219,40 @@ test('统计与时间序列的迟到响应不能覆盖较新数据',async()=>{
     resolveOld(new Response('{"marker":"old"}',{status:200}));await old
     assert.equal(controls[value].marker,'new',file)
   }
+})
+
+test('证据展开的迟到响应不能覆盖较新查询或切换后的项目',async()=>{
+  const {default:Evidence}=await server.ssrLoadModule('/src/components/ReportEvidence.vue')
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  const pinia=createPinia(),store=useSessionStore(pinia)
+  let controls
+  const app=createSSRApp(Evidence,{id:'controlled'});app.use(pinia)
+  app.mixin({created(){if(this.$options.__file?.endsWith('ReportEvidence.vue'))controls=this.$.setupState}})
+  await renderToString(app);controls.expanded=true
+  let resolveOld,resolveNew,count=0
+  globalThis.fetch=async()=>new Promise(resolve=>{if(count++===0)resolveOld=resolve;else resolveNew=resolve})
+  const old=controls.load(),fresh=controls.load()
+  resolveNew(new Response('{"marker":"new"}',{status:200}));await fresh
+  resolveOld(new Response('{"marker":"old"}',{status:200}));await old
+  assert.equal(controls.snapshot.marker,'new')
+  const late=controls.load();store.workspaceRevision++
+  resolveNew(new Response('{"marker":"foreign-project"}',{status:200}));await late
+  assert.equal(controls.snapshot,null)
+})
+
+test('过期证据禁用记录入口，工具原文转义并说明截断',async()=>{
+  const {default:Evidence}=await server.ssrLoadModule('/src/components/ReportEvidence.vue')
+  const app=createSSRApp(Evidence,{id:'controlled'});app.use(createPinia())
+  app.mixin({created(){if(this.$options.__file?.endsWith('ReportEvidence.vue')) {
+    this.$.setupState.expanded=true
+    this.$.setupState.snapshot={status:'stale',facts:[{id:'dissolved_oxygen.min',label:'DO最低值',value:0,unit:'mg/L',record_count:1}],
+      tools:[],references:[],scope:'受控渲染'}
+    this.$.setupState.tool={status:'stale',tool:{arguments:'{}',output:'<script>alert(1)</script>',truncated:true,output_chars:40000}}
+  }}})
+  const html=await renderToString(app)
+  assert.match(html,/历史证据已过期/);assert.match(html,/<button[^>]*disabled[^>]*><span[^>]*>DO最低值/)
+  assert.match(html,/0 mg\/L/);assert.match(html,/&lt;script&gt;/)
+  assert.doesNotMatch(html,/<script>/);assert.match(html,/仅保存前30000字符/)
 })
 
 test('质量摘要同时保留原始预警和复核数，不显示确认故障',async()=>{

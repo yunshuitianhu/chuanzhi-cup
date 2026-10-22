@@ -151,7 +151,7 @@ async function submit(text,auto) {
         点击右上角「开始自动分析」，或直接在下方提问。<br />
         <span class="ex">例如：「3 号聚类的主要污染物是什么？」「帮我对比上午和下午的氨氮分布」</span>
       </div>
-      <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" />
+      <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" />
     </div>
 
     <form class="composer" @submit.prevent="send">
