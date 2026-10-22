@@ -8,13 +8,14 @@ from queue import Queue, Empty, Full
 import threading
 import time
 
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from ..agent.loop import run_agent
 from ..agent.progress import AgentRun
-from ..deps import get_session
+from ..deps import get_session, get_exclusive_session
 from ..session import Session
+from ..report_evidence import find_bundle, public_bundle, bundle_status, fact_records, record, covered_record
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -150,4 +151,60 @@ def stop(run_id: str, session: Session=Depends(get_session)):
 
 @router.get('/history')
 def history(session: Session = Depends(get_session)) -> dict:
-    return {'messages': session.messages, 'analysis_revision': session.analysis_revision}
+    # 历史列表仅带入口信息；工具快照展开时按当前会话读取。
+    messages = [{**m, **({'evidence': {'id': m['evidence']['id']}}
+        if isinstance(m.get('evidence'), dict) and 'id' in m['evidence'] else {})} for m in session.messages]
+    return {'messages': messages, 'analysis_revision': session.analysis_revision}
+
+
+def evidence_for(session, bundle_id, require_current=False):
+    bundle = find_bundle(session, bundle_id)
+    if bundle is None:
+        raise HTTPException(404, '当前会话没有该报告证据；历史回答不会自动补造证据。')
+    if require_current:
+        status, notice = bundle_status(session, bundle)
+        if status != 'current':
+            raise HTTPException(409, notice)
+    return bundle
+
+
+@router.get('/evidence/{bundle_id}')
+def evidence(bundle_id: str, session: Session = Depends(get_exclusive_session)):
+    return public_bundle(session, evidence_for(session, bundle_id))
+
+
+@router.get('/evidence/{bundle_id}/facts/{fact_id}/rows')
+def evidence_rows(bundle_id: str, fact_id: str, offset: int = Query(0, ge=0),
+                  limit: int = Query(20, ge=1, le=50), session: Session = Depends(get_exclusive_session)):
+    bundle = evidence_for(session, bundle_id, True)
+    try:
+        return fact_records(session, bundle, fact_id, offset, limit)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.get('/evidence/{bundle_id}/records/{position}')
+def evidence_record(bundle_id: str, position: int, session: Session = Depends(get_exclusive_session)):
+    bundle = evidence_for(session, bundle_id, True)
+    # 只允许报告实际统计集合覆盖的记录；不把无关行包装成支持证据。
+    covered = covered_record(session, bundle, position)
+    if not covered:
+        raise HTTPException(404, '该采样记录不在本轮统计的支持集合中')
+    try:
+        return record(session, position)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get('/evidence/{bundle_id}/tools/{tool_id}')
+def evidence_tool(bundle_id: str, tool_id: str, session: Session = Depends(get_exclusive_session)):
+    bundle = evidence_for(session, bundle_id)
+    tools = bundle.get('tools')
+    trace = next((t for t in tools if isinstance(t, dict) and t.get('id') == tool_id
+        and isinstance(t.get('output'), str)), None) if isinstance(tools, list) else None
+    if trace is None:
+        raise HTTPException(404, '本轮没有该工具返回')
+    return {'status': bundle_status(session, bundle)[0], 'tool': trace,
+        'notice': '这是当时保存的返回快照；不代表资料已核实或污染责任结论。'}

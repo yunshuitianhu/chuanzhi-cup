@@ -33,6 +33,7 @@ from .tools import (
     execute_tool, truncate,
 )
 from .progress import AgentRun, AgentStopped
+from ..report_evidence import capture_tool, build_bundle, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
     session.messages.append({"role": "user", "content": user_text,'run_id':run.id})
 
     final_text = ""
+    evidence_traces = []
     turn = 0
     stream = None
 
@@ -222,8 +224,10 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                 yield emit("tool", {"name": name, "args": list(args) if isinstance(args, dict) else [], 'step_id':step_id})
 
                 check()
+                tool_started_at = utc_now()
                 result, is_err = execute_tool(name, args, session, api_key)
                 check()
+                evidence_traces.append(capture_tool(name, args, result, tool_started_at))
                 tool_errors += int(is_err)
                 outcome = json.loads(result)
                 step_status = 'failed' if is_err else 'skipped' if outcome.get('skipped') else 'succeeded'
@@ -275,9 +279,13 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
             status = ('succeeded' if complete else 'partial'
                 if final_text and 'succeeded' in session.analysis_steps.values() else 'failed')
 
+        # 先构建完整证据，失败/停止时不把最终正文写入后续模型上下文。
+        evidence = build_bundle(session, evidence_traces, run.id) if status == 'succeeded' else None
+        check()
         def commit():
             session.full_messages = msgs
-            session.messages.append({"role":"assistant","content":final_text,'run_id':run.id,'incomplete':status!='succeeded'})
+            session.messages.append({"role":"assistant","content":final_text,'run_id':run.id,
+                'incomplete':status!='succeeded', **({'evidence': evidence} if evidence else {})})
             if auto:
                 session.analysis_done = complete
                 session.analysis_status = status
