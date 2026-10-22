@@ -1,0 +1,125 @@
+{
+  "date": "2026-10-22",
+  "finalized_date": "2026-10-23",
+  "queue_item": "Q06",
+  "scope": "Agent-authored local-corpus labels; not independent expert judgments or verified environmental facts.",
+  "checks": {
+    "python": 371,
+    "new_rag_cases": 15,
+    "frontend": 86,
+    "production_build": "passed",
+    "fields": "passed",
+    "generalization": 21,
+    "backend_api": 16,
+    "tracked_secret_checks": 9
+  },
+  "experiment": {
+    "questions": 30,
+    "dev": 10,
+    "holdout": 20,
+    "positive_holdout": 16,
+    "authored_terms": 20,
+    "actual_model_responses": 24,
+    "all_finish_stop": true,
+    "source_digest_and_original_dense_capture_verified": true
+  },
+  "retrieval_metrics": {
+    "no_rag": {
+      "positive_questions": 16,
+      "hit_at_1": 0.0,
+      "hit_at_5": 0.0,
+      "mrr_at_5": 0.0,
+      "evidence_terms_covered": 0,
+      "evidence_terms_total": 20,
+      "evidence_term_coverage": 0.0,
+      "unique_source_ratio": null
+    },
+    "dense_v1": {
+      "positive_questions": 16,
+      "hit_at_1": 0.6875,
+      "hit_at_5": 0.875,
+      "mrr_at_5": 0.7416666666666667,
+      "evidence_terms_covered": 9,
+      "evidence_terms_total": 20,
+      "evidence_term_coverage": 0.45,
+      "unique_source_ratio": 0.82
+    },
+    "hybrid-rrf-v1": {
+      "positive_questions": 16,
+      "hit_at_1": 0.9375,
+      "hit_at_5": 1.0,
+      "mrr_at_5": 0.96875,
+      "evidence_terms_covered": 18,
+      "evidence_terms_total": 20,
+      "evidence_term_coverage": 0.9,
+      "unique_source_ratio": 1.0
+    }
+  },
+  "answer_metrics": {
+    "no_rag": {
+      "runs": 8,
+      "positive_questions": 5,
+      "target_fact_answered_agent_review": 0,
+      "strict_all_gold_cited": 0,
+      "markdown_normalized_all_gold_cited": 0,
+      "strict_valid_citations": 0,
+      "markdown_normalized_valid_citations": 0,
+      "total_citations": 0,
+      "negative_questions": 3,
+      "negative_abstentions": 3
+    },
+    "dense_v1": {
+      "runs": 8,
+      "positive_questions": 5,
+      "target_fact_answered_agent_review": 1,
+      "strict_all_gold_cited": 0,
+      "markdown_normalized_all_gold_cited": 1,
+      "strict_valid_citations": 0,
+      "markdown_normalized_valid_citations": 1,
+      "total_citations": 1,
+      "negative_questions": 3,
+      "negative_abstentions": 3
+    },
+    "hybrid-rrf-v1": {
+      "runs": 8,
+      "positive_questions": 5,
+      "target_fact_answered_agent_review": 3,
+      "strict_all_gold_cited": 2,
+      "markdown_normalized_all_gold_cited": 3,
+      "strict_valid_citations": 6,
+      "markdown_normalized_valid_citations": 7,
+      "total_citations": 7,
+      "negative_questions": 3,
+      "negative_abstentions": 3
+    }
+  },
+  "known_failures": [
+    {
+      "id": "H02",
+      "query": "垃圾渗滤液高氨氮案例最终出水氨氮是多少？",
+      "missed_terms": [
+        "出水22 mg/L"
+      ]
+    },
+    {
+      "id": "H14",
+      "query": "杭州横一港案例治理后溶解氧是多少？",
+      "missed_terms": [
+        "4.2 mg/L"
+      ]
+    }
+  ],
+  "native_agent_rounds": 2,
+  "native_agent_references_have_actual_ids": true,
+  "browser_preview": "http://127.0.0.1:5176/tech",
+  "saved_projects_unchanged": 7,
+  "new_saved_projects": 0,
+  "git": "Index lock permission denied despite prior write grant; no Q06 commit created at acceptance time",
+  "limitations": [
+    "Only local-corpus lookup performance is evaluated.",
+    "H02/H14 retrieve the source but miss the target effect snippet; no tuning on these holdout failures.",
+    "Hybrid H02/H14 structured answerable=true contradicts their cannot-answer text; counted as failures.",
+    "Markdown-normalized matching is supplementary; original strict results and all 24 raw responses are retained.",
+    "Source URLs and original published claims remain unverified; no field accuracy or causal attribution claims."
+  ]
+}
