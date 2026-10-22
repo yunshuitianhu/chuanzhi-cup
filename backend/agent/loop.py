@@ -32,6 +32,7 @@ from .tools import (
     SYSTEM_PROMPT_AUTO, SYSTEM_PROMPT_CHAT, TOOLS,
     execute_tool, truncate,
 )
+from .progress import AgentRun, AgentStopped
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,32 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
+def run_agent(session, user_text: str, auto: bool = False, run: AgentRun | None = None) -> Iterator[str]:
+    """即使客户端只读取第一帧就关闭，也保证任务状态收尾。"""
+    run = run or AgentRun(session.analysis_revision,auto)
+    session.agent_run=run
+    frames=_run_agent(session,user_text,auto,run)
+    try:
+        yield from frames
+    except Exception:
+        run.end('failed')
+        if session.agent_run is run and session.analysis_revision==run.revision:
+            session.analysis_done=False
+            session.analysis_status='failed'
+        raise
+    finally:
+        frames.close()
+        if run.ended is None:
+            run.end('cancelled')
+            if session.agent_run is run and session.analysis_revision==run.revision:
+                session.analysis_done=False
+                session.analysis_status='cancelled'
+                session.analysis_steps.pop('generate_final_report',None)
+                session.tool_evidence.pop('generate_final_report',None)
+        if not run.managed: run.finished.set()
+
+
+def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[str]:
     """执行一轮 Agent 交互，逐个 yield SSE 帧。
 
     流式实现要点：每一轮都用 stream=True，因为**事先不知道模型这一轮
@@ -55,6 +81,22 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
     必须按 index 累积拼接后才能解析。
     """
     run_revision = session.analysis_revision
+    run = run or AgentRun(run_revision,auto)
+    session.agent_run = run
+
+    def check():
+        run.check()
+        if run_revision != session.analysis_revision or session.agent_run is not run:
+            raise RuntimeError('监测数据版本已变化，已停止旧分析回合，请重新分析。')
+
+    def current():
+        return run_revision == session.analysis_revision and session.agent_run is run
+
+    def emit(event, data):
+        return _sse(event, {**data, 'run_id':run.id,
+            **({'progress':run.snapshot()} if event != 'delta' else {})})
+
+    yield emit('run', {})
     if auto:
         session.analysis_done = False
         session.analysis_status = 'running'
@@ -63,13 +105,17 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
         error = measurement_error(session.df)
         if error:
             session.analysis_status = 'failed'
-            yield _sse('error', {'message': error, 'status': 'failed'})
+            run.end('failed')
+            if not run.managed: run.finished.set()
+            yield emit('error', {'message': error, 'status': 'failed'})
             return
     api_key = resolve_api_key("DEEPSEEK_API_KEY")
     if not api_key:
         if auto:
             session.analysis_status = 'failed'
-        yield _sse("error", {"message": "未配置 DeepSeek API Key"})
+        run.end('failed')
+        if not run.managed: run.finished.set()
+        yield emit("error", {"message": "未配置 DeepSeek API Key", 'status':'failed'})
         return
 
     client = None
@@ -86,17 +132,21 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
     msgs.insert(0, {"role": "system", "content": system_prompt})
     msgs.append({"role": "user", "content": user_text})
 
-    session.messages.append({"role": "user", "content": user_text})
+    session.messages.append({"role": "user", "content": user_text,'run_id':run.id})
 
     final_text = ""
     turn = 0
+    stream = None
 
     try:
-        client = OpenAI(base_url=BASE_URL, api_key=api_key, timeout=TIMEOUT)
+        check()
+        client = OpenAI(base_url=BASE_URL, api_key=api_key, timeout=TIMEOUT, max_retries=0)
         tool_errors = 0
         while turn < MAX_TURNS:
             turn += 1
-            yield _sse("turn", {"turn": turn})
+            check()
+            run.update('等待模型响应',turn)
+            yield emit("turn", {"turn": turn})
 
             stream = client.chat.completions.create(
                 model=MODEL_NAME, messages=msgs, tools=TOOLS,
@@ -109,6 +159,7 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
             finish_reason = None
 
             for chunk in stream:
+                check()
                 if not chunk.choices:
                     continue
                 choice = chunk.choices[0]
@@ -120,7 +171,7 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
 
                 if delta.content:
                     content_parts.append(delta.content)
-                    yield _sse("delta", {"text": delta.content})
+                    yield emit("delta", {"text": delta.content})
 
                 for tc in (delta.tool_calls or []):
                     slot = calls.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
@@ -135,8 +186,7 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
             expected_finish = 'tool_calls' if calls else 'stop'
             if finish_reason != expected_finish:
                 raise RuntimeError(f'模型输出未完整结束（{finish_reason or "缺少结束标记"}），请重试；本轮不标记完成。')
-            if run_revision != session.analysis_revision:
-                raise RuntimeError('监测数据版本已变化，已停止旧分析回合，请重新分析。')
+            check()
             content = "".join(content_parts)
 
             # ---- 没有工具调用 → 这就是最终回答 ----
@@ -161,22 +211,27 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
             msgs.append(assistant_msg)
 
             for call in assistant_msg["tool_calls"]:
+                check()
                 name = call["function"]["name"]
                 try:
                     args = json.loads(call["function"]["arguments"] or "{}")
                 except json.JSONDecodeError:
                     args = None
                 # 工具参数可能很大（如 summary），事件里只带键名
-                yield _sse("tool", {"name": name, "args": list(args) if isinstance(args, dict) else []})
+                step_id = run.start_tool(name)
+                yield emit("tool", {"name": name, "args": list(args) if isinstance(args, dict) else [], 'step_id':step_id})
 
+                check()
                 result, is_err = execute_tool(name, args, session, api_key)
+                check()
                 tool_errors += int(is_err)
+                outcome = json.loads(result)
+                step_status = 'failed' if is_err else 'skipped' if outcome.get('skipped') else 'succeeded'
+                run.finish_tool(step_id,step_status)
                 if auto:
-                    outcome = json.loads(result)
-                    session.analysis_steps[name] = ('failed' if is_err else
-                        'skipped' if outcome.get('skipped') else 'succeeded')
-                yield _sse("tool_done", {"name": name, "ok": not is_err,
-                                         "chars": len(result)})
+                    session.analysis_steps[name] = step_status
+                yield emit("tool_done", {"name": name, "ok": not is_err, 'step_id':step_id,
+                                         'status':step_status, "chars": len(result)})
 
                 msgs.append({
                     "role": "tool",
@@ -186,25 +241,30 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
 
         else:
             # 达到轮次上限：强制收口，不再允许调用工具
-            yield _sse("tool", {"name": "(达到最大轮次，收口中)", "args": []})
+            check()
+            run.update('达到轮次上限，汇总已完成步骤')
+            yield emit("turn", {"turn":turn})
             msgs.append({"role": "user",
                          "content": "已达到最大分析轮次。请基于已完成的分析给出最终结论，禁止再调用工具。"})
             resp = client.chat.completions.create(
                 model=MODEL_NAME, messages=msgs, temperature=0.1, stream=True)
             finish_reason = None
+            stream = resp
             for chunk in resp:
+                check()
                 if chunk.choices and getattr(chunk.choices[0], 'finish_reason', None) is not None:
                     finish_reason = chunk.choices[0].finish_reason
                 if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                     final_text += chunk.choices[0].delta.content
-                    yield _sse("delta", {"text": chunk.choices[0].delta.content})
+                    yield emit("delta", {"text": chunk.choices[0].delta.content})
             if finish_reason != 'stop':
                 raise RuntimeError(f'收口回答未完整结束（{finish_reason or "缺少结束标记"}），请重试。')
             msgs.append({'role': 'assistant', 'content': final_text})
 
-        session.full_messages = msgs
-        if final_text:
-            session.messages.append({"role": "assistant", "content": final_text})
+        check()
+        if not final_text.strip():
+            raise RuntimeError('模型未返回有效正文，本轮不能视为成功。')
+        status = 'succeeded'
         if auto:
             required = REQUIRED_ANALYSIS_STEPS | ({'analyze_video', 'cross_validate_video'} if session.video_frames else set())
             complete = (bool(final_text) and run_revision == session.analysis_revision
@@ -212,27 +272,56 @@ def run_agent(session, user_text: str, auto: bool = False) -> Iterator[str]:
                         and all(session.analysis_steps.get(name) == 'succeeded'
                                 for name in required)
                         and 'failed' not in session.analysis_steps.values())
-            session.analysis_done = complete
-            session.analysis_status = ('succeeded' if complete else 'partial'
+            status = ('succeeded' if complete else 'partial'
                 if final_text and 'succeeded' in session.analysis_steps.values() else 'failed')
 
-        yield _sse("done", {"turns": turn, "tool_errors": tool_errors,
-                           "status": session.analysis_status if auto else 'succeeded'})
+        def commit():
+            session.full_messages = msgs
+            session.messages.append({"role":"assistant","content":final_text,'run_id':run.id,'incomplete':status!='succeeded'})
+            if auto:
+                session.analysis_done = complete
+                session.analysis_status = status
+        run.complete(status,commit)
+        yield emit("done", {"turns": turn, "tool_errors": tool_errors, "status":status})
 
-    except Exception as e:                       # noqa: BLE001
-        if auto:
+    except AgentStopped as exc:
+        if current():
             session.analysis_done = False
-            session.analysis_status = 'failed'
+            session.analysis_status = 'cancelled'
+            session.analysis_steps.pop('generate_final_report',None)
+            session.tool_evidence.pop('generate_final_report',None)
+            session.messages.append({'role':'error','content':str(exc)})
+        run.end('cancelled')
+        yield emit('done', {'status':'cancelled','turns':turn,'message':str(exc)})
+    except Exception as e:                       # noqa: BLE001
+        if run.cancel.is_set() and current():
+            session.analysis_done = False
+            session.analysis_status = 'cancelled'
+            session.analysis_steps.pop('generate_final_report',None)
+            session.tool_evidence.pop('generate_final_report',None)
+        run.end('cancelled' if run.cancel.is_set() else 'failed')
+        if auto and current():
+            session.analysis_done = False
+            session.analysis_status = run.status
         logger.exception("Agent 运行失败")
         msg = str(e)
         if "api_key" in msg.lower() or "401" in msg or "auth" in msg.lower():
             msg = "DeepSeek API Key 无效或未配置"
         elif "timeout" in msg.lower() or "connect" in msg.lower():
             msg = "无法连接 DeepSeek API，请检查网络"
-        yield _sse("error", {"message": msg[:300]})
+        yield emit("error", {"message": '任务已停止，未保存完整回答。' if run.cancel.is_set() else msg[:300], 'status':run.status})
     finally:
-        if auto and session.analysis_status == 'running':
+        if auto and current() and session.analysis_status == 'running':
             session.analysis_status = 'cancelled'
             session.analysis_done = False
-        if client is not None:
-            client.close()
+        if run.ended is None:
+            run.end('cancelled')
+        if stream is not None and callable(getattr(stream,'close',None)):
+            try: stream.close()
+            except Exception: pass
+        try:
+            if client is not None:
+                try: client.close()
+                except Exception: logger.warning('Agent客户端清理失败；任务完成状态保持已核实结果。')
+        finally:
+            if not run.managed: run.finished.set()

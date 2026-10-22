@@ -18,7 +18,7 @@
   "validated_code_revision": "0204cebae9f514e6a217aa6b30cfe893a611c460",
   "package_files": 285,
   "all_hashes_verified": true,
-  "source_package_sha256": "e57783cbebad277b676bf383b9c2e62ac782719cb3d330abd4e7b576166d769b",
+  "package_integrity_record": "交付包内delivery-manifest.json和交付目录delivery-final.json保留实际SHA256校验记录",
   "python": "3.12.14",
   "python_regressions": 320,
   "frontend_tests": 58,

@@ -108,6 +108,8 @@ export const api = {
     return request('/projects/import', { method:'POST', body:fd, isForm:true })
   },
   health: (signal) => request('/health', { signal }),
+  agentRun: () => request('/agent/run', { signal:AbortSignal.timeout(10000) }),
+  stopAgentRun: (id) => request(`/agent/runs/${encodeURIComponent(id)}/stop`, { method:'POST', signal:AbortSignal.timeout(10000) }),
   chatHistory: () => request('/agent/history'),
   config: () => request('/config'),
   setTargetClass: (val) => request('/config/target-class', { method: 'POST', body: { target_water_class: val } }),

@@ -162,7 +162,7 @@ class WebRegressionTests(unittest.TestCase):
         self.assertIn('event: done', events[-1])
 
     def test_stream_keeps_session_locked_until_completion(self):
-        def fake_agent(session, message, auto=False):
+        def fake_agent(session, message, auto=False, run=None):
             self.assertTrue(session.operation_lock.locked())
             response = self.client.post('/api/config/target-class', headers=self.headers,
                                         json={'target_water_class': 'III'})

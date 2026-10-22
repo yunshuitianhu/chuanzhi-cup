@@ -185,6 +185,7 @@ def apply_snapshot(session,info,snapshot):
     session.project_id=info['id']
     session.project_revision=info['revision']
     session.restore_error=''
+    session.agent_run=None
     if session.river_state:
         session.river_state.output_dir=str(directory)
     if session.analysis_status=='running':

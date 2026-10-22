@@ -5,18 +5,41 @@
  * 「开始自动分析」会让后端 Agent 自主编排整条工具链（12+6 步 SOP），
  * 与自由对话共用同一套 Function Calling 循环。
  */
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, computed, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useSessionStore } from '../stores/session'
 import { sseHeaders, adoptSessionFrom } from '../api/client'
 import { toastErr } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import ChatBubble from '../components/ChatBubble.vue'
+import AgentProgress from '../components/AgentProgress.vue'
+import { consumeAgentStream } from '../utils/agentStream'
 
 const store = useSessionStore()
 const input = ref('')
 const { chatRunning: running, chatMessages: messages } = storeToRefs(store)
 const scroller = ref(null)
+const clock=ref(Date.now())
+const lastRequest=ref(null)
+let timer, polling=false
+const elapsed=computed(()=>Math.max(0,(store.agentRun?.elapsed_s||0)+
+  (store.agentRun?.busy ? (clock.value-store.agentRunAt)/1000 : 0)))
+
+async function refreshRun() {
+  if(polling)return
+  polling=true
+  try { await store.refreshAgentRun() } catch { /* 进度面板显示状态未知，不能当作完成 */ }
+  finally { polling=false }
+}
+async function stop() {
+  try { await store.stopAgentRun() } catch(e) { toastErr(`停止请求未确认：${e.message}`); await refreshRun() }
+}
+onMounted(()=>{
+  refreshRun()
+  let ticks=0
+  timer=setInterval(()=>{clock.value=Date.now();if(++ticks%2===0 && store.agentRun?.busy)refreshRun()},1000)
+})
+onUnmounted(()=>clearInterval(timer))
 
 async function scrollDown() {
   await nextTick()
@@ -24,99 +47,85 @@ async function scrollDown() {
 }
 
 async function autoAnalyze() {
-  if (running.value) return
-  running.value = true
-  messages.value.push({ role: 'user', content: '请开始自动分析。' })
-  scrollDown()
-  try {
-    const res = await fetch('/api/agent/chat', {
-      method: 'POST',
-      headers: sseHeaders(),        // 含 X-Session-Id，否则后端会新建空会话
-      body: JSON.stringify({ message: '请开始自动分析。', auto: true }),
-    })
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
-    adoptSessionFrom(res)
-    await consume(res)
-  } catch (e) {
-    toastErr(`分析失败：${e.message}`)
-  } finally {
-    running.value = false
-    await store.refreshStatus().catch((e) => toastErr(e.message))
-  }
+  return submit('请开始自动分析。',true)
 }
 
 async function send() {
   const text = input.value.trim()
   if (!text || running.value) return
   input.value = ''
-  running.value = true
-  messages.value.push({ role: 'user', content: text })
+  return submit(text,false)
+}
+
+async function submit(text,auto) {
+  if(running.value || !store.ready || !store.status.has_data)return
+  const workspace=store.workspaceRevision, project=store.projectState.current?.id
+  const current=()=>workspace===store.workspaceRevision && project===store.projectState.current?.id
+  const token=crypto.randomUUID()
+  lastRequest.value={text,auto}
+  if(!store.beginAgentStream())return
+  messages.value.push({role:'user',content:text,uiRequest:token})
   scrollDown()
+  let runId=null, answer=null
+  function incomplete() {
+    for(const message of messages.value)if(message.uiRequest===token && message.role==='assistant')message.incomplete=true
+  }
   try {
     const res = await fetch('/api/agent/chat', {
       method: 'POST',
-      headers: sseHeaders(),        // 含 X-Session-Id，否则后端会新建空会话
-      body: JSON.stringify({ message: text }),
+      headers: sseHeaders(),
+      body: JSON.stringify({ message:text, auto }),
     })
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok || !res.body) {
+      const error=await res.json().catch(()=>({}))
+      throw new Error(error.detail || `HTTP ${res.status}`)
+    }
     adoptSessionFrom(res)
-    await consume(res)
-  } catch (e) {
-    toastErr(`对话失败：${e.message}`)
-  } finally {
-    running.value = false
-    await store.refreshStatus().catch((e) => toastErr(e.message))
-  }
-}
-
-/** 解析 SSE 流：tool 事件插入工具调用提示，delta 事件累积回答。 */
-async function consume(res) {
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buf = ''
-  let current = null
-
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-
-    const chunks = buf.split('\n\n')
-    buf = chunks.pop() || ''
-    for (const chunk of chunks) {
-      const ev = /^event: (\w+)/m.exec(chunk)?.[1]
-      const dataLine = /^data: (.*)$/m.exec(chunk)?.[1]
-      if (!ev || dataLine === undefined) continue
-      let payload = null
-      try { payload = JSON.parse(dataLine) } catch { /* 忽略非 JSON 帧 */ }
-
-      if (ev === 'tool') {
-        messages.value.push({ role: 'tool', content: payload?.name || '工具调用' })
-        scrollDown()
-      } else if (ev === 'tool_done') {
-        messages.value.push({ role: payload?.ok ? 'tool' : 'error',
-          content: `${payload?.name || '工具'}：${payload?.ok ? '完成' : '失败，请查看分析结论中的缺失说明'}` })
-        current = null
-        scrollDown()
-      } else if (ev === 'delta') {
-        if (!current) {
-          messages.value.push({ role: 'assistant', content: '' })
-          current = messages.value[messages.value.length - 1]
+    runId=res.headers.get('X-Agent-Run-Id')
+    if(current())store.agentActiveId=runId
+    await consumeAgentStream(res.body,async(event,payload)=>{
+      if(!current())return
+      if(runId && payload.run_id && runId!==payload.run_id)throw new Error('收到其它任务的事件，请核对当前任务')
+      runId ||= payload.run_id
+      store.agentActiveId=runId
+      if(payload.progress)store.adoptAgentRun(payload.progress)
+      if(event==='tool') {
+        messages.value.push({role:'tool',content:`开始：${payload.name}`,uiRequest:token})
+        answer=null
+      } else if(event==='tool_done') {
+        messages.value.push({role:payload.ok?'tool':'error',uiRequest:token,
+          content:`${payload.name}：${payload.status==='skipped'?'已跳过':payload.ok?'完成':'失败，等待后续处理'}`})
+        answer=null
+      } else if(event==='delta') {
+        if(!answer) {
+          messages.value.push({role:'assistant',content:'',uiRequest:token})
+          answer=messages.value[messages.value.length-1]
         }
-        current.content += payload?.text || ''
-        scrollDown()
-      } else if (ev === 'done') {
-        current = null
-        if (payload?.status === 'partial' || payload?.status === 'failed') {
-          messages.value.push({ role: 'error', content: payload.status === 'partial'
-            ? '本轮仅部分完成，请查看失败或缺失的分析步骤。'
-            : '本轮未通过完成校验，不能视为分析成功。' })
-        }
-        await store.refreshStatus()
-      } else if (ev === 'error') {
-        messages.value.push({ role: 'error', content: payload?.message || '未知错误' })
-        scrollDown()
+        answer.content+=payload.text || ''
+      } else if(event==='done' && payload.status!=='succeeded') {
+        incomplete()
+        messages.value.push({role:'error',uiRequest:token,content:payload.status==='cancelled'
+          ? '本轮已停止。已完成的部分分析可保留；重新分析会从当前数据重新取证。'
+          : '本轮未完整完成，请查看失败或缺失步骤后重新分析。'})
+      } else if(event==='error') {
+        incomplete()
+        messages.value.push({role:'error',content:payload.message || '本轮执行失败',uiRequest:token})
       }
+      scrollDown()
+    })
+  } catch (e) {
+    if(current()) {
+      incomplete()
+      messages.value.push({role:'error',content:`${e.message}；请核对任务状态后重试。`,uiRequest:token})
+      toastErr(e.message)
+    }
+  } finally {
+    if(current()) {
+      store.chatStreaming=false
+      store.agentActiveId=null
+      running.value=true // 收到服务端状态前，不将连接关闭解释为可重新执行
+      await refreshRun()
+      await store.refreshStatus().catch(()=>{store.agentConnectionError='连接中断，尚未核实任务与数据状态。'})
     }
   }
 }
@@ -134,13 +143,15 @@ async function consume(res) {
     <div v-if="!store.status.has_data" class="tip">请先在左侧上传并加载走航数据。</div>
     <div v-if="store.status.analysis_status === 'stale'" class="tip">检测或视频结果已更新，下方保留的是历史对话；请重新分析以生成当前报告。</div>
     <div v-else-if="store.status.detection_outdated" class="tip">历史检测与报告使用旧版证据口径，请重新分析。历史文字尚未按当前数据身份和走航时空限制复核。</div>
+    <AgentProgress :run="store.agentRun" :elapsed="elapsed" :connection-error="store.agentConnectionError" @stop="stop" @sync="refreshRun" />
+    <button v-if="lastRequest && !running && store.agentRun?.status!=='succeeded'" class="retry" @click="submit(lastRequest.text,lastRequest.auto)">从当前数据重新执行上一请求</button>
 
     <div ref="scroller" class="stream">
       <div v-if="!messages.length" class="placeholder">
         点击右上角「开始自动分析」，或直接在下方提问。<br />
         <span class="ex">例如：「3 号聚类的主要污染物是什么？」「帮我对比上午和下午的氨氮分布」</span>
       </div>
-      <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" />
+      <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" />
     </div>
 
     <form class="composer" @submit.prevent="send">

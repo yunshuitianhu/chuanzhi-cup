@@ -16,6 +16,12 @@ export const useSessionStore = defineStore('session', {
     error: '',
     chatMessages: [],
     chatRunning: false,
+    chatStreaming: false,
+    agentRun: null,
+    agentRunAt: 0,
+    agentRunRequest: 0,
+    agentActiveId: null,
+    agentConnectionError: '',
     workspaceRevision: 0,
     switchingProject: false,
     projectState: { projects:[], current:null, river_ui:{}, model:null, restore_error:'' },
@@ -44,6 +50,45 @@ export const useSessionStore = defineStore('session', {
   },
 
   actions: {
+    beginAgentStream() {
+      if(this.chatRunning || this.loading || !this.ready)return false
+      this.agentRunRequest++; this.statusRequest++; this.resultsRequest++
+      this.chatStreaming=true; this.chatRunning=true
+      this.agentRun=null; this.agentActiveId=null; this.agentConnectionError=''
+      return true
+    },
+    adoptAgentRun(run) {
+      if(run?.analysis_revision !== undefined && run.analysis_revision !== this.status.analysis_revision)return
+      if(this.chatStreaming && this.agentActiveId && run?.run_id!==this.agentActiveId)return
+      this.agentRun=run
+      this.agentRunAt=Date.now()
+      this.chatRunning=this.chatStreaming || !!run?.busy
+    },
+    async refreshAgentRun() {
+      const request=++this.agentRunRequest, workspace=this.workspaceRevision, project=this.projectState.current?.id
+      const current=()=>request===this.agentRunRequest && workspace===this.workspaceRevision && project===this.projectState.current?.id
+      try {
+        const run=await api.agentRun()
+        if(!current())return
+        const wasBusy=!!this.agentRun?.busy || this.chatRunning
+        this.adoptAgentRun(run)
+        this.agentConnectionError=''
+        if(wasBusy && !run.busy && !this.chatStreaming) {
+          await this.refreshStatus()
+          const history=await api.chatHistory()
+          if(current())this.chatMessages=history.messages
+        }
+      } catch(error) {
+        if(current())this.agentConnectionError='暂时无法核对任务状态，请恢复连接后重试。'
+        throw error
+      }
+    },
+    async stopAgentRun() {
+      const id=this.agentRun?.run_id, workspace=this.workspaceRevision
+      if(!id || !this.agentRun.busy)return
+      const result=await api.stopAgentRun(id)
+      if(workspace===this.workspaceRevision && this.agentRun?.run_id===id)this.adoptAgentRun(result)
+    },
     async updateQualityConfig(config) {
       return this._run(async () => {
         const response = await api.updateQualityConfig(config)
@@ -171,6 +216,7 @@ export const useSessionStore = defineStore('session', {
         this.blackSpots = this.crossValidation = this.comprehensive = null
       }
       this.status = status
+      this.adoptAgentRun(status.agent_run || null)
       if (status.has_data) await this.refreshResults()
       else {
         this.blackSpots = this.crossValidation = this.comprehensive = null

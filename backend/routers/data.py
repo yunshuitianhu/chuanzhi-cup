@@ -88,6 +88,7 @@ def status(session: Session = Depends(get_session)) -> dict:
         "analysis_done": session.analysis_done,
         "analysis_status": session.analysis_status,
         "analysis_steps": session.analysis_steps,
+        "agent_run": session.agent_run.snapshot() if session.agent_run else None,
         "has_detection": session.black_spots is not None,
         "analysis_revision": session.analysis_revision,
         "results_revision": session.results_revision,

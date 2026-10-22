@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-22",
+  "task": "Q03",
+  "python_regressions": 330,
+  "frontend_tests": 67,
+  "frontend_build": true,
+  "actual_http_and_deepseek": true,
+  "http_cases": {
+    "explicit_stop": "cancelled",
+    "retry": "succeeded",
+    "disconnect": "cancelled",
+    "data_change_while_stopping": 409,
+    "tool_on_retry": "get_data_summary",
+    "distinct_retry_run": true,
+    "formula_records_preserved": 4,
+    "analysis_done": false
+  },
+  "browser": {
+    "url": "http://127.0.0.1:5175/chat",
+    "formula_input_rows": 4,
+    "normal_reply": true,
+    "stop_button": true,
+    "restored_cancelled_state_after_reload": true,
+    "controls_unlocked_after_worker_finished": true
+  },
+  "previous_projects": 5,
+  "previous_bindings": 2,
+  "restored": [
+    {
+      "rows": 1805,
+      "video_frames": 147
+    },
+    {
+      "rows": 1805,
+      "video_frames": 3
+    }
+  ],
+  "checks": {
+    "frontend_fields": true,
+    "generic_river": true,
+    "backend_api": true,
+    "secrets": true
+  },
+  "limits": [
+    "协作停止，当前网络/计算调用需先收尾，不回滚已产生的派生结果",
+    "进度仅属于当前后端进程，服务重启不自动续跑",
+    "真实HTTP及正常对话工具调用，不替代完整自动报告或现场准确率评测",
+    "浏览器长正文未逐句作科学结论验收"
+  ],
+  "retained_old_service": "停止旧5174的write_stdin操作被自动审批拒绝，因需要沙箱审批而该审批未开放；未尝试其它终止方式"
+}

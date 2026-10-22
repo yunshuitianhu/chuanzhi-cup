@@ -66,6 +66,7 @@ class Session:
     # 进程内派生结果缓存标记；不改变监测数据/物理模型版本，不属于项目文件格式。
     results_revision: int = 0
     operation_lock: Any = field(default_factory=threading.Lock, repr=False)
+    agent_run: Any = field(default=None, repr=False)  # 仅进程内状态，不进入项目包
 
     # ---- 河道模型 ----
     river_state: Any = None                  # 惰性创建 RiverModelState
@@ -113,6 +114,7 @@ class Session:
     def reset_analysis(self) -> None:
         """清空分析结果但保留数据 —— 切换目标水质等级时用。"""
         self.analysis_revision += 1
+        self.agent_run = None
         self.results_revision += 1
         self.black_spots = None
         self.black_spots_json = None

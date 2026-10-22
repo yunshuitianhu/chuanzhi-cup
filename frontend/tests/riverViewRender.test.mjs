@@ -47,3 +47,15 @@ test('旧模拟没有分辨率时明确提示，不补造默认步长',async()=>
   assert.match(html,/本结果未记录数值分辨率/)
   assert.doesNotMatch(html,/请求步长 60/)
 })
+
+test('任务进度提供停止按钮与中文工具阶段，结束后不再显示停止',async()=>{
+  const {default:Progress}=await server.ssrLoadModule('/src/components/AgentProgress.vue')
+  const run={run_id:'controlled',busy:true,status:'running',turn:1,tool_count:1,
+    steps:[{id:'step',name:'find_black_spots',status:'running',elapsed_s:1.2}]}
+  const running=await renderToString(createSSRApp(Progress,{run,elapsed:2.4}))
+  assert.match(running,/停止本轮/);assert.match(running,/筛查异常点/);assert.match(running,/2秒/)
+  const ended=await renderToString(createSSRApp(Progress,{run:{...run,busy:false,status:'cancelled',stop_requested:true,stage:'本轮已停止',
+    steps:[{...run.steps[0],status:'cancelled'}]},elapsed:3}))
+  assert.doesNotMatch(ended,/停止本轮/);assert.match(ended,/已停止/)
+  assert.doesNotMatch(ended,/等待当前调用收尾|仍保持锁定/)
+})

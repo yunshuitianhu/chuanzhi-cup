@@ -13,6 +13,38 @@ const reply = (body, status=200) => new Response(JSON.stringify(body),{
   status, headers:{'Content-Type':'application/json','X-Session-Id':'test-session'},
 })
 
+test('任务忙碌时禁止数据操作，旧进度不能覆盖新请求',async()=>{
+  const store=useSessionStore(createPinia());store.ready=true;store.status.analysis_revision=3
+  store.adoptAgentRun({run_id:'server',busy:true,analysis_revision:3})
+  await assert.rejects(store._run(()=>{throw new Error('不应运行')}),/尚未完成/)
+  store.chatRunning=false;assert.equal(store.beginAgentStream(),true)
+  store.agentActiveId='new'
+  store.adoptAgentRun({run_id:'old',busy:false,analysis_revision:3})
+  assert.equal(store.agentRun,null);assert.equal(store.chatRunning,true)
+  store.adoptAgentRun({run_id:'new',busy:true,analysis_revision:3})
+  assert.equal(store.agentRun.run_id,'new')
+})
+
+test('启动新请求会作废先前轮询的迟到响应',async()=>{
+  const store=useSessionStore(createPinia());store.ready=true
+  let release
+  globalThis.fetch=()=>new Promise(resolve=>{release=()=>resolve(reply({run_id:'old',busy:false}))})
+  const polling=store.refreshAgentRun()
+  store.beginAgentStream();store.agentActiveId='new'
+  release();await polling
+  assert.equal(store.agentRun,null);assert.equal(store.chatRunning,true)
+})
+
+test('停止请求的迟到结果不能覆盖后来任务',async()=>{
+  const store=useSessionStore(createPinia());store.ready=true;store.agentRun={run_id:'old',busy:true}
+  let release
+  globalThis.fetch=()=>new Promise(resolve=>{release=()=>resolve(reply({run_id:'old',busy:false,status:'cancelled'}))})
+  const stop=store.stopAgentRun()
+  store.agentRun={run_id:'new',busy:true}
+  release();await stop
+  assert.equal(store.agentRun.run_id,'new')
+})
+
 test('启动失败保留具体阶段，重连成功会清除错误并恢复历史和项目', async()=>{
   const store=useSessionStore(createPinia())
   let fail=true

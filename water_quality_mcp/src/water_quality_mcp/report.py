@@ -99,7 +99,7 @@ def generate_report(api_key, summary):
     prompt += ('\n\n请按数据事实、候选解释、证据缺口、复核建议组织正文。'
                '正文约1200字，不要完整复写全部工具表格，须保留局限和复核建议。'
                '不得确认因果来源；工具给出的时间趋势未判定时，只描述沿航迹读数变化。')
-    with OpenAI(base_url=BASE_URL, api_key=api_key) as client:
+    with OpenAI(base_url=BASE_URL, api_key=api_key, timeout=120.0, max_retries=0) as client:
         resp = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{'role': 'system', 'content': '你是水质辅助分析报告撰写助手。' + EVIDENCE_RULES},
