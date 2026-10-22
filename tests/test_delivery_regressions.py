@@ -6,6 +6,7 @@ import socket
 import tempfile
 import unittest
 import zipfile
+from types import SimpleNamespace
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ from backend.session import STORE
 from backend.web import create_app
 from scripts.serve_web import check_frontend, check_port
 from scripts.package_delivery import write_bundle
+from scripts.verify_delivery import fingerprint
 
 
 class DeliveryTests(unittest.TestCase):
@@ -107,6 +109,21 @@ class DeliveryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'包含本机配置文件'):
             write_bundle(source.getvalue(),self.dist,output,'test-revision')
         self.assertFalse(output.exists())
+
+    def test_migration_fingerprint_accepts_new_directory_but_checks_file_bytes(self):
+        import pandas as pd
+        def sample(folder):
+            folder.mkdir()
+            image=folder/'river_hydro_profile.png'
+            image.write_bytes(b'same artifact')
+            return SimpleNamespace(df=pd.DataFrame({'value':[0.,1.]}),data_identity={'kind':'synthetic'},
+                river_state=SimpleNamespace(output_dir=str(folder)),black_spots_json='{}',analysis_done=False,
+                river_ui={'hydro':{'输出文件':[str(image)]}})
+        first=sample(Path(self.temp.name)/'original')
+        second=sample(Path(self.temp.name)/'restored')
+        self.assertEqual(fingerprint(first),fingerprint(second))
+        (Path(second.river_state.output_dir)/'river_hydro_profile.png').write_bytes(b'corrupt artifact')
+        self.assertNotEqual(fingerprint(first),fingerprint(second))
 
 
 if __name__ == '__main__':

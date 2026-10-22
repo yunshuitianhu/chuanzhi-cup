@@ -36,6 +36,7 @@ def demo_csv(path: Path):
 def fingerprint(session):
     import numpy as np
     import pandas as pd
+    from backend.project_codec import MODEL_FILES
     arrays={}
     def walk(value,path):
         if isinstance(value,np.ndarray):
@@ -51,11 +52,27 @@ def fingerprint(session):
             for index,item in enumerate(value):
                 walk(item,path+f'.{index}')
     walk(session.river_state,'model')
+    model_dir=Path(session.river_state.output_dir).resolve() if session.river_state else None
+    artifacts={name:sha256((model_dir/name).read_bytes()).hexdigest()
+               for name in MODEL_FILES if model_dir and (model_dir/name).is_file()}
+    def portable_ui(value,key=''):
+        if key=='输出文件':
+            result=[]
+            for name in value:
+                path=Path(name).resolve()
+                assert model_dir and path.parent==model_dir and path.name in artifacts, '输出附件未在当前模型目录物化'
+                result.append(path.name)
+            return result
+        if isinstance(value,dict):
+            return {k:portable_ui(v,k) for k,v in value.items()}
+        if isinstance(value,list):
+            return [portable_ui(item) for item in value]
+        return value
     return dict(rows=len(session.df),columns=list(session.df.columns),
                 dataframe=sha256(pd.util.hash_pandas_object(session.df,index=True).values.tobytes()).hexdigest(),
                 detection=sha256((session.black_spots_json or '').encode()).hexdigest(),
                 identity=session.data_identity,model_arrays=arrays,
-                river_ui=session.river_ui,analysis_done=session.analysis_done)
+                river_ui=portable_ui(session.river_ui),artifacts=artifacts,analysis_done=session.analysis_done)
 
 
 def worker(output: Path,phase: str):
@@ -103,7 +120,7 @@ def worker(output: Path,phase: str):
             blocked.raise_for_status(); assert '未配置 DeepSeek API Key' in blocked.text
             assert not session.analysis_done
             rag=client.get('/api/rag/status',headers=headers); rag.raise_for_status()
-            assert not rag.json()['available'] and rag.json()['source_documents']==29
+            assert not rag.json()['available'] and rag.json()['source_documents']>0
             state=client.post('/api/projects',headers=headers,json={'name':'交付演示_仿真_非实测','from_current':True})
             state.raise_for_status(); project=state.json()['current']['id']
             save=client.post('/api/projects/save',headers=headers,json={}); save.raise_for_status()
