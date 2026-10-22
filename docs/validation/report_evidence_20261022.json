@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-22",
+  "task": "Q04",
+  "python_regressions": 342,
+  "new_python_cases": 12,
+  "frontend_tests": 76,
+  "frontend_build": true,
+  "field_check": true,
+  "generic_checks": 21,
+  "backend_checks": 16,
+  "secret_checks": 9,
+  "browser": {
+    "url": "http://127.0.0.1:5176/chat",
+    "synthetic_rows": 6,
+    "actual_deepseek_tools": ["get_data_summary", "find_black_spots", "search_treatment_cases"],
+    "rag_cases": 1,
+    "summary": {"ammonia_mean": 1.87, "ammonia_max": 5, "do_min": 0, "alert_rows": 2, "clusters": 0},
+    "do_zero_linked_record_number": 3,
+    "do_zero_record_time": "2026-10-22 09:02:00",
+    "map_popup_matches_record": true,
+    "changed_quality_config_marks_old_snapshot_stale": true,
+    "stale_fact_controls_disabled": true,
+    "stale_map_focus_revoked": true,
+    "old_tool_snapshot_remains_readable": true,
+    "fresh_run_creates_current_evidence": true,
+    "saved_project": "Q04 仿真证据验收（非实测）",
+    "saved_revision": 1,
+    "service_restart_restores_rows_and_history": true,
+    "restored_new_snapshot_current": true,
+    "restored_old_snapshot_stale": true,
+    "map_selection_visible_above_top5": true,
+    "simultaneous_evidence_and_playback_reads_verified": true
+  },
+  "preserved_existing_projects": 5,
+  "added_synthetic_acceptance_projects": 1,
+  "screenshots": ["Q04-报告证据记录.png", "Q04-证据地图定位.png", "Q04-旧证据失效.png"],
+  "limits": [
+    "Controlled synthetic workflow, not field accuracy or liability attribution",
+    "Checked statistic cards do not certify every sentence of the model response",
+    "Current RAG tool does not return verifiable original-source URLs",
+    "No fresh-machine install or full automatic-report acceptance in Q04"
+  ]
+}
