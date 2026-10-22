@@ -167,6 +167,8 @@ npm run dev
 
 ## 保存与迁移河流项目
 
+向评委交付源码与已构建网页，可使用`python scripts/package_delivery.py --output work/delivery.zip`。解压副本的隔离验收与仿真演示包生成方法见[交付包与隔离迁移验收](docs/交付包与隔离迁移验收.md)。交付包不包含本机密钥、个人项目或RAG缓存。
+
 侧边栏“河流项目”支持当前内容另存为、新建空项目、保存、切换及导入导出。修改后请点“保存项目”；切换前自动保存，未命名临时数据会先保存为独立项目。导入创建新ID，保留现有项目。保存版本冲突会拒绝覆盖，可用“当前内容另存为”保留修改。
 
 默认使用`data/projects/projects.sqlite3`索引和同目录下的版本包、运行附件。Python自带SQLite，首次使用自动建库。可在启动后端前设置`WQ_PROJECT_HOME`为有写权限的数据目录；无需MySQL、PostgreSQL或Redis。迁移请使用`.wqproj`导出包，不要在运行时只复制SQLite文件。

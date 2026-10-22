@@ -1,9 +1,11 @@
 """交付入口契约：网页/API同源，资源缺失不伪装成功，不暴露项目文件。"""
 
+from io import BytesIO
 import json
 import socket
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -12,6 +14,7 @@ from backend.main import app as api_app
 from backend.session import STORE
 from backend.web import create_app
 from scripts.serve_web import check_frontend, check_port
+from scripts.package_delivery import write_bundle
 
 
 class DeliveryTests(unittest.TestCase):
@@ -75,6 +78,35 @@ class DeliveryTests(unittest.TestCase):
             manifest.write_text(json.dumps({'index.html': entry}), encoding='utf-8')
             with self.assertRaisesRegex(RuntimeError, '构建清单缺失或资源不完整'):
                 check_frontend(self.dist)
+
+    def test_bundle_contains_checked_frontend_not_runtime_data(self):
+        source=BytesIO()
+        with zipfile.ZipFile(source,'w') as archive:
+            archive.writestr('README.md','source')
+            archive.writestr('.env.example','placeholder')
+            archive.writestr('.rag_index/chroma.sqlite3','runtime')
+            archive.writestr('data/projects/private.wqproj','user project')
+        output=Path(self.temp.name)/'delivery.zip'
+        write_bundle(source.getvalue(),self.dist,output,'test-revision')
+        with zipfile.ZipFile(output) as archive:
+            names=set(archive.namelist())
+            self.assertIn('frontend/dist/assets/app-abcd.js',names)
+            self.assertIn('frontend/dist/.vite/manifest.json',names)
+            self.assertIn('.env.example',names)
+            self.assertNotIn('.rag_index/chroma.sqlite3',names)
+            self.assertNotIn('data/projects/private.wqproj',names)
+            self.assertEqual(json.loads(archive.read('delivery-manifest.json'))['revision'],'test-revision')
+        with self.assertRaises(FileExistsError):
+            write_bundle(source.getvalue(),self.dist,output,'test-revision')
+
+    def test_bundle_rejects_tracked_secret_file(self):
+        source=BytesIO()
+        with zipfile.ZipFile(source,'w') as archive:
+            archive.writestr('.env','placeholder')
+        output=Path(self.temp.name)/'unsafe.zip'
+        with self.assertRaisesRegex(ValueError,'包含本机配置文件'):
+            write_bundle(source.getvalue(),self.dist,output,'test-revision')
+        self.assertFalse(output.exists())
 
 
 if __name__ == '__main__':
