@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-23",
+  "queue_item": "Q08",
+  "status": "completed_local_gates_remote_execution_pending_at_recording",
+  "baseline_head": "049d845356982eb5579945f3a32e135cd45118e0",
+  "code_commits": [
+    "f1690f8",
+    "845bf9f"
+  ],
+  "checks": {
+    "python": 421,
+    "new_secret_metadata_tests": 6,
+    "frontend": 93,
+    "new_frontend_tests": 7,
+    "typecheck": "passed: strict/checkJs/noEmit on 4 core JS modules and TS contracts",
+    "negative_type_cases": 14,
+    "actual_backend_response_assignments": 15,
+    "production_build": "passed in clean copy and desktop project",
+    "fields": "passed; controlled trace/RAG success and degradation fixtures",
+    "generalization": 21,
+    "backend": 16,
+    "secret_checks": 9,
+    "workflow_lint": "actionlint 1.7.12 passed"
+  },
+  "environment": {
+    "os": "Windows local desktop",
+    "python": "3.12.14",
+    "node": "24.15.0",
+    "typescript": "5.9.3",
+    "frontend_install": "npm ci in clean source copy",
+    "python_install": "new target from requirements-ci.txt; no optional RAG/Streamlit",
+    "private_config_in_clean_copy": false,
+    "user_projects_in_clean_copy": false,
+    "temporary_directory": "workspace-owned; system sandbox temp denied in first attempt"
+  },
+  "sse_replay": {
+    "kind": "protocol compatibility replay; not a new model request",
+    "source": "Q07 recorded native HTTP/SSE",
+    "chunks": 11,
+    "status": "succeeded",
+    "counts": {
+      "run": 1,
+      "turn": 5,
+      "delta": 918,
+      "tool": 5,
+      "tool_done": 5,
+      "done": 1
+    }
+  },
+  "fixed_gate_failures": [
+    "field checker compared success columns to empty external-source response",
+    "secret checker treated 43 explicit SHA-256 metadata values as credentials",
+    "secret priority test wrongly required a real .env",
+    "git filename quoting could silently omit Chinese paths"
+  ],
+  "ci": {
+    "trigger": [
+      "push",
+      "pull_request",
+      "workflow_dispatch"
+    ],
+    "systems": [
+      "ubuntu-latest",
+      "windows-latest"
+    ],
+    "permissions": "contents:read; checkout does not retain credentials",
+    "remote_run": "pending push at recording"
+  },
+  "limits": [
+    "Vue views and all visualization helpers not fully typechecked",
+    "ordinary JSON uses boundary assertions; response fixtures cover selected scenarios",
+    "video field branch skipped without video; existing component/unit checks retained",
+    "no new live LLM/RAG/station/map or field-accuracy evaluation",
+    "Windows clean-copy pass does not prove remote Ubuntu/Windows jobs have passed",
+    "Python top-level dependencies pinned; transitive versions still need separate lock/upgrade review"
+  ],
+  "log_sha256": {
+    "q08-ci-deps.log": "624939073f39a73957bb727251eadc3bb67bb2e0d4e63331770a4176f360f085",
+    "q08-clean-npm-install.log": "46f2b65765c4d595e152d65f58ab4311f27cf9d89635d506d3f5111753c0cb93",
+    "q08-accepted-clean-python-ci.log": "f42a8a5f349d321b893cf8240afe97fc403d86d3f7c89dc9463b4bb86f7ca49a",
+    "q08-clean-contracts.log": "1229de108a6c336cb2a6cd9338ee3e4b848bb74be625f742b3b59f4a1fb4f672",
+    "q08-final-clean-frontend.log": "82de814133867d37c7942568c46b9bdb1f0c3312637ec521cd8e338f0b67150f",
+    "q08-desktop-build.log": "82f7c2a4d1acecb5d080a7365b092b98d696f813b9b7dd2295687fa50fc9f40e",
+    "q08-actionlint.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q08-secret-final.log": "ca19ab124d14b77c1ca9525689eb96c47309fde5c0279ac9f7f32c4a8aadf339"
+  }
+}
