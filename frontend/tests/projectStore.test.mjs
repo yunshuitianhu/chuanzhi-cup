@@ -13,6 +13,16 @@ const reply = (body, status=200) => new Response(JSON.stringify(body),{
   status, headers:{'Content-Type':'application/json','X-Session-Id':'test-session'},
 })
 
+test('临时会话导出给出明确提示，不发送空项目ID',async()=>{
+  const store=useSessionStore(createPinia())
+  let requests=0
+  globalThis.fetch=async()=>{requests++;throw new Error('不应请求')}
+  await assert.rejects(store.exportProject(),/先保存项目/)
+  assert.equal(requests,0)
+  assert.equal(store.loading,false)
+  assert.match(store.error,/先保存项目/)
+})
+
 test('任务忙碌时禁止数据操作，旧进度不能覆盖新请求',async()=>{
   const store=useSessionStore(createPinia());store.ready=true;store.status.analysis_revision=3
   store.adoptAgentRun({run_id:'server',busy:true,analysis_revision:3})

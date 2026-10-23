@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { api } from '../api/client'
+import { api, errorMessage } from '../api/client'
 
 /**
  * 会话状态 store（Pinia）。
@@ -8,6 +8,7 @@ import { api } from '../api/client'
  * 各视图组件从这里读取，避免层层传 props。
  */
 export const useSessionStore = defineStore('session', {
+  /** @returns {import('../types/contracts').SessionState} */
   state: () => ({
     ready: false,            // 后端连通性
     connecting: false,
@@ -52,6 +53,7 @@ export const useSessionStore = defineStore('session', {
   },
 
   actions: {
+    /** @param {string|null} id @param {import('../types/contracts').JsonObject} payload */
     async saveInvestigation(id,payload) {
       return this._run(async()=>{
         const workspace=this.workspaceRevision
@@ -67,6 +69,7 @@ export const useSessionStore = defineStore('session', {
         return result
       })
     },
+    /** @param {string} bundle @param {number} position */
     async investigateRecord(bundle,position) {
       return this._run(async()=>{
         const workspace=this.workspaceRevision
@@ -91,6 +94,7 @@ export const useSessionStore = defineStore('session', {
       this.agentRun=null; this.agentActiveId=null; this.agentConnectionError=''
       return true
     },
+    /** @param {import('../types/contracts').AgentRun|null} run */
     adoptAgentRun(run) {
       if(run?.analysis_revision !== undefined && run.analysis_revision !== this.status.analysis_revision)return
       if(this.chatStreaming && this.agentActiveId && run?.run_id!==this.agentActiveId)return
@@ -119,10 +123,11 @@ export const useSessionStore = defineStore('session', {
     },
     async stopAgentRun() {
       const id=this.agentRun?.run_id, workspace=this.workspaceRevision
-      if(!id || !this.agentRun.busy)return
+      if(!id || !this.agentRun?.busy)return
       const result=await api.stopAgentRun(id)
       if(workspace===this.workspaceRevision && this.agentRun?.run_id===id)this.adoptAgentRun(result)
     },
+    /** @param {import('../types/contracts').QualityConfig} config */
     async updateQualityConfig(config) {
       return this._run(async () => {
         const response = await api.updateQualityConfig(config)
@@ -139,6 +144,7 @@ export const useSessionStore = defineStore('session', {
       if (this.riverForm === null) this.riverForm = this.projectState.river_ui?.form || null
     },
 
+    /** @param {import('../types/contracts').ProjectState} state */
     async adoptProject(state) {
       this.switchingProject = true
       try {
@@ -159,6 +165,7 @@ export const useSessionStore = defineStore('session', {
       } finally { this.switchingProject = false }
     },
 
+    /** @param {string} name @param {boolean} fromCurrent */
     async createProject(name, fromCurrent) {
       return this._run(() => this.changeProject(() => api.createProject({ name, from_current:fromCurrent, river_form:this.riverForm })))
     },
@@ -167,14 +174,17 @@ export const useSessionStore = defineStore('session', {
       return this._run(async () => { this.projectState = await api.saveProject({river_form:this.riverForm}) })
     },
 
+    /** @param {string} id */
     async openProject(id) {
       return this._run(() => this.changeProject(() => api.openProject(id,this.riverForm)))
     },
 
+    /** @param {File} file */
     async importProject(file) {
       return this._run(() => this.changeProject(() => api.importProject(file,this.riverForm)))
     },
 
+    /** @param {() => Promise<import('../types/contracts').ProjectState>} request */
     async changeProject(request) {
       this.statusRequest++; this.resultsRequest++; this.projectRequest++
       this.switchingProject = true
@@ -184,7 +194,9 @@ export const useSessionStore = defineStore('session', {
 
     async exportProject() {
       return this._run(async () => {
-        const blob = await api.exportProject(this.projectState.current.id,this.riverForm)
+        const id = this.projectState.current?.id
+        if (!id) throw new Error('请先保存项目后再导出')
+        const blob = await api.exportProject(id,this.riverForm)
         await this.refreshProjects()
         return blob
       })
@@ -213,10 +225,11 @@ export const useSessionStore = defineStore('session', {
         this.bootstrapStage = '已连接'
       } catch (e) {
         this.ready = false
-        this.error = `启动检查失败（${this.bootstrapStage}）：${e.message}`
+        this.error = `启动检查失败（${this.bootstrapStage}）：${errorMessage(e)}`
       } finally { this.connecting = false }
     },
 
+    /** @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
     async _run(fn) {
       if (this.loading || this.chatRunning) throw new Error('当前任务尚未完成，请稍后重试')
       this.loading = true
@@ -224,7 +237,7 @@ export const useSessionStore = defineStore('session', {
       try {
         return await fn()
       } catch (e) {
-        this.error = e.message || String(e)
+        this.error = errorMessage(e)
         throw e
       } finally {
         this.loading = false
@@ -275,15 +288,17 @@ export const useSessionStore = defineStore('session', {
         this.comprehensive = saved.comprehensive
         this.resultsWarnings = saved.warnings || []
       } catch (e) {
-        if (current()) this.resultsWarnings = [`已保存分析结果加载失败：${e.message}。可刷新重试。`]
+        if (current()) this.resultsWarnings = [`已保存分析结果加载失败：${errorMessage(e)}。可刷新重试。`]
       }
     },
 
+    /** @param {number} [limit] */
     async refreshPreview(limit = 50) {
       if (!this.status.has_data) return
       this.preview = await api.preview(limit)
     },
 
+    /** @param {File} file */
     async uploadData(file) {
       return this._run(async () => {
         const res = await api.uploadData(file)
@@ -297,6 +312,7 @@ export const useSessionStore = defineStore('session', {
       })
     },
 
+    /** @param {File} file */
     async uploadVideo(file) {
       return this._run(async () => {
         const res = await api.uploadVideo(file)
@@ -306,6 +322,7 @@ export const useSessionStore = defineStore('session', {
       })
     },
 
+    /** @param {import('../types/contracts').WaterClass} cls */
     async setTargetClass(cls) {
       return this._run(async () => {
         const res = await api.setTargetClass(cls)
@@ -331,6 +348,7 @@ export const useSessionStore = defineStore('session', {
       })
     },
 
+    /** @param {import('../types/contracts').CrossValidationRequest} payload */
     async runCrossValidation(payload) {
       return this._run(async () => {
         this.crossValidation = await api.crossValidate(payload)
