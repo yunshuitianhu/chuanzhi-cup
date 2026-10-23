@@ -31,6 +31,9 @@ import os
 import re
 import sys
 import warnings
+import argparse
+import tempfile
+from unittest.mock import patch
 
 warnings.filterwarnings("ignore")
 logging.disable(logging.CRITICAL)
@@ -43,8 +46,11 @@ from fastapi.testclient import TestClient
 
 from backend.main import app
 
-SAMPLE = (sys.argv[1] if len(sys.argv) > 1 else
-          r"C:\Users\Cloud-Mist Sky Lake\Desktop\苗圃杯\无人船智能水质监测分析和因果溯源样本数据\河道巡航走航样本数据.xlsx")
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('sample', nargs='?', default=r"C:\Users\Cloud-Mist Sky Lake\Desktop\苗圃杯\无人船智能水质监测分析和因果溯源样本数据\河道巡航走航样本数据.xlsx")
+parser.add_argument('--offline', action='store_true', help='以受控外部适配器覆盖成功字段；不是在线服务验收')
+args = parser.parse_args()
+SAMPLE = args.sample
 
 results = []
 
@@ -123,6 +129,8 @@ if os.path.isfile(SAMPLE):
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
     data_ready = r.status_code == 200
 print(f"\n会话数据: {'已加载' if data_ready else '未加载（部分检查将跳过）'}")
+if args.offline and not data_ready:
+    raise RuntimeError('离线字段检查样本未成功加载，拒绝跳过')
 
 misses = []
 scenarios = []
@@ -169,22 +177,63 @@ scenarios.append((
 ))
 
 # ---- 5. 多渠道溯源 ----
-r = c.post("/api/trace/multi-source", headers=H, json={})
+if args.offline:
+    with patch('water_quality_mcp.src.water_quality_mcp.pollution_permit.search_pollution_permits', return_value=[]), \
+         patch('water_quality_mcp.src.water_quality_mcp.pollution_permit.search_key_pollution_sources', return_value=[]):
+        r = c.post('/api/trace/multi-source', headers=H, json={})
+else:
+    r = c.post("/api/trace/multi-source", headers=H, json={})
+trace_payloads = [r.json()] if r.status_code == 200 else []
+if args.offline:
+    # HTTP/融合内核真实运行，外部适配器受控返回空/候选；不跳过成功分支的字段检查。
+    if r.status_code != 200 or '状态' not in r.json():
+        raise RuntimeError('离线多源降级响应不符合预期')
+    with patch('backend.routers.trace.resolve_api_key', return_value='ci-fixture-not-a-credential'), \
+         patch('water_quality_mcp.src.water_quality_mcp.geo_tools.search_nearby_pollution_sources',
+               return_value=[{'name':'CI仿真POI（非真实企业）','address':'仿真位置','distance':10}]), \
+         patch('water_quality_mcp.src.water_quality_mcp.pollution_permit.search_pollution_permits',
+               return_value=[{'企业名称':'CI仿真许可（非真实企业）','数据源':'排污许可证','地址':'仿真位置','距离':20}]):
+        controlled = c.post('/api/trace/multi-source', headers=H, json={})
+    if controlled.status_code != 200 or len(controlled.json().get('综合污染源列表', [])) != 2:
+        raise RuntimeError('受控多源成功分支未运行')
+    trace_payloads.append(controlled.json())
+    print('[受控适配器] 多源成功+降级字段；不代表真实外部数据命中')
 scenarios.append((
     "5. /api/trace/multi-source -> MultiSourceTrace.vue",
     "frontend/src/components/MultiSourceTrace.vue",
-    [r.json()] if r.status_code == 200 else [],
+    trace_payloads,
     # 「状态」「建议」只在"所有数据源均无结果"分支出现；
     # 「距离」「地址」在组件里有 || 英文兜底（s['距离'] || s['distance']）
     ("状态", "建议", "距离", "地址"),
 ))
 
 # ---- 6. RAG ----
-r = c.post("/api/rag/search", headers=H, json={"query": "黑臭水体治理", "top_k": 2})
+if args.offline:
+    with patch('water_quality_mcp.src.water_quality_mcp.rag_engine.RAGEngine.retrieve',
+               side_effect=ModuleNotFoundError('CI受控缺依赖')):
+        r = c.post('/api/rag/search', headers=H, json={'query':'黑臭水体治理','top_k':2})
+else:
+    r = c.post("/api/rag/search", headers=H, json={"query": "黑臭水体治理", "top_k": 2})
+rag_payloads = [r.json()] if r.status_code == 200 else []
+if args.offline:
+    if r.status_code != 503:
+        raise RuntimeError('CI不应依赖已安装的真实向量库/嵌入模型')
+    from water_quality_mcp.src.water_quality_mcp.rag_engine import RAGEngine
+    with tempfile.TemporaryDirectory(prefix='ci-rag-fields-') as folder:
+        engine = RAGEngine(folder)
+        hits = [{'metadata':{'title':'CI仿真资料','source':'CI_仿真资料.md'},
+                 'distance':.2,'document':'仅供接口字段校验的仿真文字，非治理效果证据。','id':'CI_仿真资料.md_0'}]
+        with patch('water_quality_mcp.src.water_quality_mcp.rag_engine.get_rag_engine', return_value=engine), \
+             patch.object(engine, 'retrieve', return_value=hits):
+            controlled = c.post('/api/rag/search', headers=H, json={'query':'仿真字段检查','top_k':2})
+    if controlled.status_code != 200 or controlled.json().get('共检索到') != 1:
+        raise RuntimeError('受控RAG成功分支未运行')
+    rag_payloads.append(controlled.json())
+    print('[受控适配器] RAG格式化成功字段；不是实际语义检索效果验收')
 scenarios.append((
     "6. /api/rag/search -> RagSearch.vue",
     "frontend/src/components/RagSearch.vue",
-    [r.json()] if r.status_code == 200 else [],
+    rag_payloads,
     (),
 ))
 

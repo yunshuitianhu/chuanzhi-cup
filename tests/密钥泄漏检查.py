@@ -21,6 +21,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+from unittest.mock import patch
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(PROJ)
@@ -28,6 +30,7 @@ os.chdir(PROJ)
 # 注意：环境里存在指向 D:\aiRAG 的 editable 安装，短路径 water_quality_mcp.X
 # 会解析到那份代码而非本项目，故此处必须用全路径。
 sys.path.insert(0, PROJ)
+from scripts.secret_scan import metadata_hash_spans
 
 results = []
 
@@ -38,14 +41,15 @@ def check(name, ok, detail=""):
 
 
 def git(*args):
-    return subprocess.run(["git", *args], capture_output=True, text=True).stdout
+    return subprocess.run(["git", *args], capture_output=True, text=True,
+                          encoding='utf-8', check=True).stdout
 
 
 print("=" * 72)
 print("密钥泄漏检查")
 print("=" * 72)
 
-tracked = [f for f in git("ls-files").splitlines() if f]
+tracked = [f for f in git("ls-files", "-z").split('\0') if f]
 print(f"已跟踪文件: {len(tracked)} 个")
 
 # ---------- 1. 敏感文件不得被跟踪 ----------
@@ -117,8 +121,11 @@ for f in tracked:
         data = open(f, "rb").read()
     except OSError:
         continue
+    hash_spans = metadata_hash_spans(f, data)
     for label, pat in (("sk-密钥", PAT_SK), ("32位hex", PAT_HEX32), ("64位hex", PAT_HEX64)):
         for m in pat.finditer(data):
+            if label == '64位hex' and m.span() in hash_spans:
+                continue  # 仅受限元数据字段；正文同值、32位值和真实.env值仍检查。
             hits = m.group(0).decode("ascii", "ignore")
             # 跳过明显的非密钥：全同字符、连续序列等
             if len(set(hits)) <= 3:
@@ -136,49 +143,39 @@ print("5. .env 与环境变量的优先级（曾出现'改了 .env 不生效'的
 import logging as _logging
 import io as _io
 
-_envpath = os.path.join(PROJ, ".env")
-if os.path.isfile(_envpath):
-    from water_quality_mcp.src.water_quality_mcp import config as _cfgmod
-    load_env, resolve_api_key = _cfgmod.load_env, _cfgmod.resolve_api_key
-
-    # 5a. .env 的值应覆盖已存在的环境变量（默认 override=True）
-    _orig = os.environ.get("DEEPSEEK_API_KEY")
-    os.environ["DEEPSEEK_API_KEY"] = "sk-ENV-SHOULD-BE-OVERRIDDEN"
-    _buf = _io.StringIO()
-    _h = _logging.StreamHandler(_buf)
-    # 必须挂到模块自己的 logger 上：以全路径导入时其 __name__ 是
-    # water_quality_mcp.src.water_quality_mcp.config，不是短名
-    _cfgmod.logger.addHandler(_h)
-    _cfgmod.logger.setLevel(_logging.WARNING)
-    load_env()
-    _cfgmod.logger.removeHandler(_h)
-    _after = resolve_api_key("DEEPSEEK_API_KEY")
-    check(".env 的值覆盖了环境变量", _after != "sk-ENV-SHOULD-BE-OVERRIDDEN" and bool(_after),
-          f"生效值前缀 {(_after or '')[:6]}…")
-
-    # 5b. 冲突必须被告警，不能静默
-    check("冲突产生了告警", "不一致" in _buf.getvalue(),
-          "告警文案已输出" if "不一致" in _buf.getvalue() else "未告警（静默失败风险）")
-
-    # 5c. 告警内容不得回显完整密钥
-    _leak = [v for v in env_vals.values() if v in _buf.getvalue()]
-    check("告警中未回显完整密钥", not _leak, "仅输出前 4 位指纹")
-
-    # 5d. 显式 override=False 时环境变量应胜出
-    os.environ["DEEPSEEK_API_KEY"] = "sk-ENV-WINS-WHEN-EXPLICIT"
-    load_env(override=False)
-    check("override=False 时环境变量胜出",
-          resolve_api_key("DEEPSEEK_API_KEY") == "sk-ENV-WINS-WHEN-EXPLICIT",
-          "显式指定时行为符合预期")
-
-    # 还原
-    if _orig is not None:
-        os.environ["DEEPSEEK_API_KEY"] = _orig
+from water_quality_mcp.src.water_quality_mcp import config as _cfgmod
+_orig = os.environ.get('DEEPSEEK_API_KEY')
+_level = _cfgmod.logger.level
+try:
+    with tempfile.TemporaryDirectory(prefix='ci-env-priority-') as folder:
+        _envpath = os.path.join(folder,'.env')
+        _file_value = 'fixture-file-value-for-priority'
+        with open(_envpath,'w',encoding='utf-8') as file:
+            file.write('DEEPSEEK_API_KEY='+_file_value+'\n')
+        with patch.object(_cfgmod,'DEFAULT_ENV_PATH',_envpath):
+            _env_value = 'fixture-environment-value-for-priority'
+            os.environ['DEEPSEEK_API_KEY'] = _env_value
+            _buf = _io.StringIO()
+            _h = _logging.StreamHandler(_buf)
+            _cfgmod.logger.addHandler(_h)
+            _cfgmod.logger.setLevel(_logging.WARNING)
+            try:
+                _cfgmod.load_env()
+            finally:
+                _cfgmod.logger.removeHandler(_h)
+            check('.env 的值覆盖了环境变量', _cfgmod.resolve_api_key('DEEPSEEK_API_KEY') == _file_value,
+                  '使用临时假配置；不读取或改写用户.env')
+            check('冲突产生了告警', '不一致' in _buf.getvalue())
+            check('告警中未回显完整密钥', all(v not in _buf.getvalue() for v in (_file_value,_env_value)))
+            os.environ['DEEPSEEK_API_KEY'] = _env_value
+            _cfgmod.load_env(override=False)
+            check('override=False 时环境变量胜出', _cfgmod.resolve_api_key('DEEPSEEK_API_KEY') == _env_value)
+finally:
+    _cfgmod.logger.setLevel(_level)
+    if _orig is None:
+        os.environ.pop('DEEPSEEK_API_KEY',None)
     else:
-        os.environ.pop("DEEPSEEK_API_KEY", None)
-    load_env()
-else:
-    check(".env 存在（用于优先级测试）", False, "未找到 .env")
+        os.environ['DEEPSEEK_API_KEY'] = _orig
 
 # ---------- 汇总 ----------
 print()

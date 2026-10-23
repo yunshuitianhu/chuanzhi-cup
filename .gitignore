@@ -15,6 +15,7 @@ venv/
 # ---------- 前端 ----------
 node_modules/
 frontend/dist/
+frontend/tests/types/generated_backend.contract.ts
 .vite/
 
 # ---------- IDE / OS ----------

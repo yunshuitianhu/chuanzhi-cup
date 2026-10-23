@@ -1,0 +1,18 @@
+# 离线核心回归；版本与 requirements-lock.txt 对齐。
+# 不安装 Streamlit、ChromaDB/嵌入模型；其真实在线能力由专项验收覆盖。
+folium==0.20.0
+matplotlib==3.10.9
+mcp==1.27.0
+numpy==2.4.4
+openai==2.32.0
+opencv-python-headless==4.13.0.92
+openpyxl==3.1.5
+pandas==2.3.3
+pydantic==2.13.3
+requests==2.33.1
+scikit-learn==1.8.0
+scipy==1.17.1
+fastapi==0.136.1
+uvicorn==0.46.0
+python-multipart==0.0.27
+httpx==0.28.1
