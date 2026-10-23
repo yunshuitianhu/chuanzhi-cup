@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-23",
+  "baseline_head": "8d4949a3884307204b2ea5e9fbd009dfda88eea7",
+  "status": "in_progress",
+  "offline_tests": {
+    "count": 35,
+    "result": "passed",
+    "log_sha256": "73aeef2105fead0f9db79185fb1f49b29668da2a683022a1d04d78c00cb0a343",
+    "scope": "unit/component; SDK, scientific tools and some evidence I/O mocked"
+  },
+  "baseline_reproduction": {
+    "mode": "offline reproduction with mocked SDK; not a real LLM acceptance",
+    "unknown_citation_was_accepted": true,
+    "large_wrapped_rag_lost_ok_data_protocol": true,
+    "packed_keys": [
+      "状态"
+    ]
+  },
+  "new_model_protocol_cases": 8,
+  "real_model_calls": 0,
+  "full_regressions_run": false,
+  "http_browser_acceptance_run": false,
+  "desktop_source_applied": false,
+  "committed": false,
+  "deployed": false,
+  "limitations": [
+    "Desktop source not writable in this session",
+    "Existing dependencies inaccessible",
+    "Dependency download blocked by network permissions; no bypass attempted",
+    "ID validity does not prove semantics, timestamps or causal attribution"
+  ]
+}
