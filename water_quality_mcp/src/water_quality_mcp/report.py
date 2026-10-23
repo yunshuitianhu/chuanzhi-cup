@@ -3,6 +3,7 @@ import json
 
 from openai import OpenAI
 from .evidence import EVIDENCE_RULES
+from .agent_safety import context_cases, citation_catalog, validate_citations
 
 MODEL_NAME = "deepseek-chat"
 BASE_URL = "https://api.deepseek.com/v1"
@@ -40,7 +41,7 @@ def _try_retrieve_treatment_cases(summary: str, top_k: int = 3) -> str:
         return ""
 
 
-def generate_report(api_key, summary):
+def generate_report(api_key, summary, *, reference_sink=None):
     """基于 GB 3838-2002 生成水环境溯源报告。
 
     自动从 RAG 知识库检索相似治理案例作为参考，
@@ -48,6 +49,10 @@ def generate_report(api_key, summary):
     """
     # RAG 检索：获取相似治理案例
     reference_cases = _try_retrieve_treatment_cases(summary, top_k=3)
+    cases = context_cases(reference_cases)
+    catalog = citation_catalog(cases)
+    if not catalog:
+        reference_cases = ''
 
     # 构造提示词（有案例则注入，无则保持原样）
     if reference_cases and "暂无相关治理案例" not in reference_cases:
@@ -113,5 +118,8 @@ def generate_report(api_key, summary):
     body = resp.choices[0].message.content
     if not isinstance(body, str) or not body.strip():
         raise ValueError('报告未生成有效正文')
+    validate_citations(body, catalog)
+    if reference_sink is not None:
+        reference_sink.update({'检索结果': cases, '共检索到': len(cases)})
     logger.info('报告正文生成完成，finish_reason=%s', finish_reason)
     return '\n'.join(header) + '\n\n' + body

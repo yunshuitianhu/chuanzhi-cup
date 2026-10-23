@@ -196,12 +196,16 @@ def build_bundle(session, traces, run_id):
     for trace in traces:
         payload = _data(trace)
         if trace['name'] == 'search_treatment_cases' and trace['status'] == 'succeeded' and isinstance(payload, dict):
-            for case in payload.get('检索结果', [])[:10]:
+            cases = payload.get('检索结果')
+            for case in cases[:10] if isinstance(cases, list) else []:
                 if isinstance(case, dict):
+                    snippets = case.get('证据片段')
+                    snippets = snippets[:2] if isinstance(snippets, list) else []
                     references.append({'title': str(case.get('标题', '未提供标题'))[:300],
                         'location': str(case.get('地点', ''))[:300], 'tool_id': trace['id'],
                         'source_file': str(case.get('来源文件',''))[:500],
-                        'evidence_ids': [str(s.get('证据ID',''))[:1000] for s in case.get('证据片段',[])[:2] if isinstance(s,dict)],
+                        'evidence_ids': [s['证据ID'] for s in snippets if isinstance(s,dict)
+                            and isinstance(s.get('证据ID'),str) and 1 <= len(s['证据ID']) <= 1000],
                         'notice': str(case.get('出处状态') or '本轮知识库返回；仅供治理参考。原工具未提供可核验原文链接。')[:500]})
     return {'id': str(uuid4()), 'version': VERSION, 'run_id': run_id, 'created_at': utc_now(),
         'fingerprints': fingerprints(session), 'data_identity': session.data_identity,

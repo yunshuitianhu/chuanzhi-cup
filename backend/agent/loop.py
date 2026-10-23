@@ -27,6 +27,9 @@ from openai import OpenAI
 
 from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
 from water_quality_mcp.src.water_quality_mcp.data_quality import measurement_error
+from water_quality_mcp.src.water_quality_mcp.agent_safety import (
+    result_catalog, merge_catalog, validate_citations,
+)
 
 from .tools import (
     SYSTEM_PROMPT_AUTO, SYSTEM_PROMPT_CHAT, TOOLS,
@@ -34,6 +37,7 @@ from .tools import (
 )
 from .progress import AgentRun, AgentStopped
 from ..report_evidence import capture_tool, build_bundle, utc_now
+from ..project_codec import _scrubber
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +141,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
 
     final_text = ""
     evidence_traces = []
+    citation_sources = {}
     turn = 0
     stream = None
 
@@ -228,6 +233,19 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                 result, is_err = execute_tool(name, args, session, api_key)
                 check()
                 evidence_traces.append(capture_tool(name, args, result, tool_started_at))
+                model_result = truncate(name, result)
+                if name == 'search_treatment_cases':
+                    merge_catalog(citation_sources, result_catalog(model_result))
+                if name == 'generate_final_report' and not is_err:
+                    # These are the actual snippets used by the report generator's
+                    # internal retrieval, not IDs inferred from its generated body.
+                    references = session.tool_evidence.get('report_treatment_cases')
+                    if references:
+                        reference_result = json.dumps({'ok':True,'data':json.loads(references),
+                            'error':None,'skipped':False}, ensure_ascii=False)
+                        evidence_traces.append(capture_tool('search_treatment_cases',
+                            {'via':'generate_final_report'}, reference_result, tool_started_at))
+                        merge_catalog(citation_sources, result_catalog(reference_result))
                 tool_errors += int(is_err)
                 outcome = json.loads(result)
                 step_status = 'failed' if is_err else 'skipped' if outcome.get('skipped') else 'succeeded'
@@ -240,7 +258,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                 msgs.append({
                     "role": "tool",
                     "tool_call_id": call["id"],
-                    "content": truncate(name, result),
+                    "content": model_result,
                 })
 
         else:
@@ -268,7 +286,8 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         check()
         if not final_text.strip():
             raise RuntimeError('模型未返回有效正文，本轮不能视为成功。')
-        status = 'succeeded'
+        validate_citations(final_text, citation_sources)
+        status = 'partial' if tool_errors else 'succeeded'
         if auto:
             required = REQUIRED_ANALYSIS_STEPS | ({'analyze_video', 'cross_validate_video'} if session.video_frames else set())
             complete = (bool(final_text) and run_revision == session.analysis_revision
@@ -311,13 +330,20 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         if auto and current():
             session.analysis_done = False
             session.analysis_status = run.status
-        logger.exception("Agent 运行失败")
+        logger.error("Agent 运行失败（%s）", type(e).__name__)
         msg = str(e)
         if "api_key" in msg.lower() or "401" in msg or "auth" in msg.lower():
             msg = "DeepSeek API Key 无效或未配置"
         elif "timeout" in msg.lower() or "connect" in msg.lower():
             msg = "无法连接 DeepSeek API，请检查网络"
-        yield emit("error", {"message": '任务已停止，未保存完整回答。' if run.cancel.is_set() else msg[:300], 'status':run.status})
+        msg = _scrubber()(msg)[:300]
+        public_error = '任务已停止，未保存完整回答。' if run.cancel.is_set() else msg
+        # 状态刷新会重取历史。失败原因须由服务端保存，否则流上的提示会
+        # 被历史列表覆盖；错误不写入模型的后续对话上下文。
+        if current():
+            session.messages.append({'role':'error','content':public_error,'run_id':run.id})
+        logger.error("Agent错误详情：%s", public_error)
+        yield emit("error", {"message": public_error, 'status':run.status})
     finally:
         if auto and current() and session.analysis_status == 'running':
             session.analysis_status = 'cancelled'

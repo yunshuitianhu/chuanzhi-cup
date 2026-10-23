@@ -74,7 +74,7 @@ TOOLS: list[dict] = [
     _tool("search_treatment_cases",
           "检索并合并同来源治理参考案例；具体方法或数值须引用返回的证据ID和原文片段，资料未核验且不是责任依据",
           {"query": {"type": "string", "description": "检索查询，如「氨氮超标 黑臭水体 城市河道治理」"},
-           "top_k": {"type": "integer", "description": "返回案例数，默认 5"}},
+           "top_k": {"type": "integer", "minimum": 1, "maximum": 10, "description": "返回案例数，默认 5"}},
           required=["query"]),
     _tool("generate_final_report", "生成受证据边界约束的水质辅助排查报告（治理案例仅供参考）",
           {"summary": {"type": "string"}}, required=["summary"]),
@@ -156,7 +156,7 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
             return build_comprehensive_summary(ws, session.get_river_state(), cfg), False
 
         if name == "search_treatment_cases":
-            return search_treatment_cases(args.get("query", ""), int(args.get("top_k", 5) or 5)), False
+            return search_treatment_cases(args.get("query", ""), args.get("top_k", 5)), False
 
         if name == "generate_final_report":
             if not api_key:
@@ -177,7 +177,9 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
             external = {}
             for key, value in session.tool_evidence.items():
                 # 当前未实现同期、同河段对照核验。站点原值保留给独立查询，报告仅接收综合摘要中的元数据。
-                if key == 'get_national_station_data':
+                # 报告生成器自行取得并核对本次治理参考；不混入旧轮次的
+                # 检索结果，否则模型可见的ID会超出本次允许引用的范围。
+                if key in ('get_national_station_data', 'report_treatment_cases', 'search_treatment_cases'):
                     continue
                 if session.data_identity['kind'] == 'synthetic' and key not in ('analyze_video', 'search_treatment_cases'):
                     continue
@@ -192,7 +194,12 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 external[key] = value
             evidence['外部与视觉线索'] = external
             evidence = json.dumps(evidence, ensure_ascii=False)
-            return generate_report(api_key, evidence), False
+            session.tool_evidence.pop('report_treatment_cases', None)
+            references = {}
+            body = generate_report(api_key, evidence, reference_sink=references)
+            if references:
+                session.tool_evidence['report_treatment_cases'] = json.dumps(references, ensure_ascii=False)
+            return body, False
 
         if name == "reverse_geocode":
             return reverse_geocode(args.get("lat"), args.get("lon"), amap_key), False

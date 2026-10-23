@@ -124,15 +124,22 @@ def compact_tool_result(text, limit=12000):
     """保留完整JSON与完整已返回片段；预算不足时减少案例并说明。"""
     if len(text)<=limit:
         return text
-    data = json.loads(text)
+    outer = json.loads(text)
+    wrapped = isinstance(outer,dict) and 'ok' in outer and 'data' in outer
+    data = outer.get('data') if wrapped else outer
     if not isinstance(data,dict) or not isinstance(data.get('检索结果'),list):
-        return json.dumps({'状态':'检索返回超出显示预算；本次未提供可引用片段'},ensure_ascii=False)
+        fallback = {'状态':'检索返回超出显示预算；本次未提供可引用片段'}
+        return json.dumps({'ok':False,'data':None,'error':fallback['状态'],'skipped':False}
+            if wrapped else fallback,ensure_ascii=False)
     original = len(data['检索结果'])
     while data['检索结果']:
         data['共检索到'] = len(data['检索结果'])
         data['预算说明'] = f'上下文预算保留{len(data["检索结果"])}个案例，原返回{original}个；未提供的案例不可引用。'
-        packed = json.dumps(data,ensure_ascii=False,separators=(',',':'))
+        packed = json.dumps(outer,ensure_ascii=False,separators=(',',':'))
         if len(packed)<=limit:
             return packed
         data['检索结果'].pop()
-    return json.dumps({'检索结果':[],'共检索到':0,'预算说明':'片段超出上下文预算，本次未提供可引用案例'},ensure_ascii=False)
+    empty = {'检索结果':[],'共检索到':0,'预算说明':'片段超出上下文预算，本次未提供可引用案例'}
+    if wrapped:
+        outer['data'] = empty
+    return json.dumps(outer if wrapped else empty,ensure_ascii=False)
