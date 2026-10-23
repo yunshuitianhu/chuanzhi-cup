@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-23",
+  "baseline_head": "8d4949a3884307204b2ea5e9fbd009dfda88eea7",
+  "desktop_applied": true,
+  "applied_files": [
+    {
+      "path": "CLAUDE.md",
+      "sha256": "a024c13e1a510aba4102ea0b0549ba972c192d933f62892f697bc40a398b6fb8"
+    },
+    {
+      "path": "README.md",
+      "sha256": "8867df1212b795256e237790e993edba7691ebd240a90718d35f12fdf112303f"
+    },
+    {
+      "path": "app.py",
+      "sha256": "9997e02b47281ba407e3ab136217c94ff8c1d0deab95d8a75f2565f5cdb4f256"
+    },
+    {
+      "path": "backend/agent/loop.py",
+      "sha256": "bd1a865d568170d9f953df648742104cb591952e7bd0864234d6493ba177a20a"
+    },
+    {
+      "path": "backend/agent/tools.py",
+      "sha256": "0ff41893eec5f77af71e81b59156dcecb0bad6a71fe4357015c20f64731c8ec7"
+    },
+    {
+      "path": "backend/report_evidence.py",
+      "sha256": "57181e14ab7cfe20db16d36bb5107c8d6f4558e6aa57b0bf907bbaa17b0ec0e8"
+    },
+    {
+      "path": "docs/Agent证据安全离线修复与待验收项.md",
+      "sha256": "f4e189b2be33842c629f205cbbcf438326133c9703bb5f90e85b7b3f606f3447"
+    },
+    {
+      "path": "docs/任务队列.md",
+      "sha256": "f127ac8c0ed76d1240a355a55f6a95c17a2e39d247aafe91e05006f84e97882b"
+    },
+    {
+      "path": "evaluation/agent_safety/cases.json",
+      "sha256": "2a5f9d4a3ed16781916c5a3e76c957b3c88588c310c7f67da08a7302169df5ef"
+    },
+    {
+      "path": "evaluation/agent_safety/results/offline-20261023.json",
+      "sha256": "fda1ffc7a26282ac2af0118003a847ff4155267e3d34df8cdd104028b1f69f2d"
+    },
+    {
+      "path": "scripts/evaluate_agent_safety.py",
+      "sha256": "6027869676ccd0c54c1357d1683c39b9aa3f888d6f3de66a3dde863ac62483de"
+    },
+    {
+      "path": "tests/test_agent_safety_loop_component.py",
+      "sha256": "132914b4b471e5b1eb74e088a1fc20293fb2a6ea738945e78f7bc05201194041"
+    },
+    {
+      "path": "tests/test_agent_safety_unit.py",
+      "sha256": "7afb0aad8c96c7c9757d21890f1c9898653050a114cdb8ba34f13608730312d8"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/agent_safety.py",
+      "sha256": "fea522278e703f8ee74900cb606888c6e4f73f90cbf3ac08746718b64dd41e5a"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/evidence.py",
+      "sha256": "95b0678c01de339e3b39f9dc193c0902c62d2346f23fd940c49ea6926f20fd3f"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/rag_retrieval.py",
+      "sha256": "0b0c6a516034c886eda92c61a60ef94755f1c609477deef099ee95bd47173542"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/report.py",
+      "sha256": "46bffbc1b4ae531f7671377d7132e706f1810161a6b0b731b9113434c044af6d"
+    }
+  ],
+  "tests": {
+    "count": 35,
+    "result": "passed",
+    "scope": "offline unit/component; mocked SDK/scientific/tool boundaries",
+    "log_sha256": "e4ec7496dc55967c9cf56626892725db294213b9400b3d4fa490bd9bf4deb353"
+  },
+  "python_syntax_checked": 11,
+  "git_diff_check": "passed; LF/CRLF checkout notices only",
+  "q07_status": "in_progress",
+  "backup": "Documents/Codex/2026-10-16/zhde/outputs/Q07-桌面写入备份-20261023",
+  "real_model_calls_this_step": 0,
+  "full_regressions_run": false,
+  "browser_acceptance_run": false,
+  "committed": false,
+  "deployed": false,
+  "preserved_existing_runtime_paths": [
+    ".rag_index/chroma.sqlite3",
+    "仿真数据/"
+  ]
+}

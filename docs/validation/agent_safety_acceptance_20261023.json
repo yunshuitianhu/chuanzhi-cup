@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-23",
+  "queue_item": "Q07",
+  "status": "completed_with_documented_semantic_limits",
+  "baseline_head": "8d4949a3884307204b2ea5e9fbd009dfda88eea7",
+  "rules": "evidence-2026-10-23-v7",
+  "checks": {
+    "python": 415,
+    "new_safety_tests": 44,
+    "frontend": 86,
+    "production_build": "passed",
+    "fields": "passed",
+    "generalization": 21,
+    "backend": 16,
+    "tracked_secret_checks": 9,
+    "scoped_reviewed_files": 24,
+    "scoped_configured_secret_scan": "passed",
+    "python_syntax_checked": 12,
+    "git_diff_check": "passed"
+  },
+  "model_protocol": {
+    "cases": 8,
+    "rounds": 3,
+    "real_model_requests": 27,
+    "same_set_reused": true,
+    "final_answers_stop": 8,
+    "final_id_checks_passed": 8,
+    "semantic_passed": 6,
+    "semantic_with_notes": 2,
+    "independent_expert_review": false
+  },
+  "native_workflow": {
+    "real_provider": true,
+    "real_copied_index": true,
+    "outer_turns": 5,
+    "report_model_requests": 1,
+    "rows": 6,
+    "do_min": 0,
+    "retained_alerts": 1,
+    "reference_entries": 8,
+    "evidence_current": true,
+    "restart_restored": true,
+    "known_body_wording_issue": "GPS boilerplate contradicts the explicit count; retained in review record"
+  },
+  "browser": {
+    "date": "2026-10-23",
+    "browser_url": "http://127.0.0.1:5177/chat",
+    "isolation": "Q07 project store, copied RAG index; original user projects excluded",
+    "controlled_false_citation": "failed and sanitized error persisted",
+    "controlled_invalid_parameter": "partial and incomplete flag persisted",
+    "real_model_retry": {
+      "status": "succeeded",
+      "outer_turns": 2,
+      "tools": [
+        "get_data_summary"
+      ],
+      "answer": "本轮仅调用 get_data_summary，结果如下：\n\n- **记录数**：6 条（时间范围 2026-10-23 09:00:00 ~ 09:00:25）。\n- **DO 最低值**：0.0 mg/L（溶解氧均值 5.83，6 个有效观测；该零值按有效数值保留，原始值已保留）。\n- **GPS**：有效 GPS 记录数为 0，即本次数据缺失有效 GPS 坐标。\n\n数据身份为仿真数据（非现场实测，未经独立核验），仅用于受控算法校验，不能用于认定现场污染或责任。",
+      "evidence_status": "current"
+    },
+    "saved_project_revision": 2,
+    "service_restarted_after_browser_save": true,
+    "error_and_partial_and_retry_restored": true,
+    "preview_controlled_fixture_hook_active_at_finish": false,
+    "screenshots": [
+      "Q07-零值原始证据.png",
+      "Q07-假引用拦截.png",
+      "Q07-工具失败部分完成.png",
+      "Q07-失败后真实重试.png"
+    ]
+  },
+  "original_saved_projects_unchanged": 7,
+  "original_bindings_unchanged": 4,
+  "validation_project_store": "isolated under Documents/Codex; no acceptance project added to original store",
+  "log_sha256": {
+    "q07-final-accepted-tests.log": "15b856338743313b9d144dd01f6208ae7cbb03e8497264b42903582fd6919713",
+    "q07-frontend-tests.log": "c4ad06ac3eb964cea34c232090e3666f135b7aa43b1e9382b508ac4a97432f1b",
+    "q07-build.log": "2479a032a999ba0d8bfca627f7bb5e42836bc09ed12b6399c207147a6872c501",
+    "q07-fields.log": "10baf6bb135e4b74716bd94f7299f958526b84e2f9f1efad93a7b8eeae6e3fbd",
+    "q07-generalization.log": "0843a721bedf16dc48cee4eff503d1847e84c026c532369abbd270bf6b9d379e",
+    "q07-backend.log": "815fbf5bc50cf5c2557cda80811845b28fa011e08ad14d92fba47de48ab2964c",
+    "q07-secrets.log": "f313c2dbc33928977972e3b52ada0a522f19cdefb8ff00a49821f450d2096e36"
+  },
+  "model_output_sha256": {
+    "live-20261023-v1.json": "585341ebf9ad941ac3e436d6818855a251e45f8f50bdb9d113dd8633d283cd03",
+    "live-20261023-v2.json": "3b0e44772e25078ef9c108cc7ced3177e3564a4b4af0d23dfe9bc0a5df863c28",
+    "live-20261023-v3.json": "ef1a9be18edfbb24e21bfcc86a3c5f8e9663ca5a38e7bb93f2896fd73651352d"
+  },
+  "scope": "Safety/failure acceptance completed; not proof that every generated sentence is correct or that the product is field validated.",
+  "git_at_acceptance": "index.lock permission denied; 24 reviewed files remain uncommitted and unpushed; verified commit helper prepared"
+}
