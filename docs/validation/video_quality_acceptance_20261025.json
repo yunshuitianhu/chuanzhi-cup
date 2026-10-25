@@ -1,0 +1,124 @@
+{
+  "date": "2026-10-25",
+  "queue_item": "Q10",
+  "status": "completed_with_scope_limits",
+  "quality_version": "video-quality-v1",
+  "project_location": "E:/E-Desktop/传智杯-备赛",
+  "backend_tests": 442,
+  "frontend_tests": 116,
+  "typecheck": true,
+  "production_build": "vite build --configLoader runner",
+  "legacy_checks": {
+    "data_fields": true,
+    "frontend_fields": true,
+    "generalization": 21,
+    "http": 16,
+    "secrets": 9
+  },
+  "controlled": {
+    "kind": "synthetic pixel patterns and generated sensor records; not field data",
+    "initial_roi_sync_unconfirmed_status": "未判定",
+    "confirmed_eligible_frames": 4,
+    "after_exclusion": {
+      "frames": 4,
+      "eligible": 3,
+      "invalid": 0,
+      "needs_review": 1,
+      "manual_excluded": 1
+    },
+    "status": "探索性线索对照",
+    "stale_write_rejected": true,
+    "restart_restored": true
+  },
+  "sample": {
+    "monitoring_rows": 1805,
+    "frames": 147,
+    "summary": {
+      "frames": 147,
+      "eligible": 0,
+      "invalid": 0,
+      "needs_review": 147,
+      "manual_excluded": 0
+    },
+    "settings": {
+      "roi": [
+        0.0,
+        0.0,
+        1.0,
+        1.0
+      ],
+      "roi_confirmed": false,
+      "roi_note": "",
+      "reviewer": "",
+      "sync_confirmed": false,
+      "sync_note": "",
+      "time_offset_sec": 0.0,
+      "time_window_sec": 30.0
+    },
+    "status": "未判定",
+    "saved_snapshot_unchanged": true,
+    "decode_note": "147 selected decodable frames; an H264 tail warning occurred during initial extraction; this does not certify the entire video"
+  },
+  "browser": {
+    "observed_before_move": [
+      "unconfirmed ROI/sync with null percentages",
+      "controlled ROI and sync save",
+      "per-frame ROI and exclusion",
+      "results invalidated after edits"
+    ],
+    "after_move": "HTTP workflow and four SPA routes plus actual server restart; no new visual screenshot or viewport certification"
+  },
+  "routes": {
+    "/charts": true,
+    "/river": true,
+    "/tech": true,
+    "/chat": true
+  },
+  "preserved_files": {
+    ".env": true,
+    "_uploaded_data.xlsx": true,
+    ".rag_index/chroma.sqlite3": true,
+    "data/projects/projects.sqlite3": true
+  },
+  "applied_files": [
+    {
+      "path": "backend/routers/video.py",
+      "sha256": "c4e19ea0a84d561a31afe3cdd7bfa9d62554675fe3b778d22846b3ea737c8cbd"
+    },
+    {
+      "path": "backend/session.py",
+      "sha256": "9002bf3da271bc518257d26819a741f03339896c05db416b4cc1700af88ee7d3"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/video_quality.py",
+      "sha256": "2dfd2300007eed251ce4601a0c5776b8df59c1cac4902754f741fb4ddf9cdf6f"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/analysis.py",
+      "sha256": "ac6df64712e6a977bbb572ae91adf207d926ecfec4d2916924b20d7318f58dcb"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/loaders.py",
+      "sha256": "b54587bc831a46a52f7c49a1804565e96f461e4b0681f44c202c2d32bd7ba69e"
+    },
+    {
+      "path": "frontend/src/components/VideoQuality.vue",
+      "sha256": "02fc4ff773ef75d9be64156cb31f2cac47f01391ee0bbf062587a6d2d7dc97c3"
+    },
+    {
+      "path": "frontend/src/components/CrossValidation.vue",
+      "sha256": "903aebfe33dcfcbf7ac77d30f6e080d8916f7ee4369f2cd4686e561346acce4a"
+    },
+    {
+      "path": "tests/test_video_quality_regressions.py",
+      "sha256": "a0168afe9e5cf8644d9b788e5f18e4595f9f071e92b263bc0dd75f76a8841964"
+    }
+  ],
+  "log_sha256": "9adcd29e13c79766355a156ea6883191e50965632c0c8e06675b2977352bb055",
+  "limits": [
+    "uncalibrated engineering image quality flags",
+    "human declarations are not independently verified",
+    "no field water quality accuracy, pollution responsibility, or new live LLM/RAG effectiveness claim",
+    "frontend strict checks cover the established API/store boundary, not every Vue template"
+  ]
+}

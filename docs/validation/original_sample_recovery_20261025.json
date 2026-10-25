@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-25",
+  "project_name": "111",
+  "saved_revision": 4,
+  "rows": 1805,
+  "frames": 147,
+  "new_report_not_original_text": true,
+  "analysis_status": "partial",
+  "analysis_steps": {
+    "get_data_summary": "succeeded",
+    "find_black_spots": "succeeded",
+    "analyze_video": "succeeded",
+    "cross_validate_video": "succeeded",
+    "get_comprehensive_summary": "succeeded",
+    "reverse_geocode": "succeeded",
+    "search_nearby_pollution_sources": "succeeded",
+    "get_national_station_data": "succeeded",
+    "get_satellite_image": "succeeded",
+    "search_treatment_cases": "failed",
+    "generate_final_report": "succeeded"
+  },
+  "water_roi_confirmed": false,
+  "video_sync_confirmed": false,
+  "fresh_process_restore_verified": true,
+  "source_files_unchanged": true,
+  "original_project_files_preserved": {
+    ".env": true,
+    "_uploaded_data.xlsx": true,
+    ".rag_index/chroma.sqlite3": true,
+    "data/projects/projects.sqlite3": true
+  },
+  "source_excel_sha256": "dd5faf3d0b6c3ef1c5fd34b76122287efd520e591770130ab437337a0e854b13",
+  "source_video_sha256": "936bcffaa4528c822527b99da494e0c1707ce45a3ded0e2bf6ddd7018ff781d4",
+  "project_package_sha256": "6a737ebf22f8f608f4682511c6681708c3494d85d98a3a7a0e84151a14e45b0a",
+  "export_package_bytes": 10494038,
+  "log_sha256": "7cad963ff112bc0b11581591e02317f1d51343bb6a63219888b15cc0f082bfbf",
+  "limitations": [
+    "核心预览环境缺少知识库可选依赖，检索失败，不补造案例",
+    "视频区域与同步仍待核实",
+    "不是现场准确率或污染责任验证"
+  ],
+  "preview": "http://127.0.0.1:5179/chat"
+}

@@ -1,0 +1,333 @@
+{
+  "date": "2026-10-23",
+  "task": "Q09",
+  "scope": "UI rendering, accessibility, controlled performance; not field accuracy or new Agent evaluation",
+  "status": "complete",
+  "frontend": {
+    "typecheck": "passed",
+    "tests": 109,
+    "baseline_tests": 93,
+    "new_tests": 16,
+    "failures": 0,
+    "production_build": "passed"
+  },
+  "final_ci": "passed",
+  "final_ci_environment": "local Windows; Q09 remote Actions not run",
+  "python_regressions": 421,
+  "backend_response_contracts": 15,
+  "existing_checks": {
+    "generalization": 21,
+    "http": 16,
+    "secrets": 9,
+    "video_cross_validation": "skipped: no video frames"
+  },
+  "browser": {
+    "baseline": {
+      "viewport": 390,
+      "clientWidth": 382,
+      "scrollWidth": 855,
+      "mainWidth": 90
+    },
+    "layouts": [
+      {
+        "route": "chat",
+        "width": 320,
+        "charts": 0,
+        "client": 312,
+        "heading": "智能对话",
+        "main": 312,
+        "renderedCharts": 0,
+        "scroll": 312
+      },
+      {
+        "route": "chat",
+        "width": 390,
+        "charts": 0,
+        "client": 382,
+        "heading": "智能对话",
+        "main": 382,
+        "renderedCharts": 0,
+        "scroll": 382
+      },
+      {
+        "route": "chat",
+        "width": 768,
+        "charts": 0,
+        "client": 760,
+        "heading": "智能对话",
+        "main": 468,
+        "renderedCharts": 0,
+        "scroll": 760
+      },
+      {
+        "route": "chat",
+        "width": 1280,
+        "charts": 0,
+        "client": 1272,
+        "heading": "智能对话",
+        "main": 980,
+        "renderedCharts": 0,
+        "scroll": 1272
+      },
+      {
+        "route": "river",
+        "width": 320,
+        "charts": 0,
+        "client": 312,
+        "heading": "水动力-水质模型",
+        "main": 312,
+        "renderedCharts": 0,
+        "scroll": 312
+      },
+      {
+        "route": "river",
+        "width": 390,
+        "charts": 0,
+        "client": 382,
+        "heading": "水动力-水质模型",
+        "main": 382,
+        "renderedCharts": 0,
+        "scroll": 382
+      },
+      {
+        "route": "river",
+        "width": 768,
+        "charts": 0,
+        "client": 760,
+        "heading": "水动力-水质模型",
+        "main": 468,
+        "renderedCharts": 0,
+        "scroll": 760
+      },
+      {
+        "route": "river",
+        "width": 1280,
+        "charts": 0,
+        "client": 1272,
+        "heading": "水动力-水质模型",
+        "main": 980,
+        "renderedCharts": 0,
+        "scroll": 1272
+      },
+      {
+        "route": "tech",
+        "width": 320,
+        "charts": 1,
+        "client": 312,
+        "heading": "核心技术能力展示",
+        "main": 312,
+        "renderedCharts": 0,
+        "scroll": 312
+      },
+      {
+        "route": "tech",
+        "width": 390,
+        "charts": 1,
+        "client": 382,
+        "heading": "核心技术能力展示",
+        "main": 382,
+        "renderedCharts": 0,
+        "scroll": 382
+      },
+      {
+        "route": "tech",
+        "width": 768,
+        "charts": 1,
+        "client": 760,
+        "heading": "核心技术能力展示",
+        "main": 468,
+        "renderedCharts": 0,
+        "scroll": 760
+      },
+      {
+        "route": "tech",
+        "width": 1280,
+        "charts": 1,
+        "client": 1272,
+        "heading": "核心技术能力展示",
+        "main": 980,
+        "renderedCharts": 1,
+        "scroll": 1272
+      },
+      {
+        "route": "charts",
+        "width": 390,
+        "charts": 4,
+        "client": 382,
+        "heading": "传感器质量复核",
+        "main": 382,
+        "renderedCharts": 2,
+        "scroll": 382
+      },
+      {
+        "route": "charts",
+        "width": 768,
+        "charts": 4,
+        "client": 760,
+        "heading": "传感器质量复核",
+        "main": 468,
+        "renderedCharts": 2,
+        "scroll": 760
+      },
+      {
+        "route": "charts",
+        "width": 1280,
+        "charts": 4,
+        "client": 1272,
+        "heading": "传感器质量复核",
+        "main": 980,
+        "renderedCharts": 2,
+        "scroll": 1272
+      },
+      {
+        "route": "charts",
+        "width": 320,
+        "charts": 4,
+        "client": 312,
+        "heading": "传感器质量复核",
+        "main": 312,
+        "renderedCharts": 4,
+        "scroll": 312
+      }
+    ],
+    "interactions": [
+      {
+        "check": "mobile drawer focus trap / Escape / focus restore",
+        "passed": true
+      },
+      {
+        "check": "Markdown headings/table/zero retained; executable nodes and unsafe links absent",
+        "passed": true
+      },
+      {
+        "check": "model initialize → steady hydraulics → pollution event → next frame",
+        "passed": true,
+        "sections": 20,
+        "hours": 1,
+        "frames": 61,
+        "frameObserved": 2
+      },
+      {
+        "check": "desktop sidebar collapsed state survives reload",
+        "passed": true
+      },
+      {
+        "check": "report original-source view and formatted view switch",
+        "passed": true
+      }
+    ],
+    "mapBefore": "{\"heatRedraws\":4,\"mapClicks\":0,\"lastClickToPaintMs\":null}",
+    "mapSelection1": {
+      "heading": "采样点 #541 · 达标\n关闭",
+      "audit": "{\"heatRedraws\":4,\"mapClicks\":1,\"lastClickToPaintMs\":46.6}"
+    },
+    "mapSelection2": {
+      "heading": "采样点 #543 · 达标\n关闭",
+      "audit": "{\"heatRedraws\":4,\"mapClicks\":1,\"lastClickToPaintMs\":46.6}"
+    }
+  },
+  "benchmark": {
+    "scope": "Synthetic screen-space workload; not field accuracy, FPS, or cross-device latency",
+    "points": 1805,
+    "canvas": [
+      900,
+      548
+    ],
+    "radius": 26,
+    "runs": 9,
+    "raster_ms": {
+      "median": 124.2722,
+      "samples": [
+        124.42459999999994,
+        123.83369999999991,
+        123.96069999999997,
+        128.40740000000005,
+        124.2722,
+        124.7201,
+        123.92439999999988,
+        123.83369999999991,
+        124.47030000000018
+      ]
+    },
+    "three_immediate_redraws_ms": {
+      "median": 405.20960000000014,
+      "samples": [
+        376.2642000000001,
+        405.20960000000014,
+        440.5041000000001,
+        398.0821000000001,
+        421.23640000000023,
+        402.10059999999976,
+        419.0596999999998,
+        398.4387000000006,
+        416.7556999999997
+      ]
+    },
+    "three_scheduled_requests_ms": {
+      "median": 134.20719999999983,
+      "samples": [
+        134.20719999999983,
+        138.3194999999996,
+        130.03409999999985,
+        132.5081,
+        134.59349999999995,
+        131.5675999999994,
+        148.9429,
+        149.35410000000047,
+        130.15679999999975
+      ]
+    },
+    "report": {
+      "characters": 5300,
+      "runs": 15,
+      "median_ms": 5.934999999999491
+    }
+  },
+  "dependencies": {
+    "added": {
+      "node_modules/argparse": "3.0.3",
+      "node_modules/linkify-it": "6.1.0",
+      "node_modules/markdown-it": "15.0.3",
+      "node_modules/markdown-it/node_modules/entities": "8.1.0",
+      "node_modules/mdurl": "2.1.0",
+      "node_modules/punycode.js": "2.3.1",
+      "node_modules/uc.micro": "3.0.0"
+    },
+    "changed_existing_versions": {}
+  },
+  "bundle_before": {
+    "files": 11,
+    "bytes": 1041070,
+    "gzip_bytes": 354072
+  },
+  "bundle_after": {
+    "files": 11,
+    "bytes": 1147262,
+    "gzip_bytes": 398364
+  },
+  "limitations": [
+    "Single desktop Chromium with viewport overrides; not real-device coverage",
+    "Map timings and synthetic pixel benchmark are not FPS or cross-device guarantees",
+    "Safety fixture text is hand-written, not a new LLM result",
+    "Markdown disables raw HTML and automatic image loading; source text remains available",
+    "No new backend numerical algorithm, RAG, video or field-accuracy claims"
+  ],
+  "resolved_fixture_failure": "The first test package swapped the internal detection arguments and was correctly rejected with HTTP 400; corrected and validated through load_project before successful UI import.",
+  "runtime_cache_audit": {
+    "primary_RAG_document_texts_match_retained_reference": true,
+    "RAG_documents": 147,
+    "SQLite_quick_check": "ok",
+    "terrain_entries_retained": 5,
+    "preview_cache_isolation": {
+      "checks": [
+        "RAG status 29 documents / 147 chunks",
+        "river suggestions and model execution",
+        "saved 61-frame result restored after service restart"
+      ],
+      "primary_cache_hashes_unchanged": true,
+      "isolated_rag_directory": "work/q09-live-rag-index",
+      "isolated_terrain_file": "work/q09-terrain-cache.json"
+    },
+    "note": "First preview updated rebuildable RAG SQLite metadata and terrain cache; retained and disclosed, never rolled back."
+  }
+}

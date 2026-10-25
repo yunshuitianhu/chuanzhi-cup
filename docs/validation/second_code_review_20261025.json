@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-25",
+  "scope": "第二轮近期代码复审",
+  "backend_tests": 460,
+  "frontend_tests": 133,
+  "new_backend_tests": 6,
+  "new_frontend_tests": 8,
+  "existing_test_adjustment": "RAG就绪旧用例改用受控encode/query路径，避免只mock私有返回值而漏掉空库反例",
+  "findings": [
+    {
+      "issue": "质控草稿在无关结果刷新、切换失败或延迟响应中丢失/被旧上下文覆盖",
+      "fixed": true
+    },
+    {
+      "issue": "编辑期间后台参数变化没有冲突提示",
+      "fixed": true
+    },
+    {
+      "issue": "质控分页快速重复点击可产生负偏移或越界请求",
+      "fixed": true
+    },
+    {
+      "issue": "RAG空库查询未执行模型仍标记检索已验证",
+      "fixed": true
+    },
+    {
+      "issue": "冷启动并发重复创建嵌入模型或默认引擎",
+      "fixed": true
+    },
+    {
+      "issue": "get_rag_engine显式索引参数被旧单例忽略",
+      "fixed": true
+    },
+    {
+      "issue": "上传先无界读入文件，再检查大小上限",
+      "fixed": true
+    }
+  ],
+  "checks": {
+    "typecheck": true,
+    "production_build": "vite build --configLoader runner",
+    "data_fields": true,
+    "frontend_fields": true,
+    "generalization": 21,
+    "http": 16,
+    "secrets": 9
+  },
+  "live_http": {
+    "parallel_retrieval": true,
+    "rows": 1805,
+    "video_frames": 147,
+    "frame_evidence": true,
+    "video_unconfirmed": true,
+    "rag_state": "ready",
+    "source_video_bytes": 265486416
+  },
+  "protected_restart": {
+    "saved_user_projects_before_stop": true,
+    "restored": true,
+    "project_name": "111",
+    "saved_revision": 7,
+    "rows": 1805,
+    "frames": 147,
+    "messages": 4,
+    "report_evidence": "current",
+    "rag": "ready"
+  },
+  "preserved_files": {
+    ".env": true,
+    "_uploaded_data.xlsx": true,
+    ".rag_index/chroma.sqlite3": true,
+    "data/projects/projects.sqlite3": true
+  },
+  "log_sha256": "dd70dbb9debaa565bc637f7ff749ee414dc885973d193e6f7857975e31cd5f17",
+  "applied_files": [
+    {
+      "path": "frontend/src/components/DataQualityPanel.vue",
+      "sha256": "9ab1ffff76e285ad89d799f10c99a935f5647888eae942bd276cd02cd198b9eb"
+    },
+    {
+      "path": "frontend/src/components/VideoQuality.vue",
+      "sha256": "583bef25668fe478a22d9ea34f28b98029adeb64baa5336c35b17a39e92ad821"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/rag_engine.py",
+      "sha256": "4bf149b056bfbfff7507ad136972292128e98c1ef446844588cc8503be4fe51b"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/report.py",
+      "sha256": "eb4c5993452fb6a84c6c444b23fa95b97d56997349f9f6fa0e8d9cc3772916cc"
+    },
+    {
+      "path": "backend/routers/data.py",
+      "sha256": "167716d5ff9e4b67ee761542977bc9354dd5b836741a7954f9c4f2e9645ca466"
+    },
+    {
+      "path": "tests/test_second_review_regressions.py",
+      "sha256": "9dfc7431962a1d552eed058ec49bc6a95ba97701800b249ed1fdaefbecc46256"
+    },
+    {
+      "path": "tests/test_rag_readiness_regressions.py",
+      "sha256": "2a0b61641edcb44753365ee4f96acfa0d3bf44a52c2b83f49a82bb32d6cbb272"
+    },
+    {
+      "path": "frontend/tests/dataQualityState.test.mjs",
+      "sha256": "3a5d191b8a1d8de8713040a341b56c8d0d877a776c187f302117813c6f7bd712"
+    },
+    {
+      "path": "frontend/tests/videoReviewState.test.mjs",
+      "sha256": "f7cfed55da915347f239a6cc1e3eb7ad971de18128f937372982e4639c1a8b41"
+    }
+  ],
+  "limits": [
+    "并发初始化反例使用受控构造器，不是生产压力测试",
+    "真实检索与上传验证不代表现场准确率",
+    "没有新增大模型语义质量评测",
+    "没有新增真实浏览器视觉验收",
+    "后台参数冲突保护以本次页面取得的快照为准，非跨客户端完整事务版本控制"
+  ]
+}

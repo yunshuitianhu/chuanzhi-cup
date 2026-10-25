@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-25",
+  "scope": "知识库运行环境恢复与就绪状态诊断",
+  "project_root": "E:/E-Desktop/传智杯-备赛",
+  "backend_tests": 454,
+  "frontend_tests": 125,
+  "typecheck": true,
+  "production_build": "vite build --configLoader runner",
+  "legacy_checks": {
+    "data_fields": true,
+    "frontend_fields": true,
+    "generalization": 21,
+    "http": 16,
+    "secrets": 9
+  },
+  "dependencies": {
+    "python": "3.12.14",
+    "chromadb": "1.5.8",
+    "torch": "2.14.1+cpu",
+    "sentence_transformers": "5.5.1",
+    "new_package_or_model_downloads": false,
+    "model": "shibing624/text2vec-base-chinese",
+    "embedding_dimensions": 768
+  },
+  "index": {
+    "source_documents": 29,
+    "chunks": 147,
+    "working_copy": true,
+    "original_index_unchanged": true
+  },
+  "http_retrieval": {
+    "query_count": 3,
+    "cases_per_query": 3,
+    "source_files_and_snippets_checked": true,
+    "state": "ready"
+  },
+  "protected_restart": {
+    "user_projects_saved_and_exported_before_stop": true,
+    "restored_input_records": 1805,
+    "restored_frames": 147,
+    "restored_previous_messages": 2
+  },
+  "actual_agent": {
+    "project": "111",
+    "saved_revision": 6,
+    "status": "succeeded",
+    "steps": {
+      "get_data_summary": "succeeded",
+      "find_black_spots": "succeeded",
+      "analyze_video": "succeeded",
+      "cross_validate_video": "succeeded",
+      "get_comprehensive_summary": "succeeded",
+      "reverse_geocode": "succeeded",
+      "search_nearby_pollution_sources": "succeeded",
+      "get_satellite_image": "succeeded",
+      "get_national_station_data": "succeeded",
+      "search_treatment_cases": "succeeded",
+      "generate_final_report": "succeeded"
+    },
+    "messages_after_run": 4,
+    "evidence_status": "current",
+    "unique_reference_sources": 7,
+    "reference_entries": 13,
+    "final_cited_ids": 8,
+    "native_report_cited_ids": 2,
+    "cited_ids_exist": true,
+    "source_snippets_match_local_documents": true,
+    "fresh_process_restore_verified": true,
+    "water_roi_confirmed": false,
+    "video_sync_confirmed": false,
+    "video_cross_validation_status": "未判定"
+  },
+  "preserved_files": {
+    ".env": true,
+    "_uploaded_data.xlsx": true,
+    ".rag_index/chroma.sqlite3": true,
+    "data/projects/projects.sqlite3": true
+  },
+  "project_package_sha256": "8d8e34b44db47a6d417ca707d84c27ac861bd63a61ddf7ae2e55358cd5f667b0",
+  "log_sha256": "21bf46e50920d7af1e393fb9359b97cb92e06ecf996a5e1a7153abcce2255fba",
+  "applied_files": [
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/rag_engine.py",
+      "sha256": "d0ddcafe20d6e4fc8f05c93f8ed1b9576a9e287a6c9c11ef134d43de61ebbc9a"
+    },
+    {
+      "path": "backend/routers/rag.py",
+      "sha256": "e1bc300f045c5da6c8e4f934bee0496dd53ac79be54ee43b89eb7b65e40b9459"
+    },
+    {
+      "path": "frontend/src/components/RagSearch.vue",
+      "sha256": "31bfb3e320b680545558a1fd54f9f5b266911f07862ccdd850c465c925cec3f2"
+    },
+    {
+      "path": "scripts/serve_web.py",
+      "sha256": "75f21e5e293f38225b95b3524ee6b50aeed54c47ff34d01644692ec882a1d868"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "ed1d7089a82eaf2dc2ff0f7f5a95467aaa169091f8eb34c99ceeb0a27e3d093c"
+    },
+    {
+      "path": "tests/test_rag_readiness_regressions.py",
+      "sha256": "ccc66b396922426e6fc39d92476f4b83078e9a632e40acb40b7803431695baa0"
+    },
+    {
+      "path": "frontend/tests/amapLayer.test.mjs",
+      "sha256": "799c9273a4f003b40d3ba1a6b17b921ae88cc8e5845c2bfffb5fabf7bf4cfdce"
+    }
+  ],
+  "limits": [
+    "依赖探测不等于实际检索；状态页已区分",
+    "引用ID有效和本地原文相符不证明资料真实性或建议适用性",
+    "没有新现场准确率、污染责任或新增独立留出评测",
+    "正文仍须核对语义、单位、时段和质控统计口径",
+    "未进行新增实际浏览器视觉验收"
+  ]
+}

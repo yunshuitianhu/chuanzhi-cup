@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-25",
+  "scope": "Q11前代码复审；Q11未开始",
+  "backend_tests": 447,
+  "frontend_tests": 123,
+  "new_backend_tests": 5,
+  "new_frontend_tests": 7,
+  "typecheck": true,
+  "production_build": "vite build --configLoader runner",
+  "legacy_checks": {
+    "data_fields": true,
+    "frontend_fields": true,
+    "generalization": 21,
+    "http": 16,
+    "secrets": 9
+  },
+  "findings": [
+    {
+      "priority": "P1",
+      "issue": "视频写入令牌不区分同一视频的项目与数据上下文",
+      "fixed": true
+    },
+    {
+      "priority": "P1",
+      "issue": "同内容不同帧列表继续命中旧缓存，帧读取持续409",
+      "fixed": true
+    },
+    {
+      "priority": "P2",
+      "issue": "单帧慢请求、切换项目、草稿范围和短视频分页状态保护不足",
+      "fixed": true
+    },
+    {
+      "priority": "P2",
+      "issue": "RAG初始化存储错误绕过降级边界导致HTTP500",
+      "fixed": true
+    },
+    {
+      "priority": "P2",
+      "issue": "通用潮汐限制可能混入未运行模型的本轮报告",
+      "fixed_at": "prompt constraints and deterministic model header; live wording not newly assessed"
+    }
+  ],
+  "http_acceptance": {
+    "unconfirmed_state": "未判定",
+    "confirmed_state": "探索性线索对照",
+    "controlled_eligible_after_exclusion": 3,
+    "fresh_process_restore": true,
+    "old_context_write_rejected": true,
+    "sample_frames": 147,
+    "sample_unconfirmed": true,
+    "spa_routes": {
+      "/charts": true,
+      "/river": true,
+      "/tech": true,
+      "/chat": true
+    }
+  },
+  "rag_runtime": {
+    "available": false,
+    "live_http": 503,
+    "reason": "核心验收环境未安装可选ChromaDB/嵌入依赖；未伪造案例或宣称恢复成功"
+  },
+  "preserved_files": {
+    ".env": true,
+    "_uploaded_data.xlsx": true,
+    ".rag_index/chroma.sqlite3": true,
+    "data/projects/projects.sqlite3": true
+  },
+  "evidence_version": "evidence-2026-10-25-v9",
+  "preview_restart_incident": {
+    "service": "5179隔离预览",
+    "saved_project": "111空快照仍在",
+    "unsaved_upload_and_chat_state": "用户确认原始Excel与视频后已重新加载、生成新报告并保存111-v4；不是原报告原文",
+    "original_files_deleted": false,
+    "saved_projects_deleted": false,
+    "follow_up": "后续服务更新前先保存相关会话，并在重启后核对恢复；不得只检查任务空闲",
+    "recovery_record": "original_sample_recovery_20261025.json"
+  },
+  "applied_files": [
+    {
+      "path": "backend/routers/video.py",
+      "sha256": "6350eed7e068707d697a2988c08508fd27a02522b56ca1746cfee221fe564ac5"
+    },
+    {
+      "path": "frontend/src/components/VideoQuality.vue",
+      "sha256": "94e27086440e429bb1d62d91972c1c2f51012619486d625ad9b8b7469cb0eb1c"
+    },
+    {
+      "path": "backend/agent/tools.py",
+      "sha256": "ba0ae235528411ef980f2525a2cc2c61ba39f50da52ae80486d9266336edb33f"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/rag_engine.py",
+      "sha256": "820dbeb3a51a1bd00f0c92a0ae74c9347805e7994f907d6ab556733a63bc93a2"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/report.py",
+      "sha256": "ed5a4e0774eaf07de2bb99b55aabf69c67f034b548a4525f9815a5c807b08f93"
+    },
+    {
+      "path": "water_quality_mcp/src/water_quality_mcp/evidence.py",
+      "sha256": "c4742adbd42fe7aef451d148a546fcfaa0e6e3c8b61fde8b40d1e4ef563fb7ce"
+    },
+    {
+      "path": "tests/test_pre_q11_review_regressions.py",
+      "sha256": "b0ce1d9552805befb612c374637b2e606753987e9c513cd29b8871bdcb1642f2"
+    },
+    {
+      "path": "frontend/tests/videoReviewState.test.mjs",
+      "sha256": "0dc74ca753470aaa7483d6e330cfa6db4b07f2438c8c4d3f03201c86b2d55698"
+    }
+  ],
+  "log_sha256": "55d6c7ac7f786708b188514bd6d43d60d72823b46dfa67fc96d18bd6f27566ce",
+  "limits": [
+    "没有保证零bug",
+    "没有新增真实RAG成功验收",
+    "没有新一轮大模型措辞质量或现场准确率评测",
+    "本轮未做Windows界面操作或新增截图"
+  ]
+}

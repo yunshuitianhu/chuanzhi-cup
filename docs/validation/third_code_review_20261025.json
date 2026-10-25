@@ -1,0 +1,111 @@
+{
+  "date": "2026-10-25",
+  "scope": "第三轮代码复审",
+  "backend_tests": 465,
+  "frontend_tests": 154,
+  "new_backend_tests": 5,
+  "new_frontend_tests": 21,
+  "findings": [
+    "技术查询过期响应与失败保留旧结果",
+    "多渠道查询与数据替换并发混合身份",
+    "站点新事实未撤销旧报告完成状态",
+    "相同记录数/分析版本跨项目统计未刷新",
+    "预览并发、清空及过期错误",
+    "站点无效坐标或半径未在边界拒绝"
+  ],
+  "checks": {
+    "typecheck": true,
+    "production_build": true,
+    "data_fields": true,
+    "frontend_fields": true,
+    "generalization": 21,
+    "http": 16,
+    "secrets": 9
+  },
+  "network_boundary": "多渠道锁测试使用受控源，真实HTTP使用离线站点；未认证外部实时数据持续可用",
+  "browser_visual_check": false,
+  "isolated_http": {
+    "isolated_port": 5183,
+    "page_and_asset_http": true,
+    "rows": 1805,
+    "offline_station_query": true,
+    "results_revision_increment": true,
+    "detection_preserved": true,
+    "invalid_query_422": 3,
+    "save_revision": 2
+  },
+  "protected_restart": {
+    "restored": true,
+    "projects": [
+      {
+        "name": "111",
+        "revision": 8,
+        "rows": 1805,
+        "frames": 147,
+        "messages": 4,
+        "report_evidence": "current"
+      }
+    ],
+    "rag_ready": true,
+    "served_new_frontend": true,
+    "original_files_unchanged": true,
+    "backup_secrets_found": false,
+    "service_port": 5179
+  },
+  "original_files_unchanged": true,
+  "q11_started": false,
+  "tests": {
+    "log_sha256": "3ba8e8e1eaafc74adcd0bb5e4fcac5f0503a4ff12c1cc2fe5cba6aef9fc9ad2e"
+  },
+  "frontend_log_sha256": "7d4994bab5d34be8c62cfa63bbb8529a176ad36273a8c19891f1de259ac07e35",
+  "applied_files": [
+    {
+      "path": "frontend/src/components/MultiSourceTrace.vue",
+      "sha256": "3f9e7d3785ec98b2171ac99a15e24d66482d0bb287ea9d234d521a354cc66bab"
+    },
+    {
+      "path": "frontend/src/components/StationQuery.vue",
+      "sha256": "f279ce49c9a4cd2d753c483b879c7312ca3d480bd3edcaea2039dbf659b04596"
+    },
+    {
+      "path": "frontend/src/components/SummaryCards.vue",
+      "sha256": "b8c3a2e0c800aa6780bd27811e36402caf3e6d46e0646bfbed549b66d8b0e6bd"
+    },
+    {
+      "path": "frontend/src/stores/session.js",
+      "sha256": "4093d65910efa9287036c17dba836ea6d1db184150e92986d974c8c311640389"
+    },
+    {
+      "path": "frontend/src/types/contracts.ts",
+      "sha256": "a2beda09345374436653de61f9bfe7252bf861372024d5ae12f547ca90cf2718"
+    },
+    {
+      "path": "backend/routers/stations.py",
+      "sha256": "bd33d73f41027d56664b9b80e4d5c7e7d27b099573b5dc8ede263963e03b43c9"
+    },
+    {
+      "path": "backend/routers/trace.py",
+      "sha256": "256fd4147c11c55d04d3e32c05d69c15587093427105bcb254ff601204c94fb0"
+    },
+    {
+      "path": "backend/session.py",
+      "sha256": "30de29a7c25180e8714e44a22bf6266d555e5dd6757faa88e0bf2e1cf0e4bdb5"
+    },
+    {
+      "path": "backend/agent/tools.py",
+      "sha256": "452af9b1cd0146b0398dd1374b2ff468d8df551ce6553172567cec78454f3918"
+    },
+    {
+      "path": "frontend/tests/techQueryState.test.mjs",
+      "sha256": "e828859d9c5b62089b10eda2802a59eac90e3e0458b0e020b1ae176687526098"
+    },
+    {
+      "path": "frontend/tests/previewState.test.mjs",
+      "sha256": "ba087cf13ddce6dca0122a1668bceb9cc33d232185900327be8cc2723672a422"
+    },
+    {
+      "path": "tests/test_third_review_regressions.py",
+      "sha256": "1f8843956391aad5194d0b8102d38bf7fef4e304e8f0baaa605c86c3c5860eec"
+    }
+  ]
+}
