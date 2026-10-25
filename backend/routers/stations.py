@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from water_quality_mcp.src.water_quality_mcp.national_station import get_national_station_data
 
@@ -37,9 +37,9 @@ def query(
     province: str = Query("", description="省份，如「广东省」"),
     keyword: str = Query("", description="站名或流域关键词"),
     live: bool = Query(True, description="true=实时接口，false=内置离线库"),
-    lat: float | None = Query(None),
-    lon: float | None = Query(None),
-    radius_km: int = Query(50),
+    lat: float | None = Query(None, ge=-90, le=90, allow_inf_nan=False),
+    lon: float | None = Query(None, ge=-180, le=180, allow_inf_nan=False),
+    radius_km: int = Query(50, ge=1),
     session: Session = Depends(get_exclusive_session),
 ) -> dict:
     """查询国控站点。
@@ -47,6 +47,8 @@ def query(
     实时模式必须给省份 —— 全量拉取全国 300+ 站点会让政府服务器超时，
     内核已对此做了保护（无省份时直接降级离线库）。
     """
+    if (lat is None) != (lon is None):
+        raise HTTPException(422, "坐标查询须同时提供纬度和经度")
     raw = get_national_station_data(
         province=province, keyword=keyword,
         lat=lat, lon=lon, radius_km=radius_km, live=live,
@@ -56,7 +58,7 @@ def query(
     data['查询条件'] = {'省份': province, '关键词': keyword, '实时请求': live,
                         '纬度': lat, '经度': lon, '半径_km': radius_km}
     data['本次查询时间'] = datetime.now(timezone.utc).isoformat()
-    session.national_station_result = data
+    session.set_station_result(data)
     session.tool_evidence['get_national_station_data'] = json.dumps(data, ensure_ascii=False)
     # 站点列表可能很长，前端一次展示不了那么多；保留前 50 条并告知总数
     stations = data.get("站点列表", []) or []

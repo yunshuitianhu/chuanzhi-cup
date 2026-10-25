@@ -8,15 +8,18 @@
 import { computed, ref, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import EChart from './EChart.vue'
+import VideoQuality from './VideoQuality.vue'
 import { toastErr, toastOk } from '../composables/useToast'
 
 const store = useSessionStore()
 const offset = ref(0)
 const windowSec = ref(30)
-const result = computed(() => store.crossValidation)
+const rawResult = computed(() => store.crossValidation)
+const result = computed(() => rawResult.value?.['视频质量版本']==='video-quality-v1'?rawResult.value:null)
 const running = ref(false)
 
 const hasVideo = computed(() => store.status.video_frames > 0)
+function videoUpdated(settings){offset.value=settings.time_offset_sec;windowSec.value=settings.time_window_sec}
 
 async function run() {
   running.value = true
@@ -25,7 +28,9 @@ async function run() {
       time_offset_sec: Number(offset.value),
       time_window_sec: Number(windowSec.value),
     })
-    toastOk('交叉印证完成')
+    toastOk(store.crossValidation?.['状态']==='未判定'
+      ? '对照检查完成：条件不足，当前未判定'
+      : '探索性线索对照完成')
   } catch (e) {
     toastErr(`交叉印证失败：${e.message}`)
   } finally {
@@ -98,7 +103,7 @@ const alignment = computed(() => result.value?.['时间对齐'] || {})
 const agreement = computed(() => result.value?.['黑臭判定一致性'] || {})
 const findings = computed(() => result.value?.['关键发现'] || [])
 
-watch([() => alignment.value['时间偏移秒'], () => alignment.value['匹配窗口秒']], ([offsetSec, width]) => {
+watch([() => rawResult.value?.['时间对齐']?.['时间偏移秒'], () => rawResult.value?.['时间对齐']?.['匹配窗口秒']], ([offsetSec, width]) => {
   if (Number.isFinite(offsetSec)) offset.value = offsetSec
   if (Number.isFinite(width)) windowSec.value = width
 }, { immediate:true })
@@ -110,6 +115,8 @@ watch([() => alignment.value['时间偏移秒'], () => alignment.value['匹配�
   </div>
 
   <template v-else>
+    <VideoQuality @updated="videoUpdated" />
+    <p v-if="rawResult && !result" class="interp">历史视频结果未按当前区域、质量与同步规则核实，请重新运行；历史比例不作为当前结果。</p>
     <div class="controls">
       <label>
         时间偏移 (秒)
@@ -133,17 +140,17 @@ watch([() => alignment.value['时间偏移秒'], () => alignment.value['匹配�
           <span class="m-sub">/ {{ alignment['总视频帧数'] ?? '—' }}</span>
         </div>
         <div class="metric">
-          <span class="m-label">黑臭判定一致率</span>
+          <span class="m-label">暗色线索与预警对照符合比例</span>
           <span class="m-val">{{ agreement['一致率_%'] ?? '—' }}<small>%</small></span>
-          <span class="m-sub">{{ agreement['双方一致_黑臭'] ?? 0 }} 帧双方判黑</span>
+          <span class="m-sub">可分析匹配 {{alignment['可分析匹配帧数'] ?? '未记录'}} 帧</span>
         </div>
         <div class="metric">
-          <span class="m-label">视频预警符合率</span>
+          <span class="m-label">暗色线索对应传感器预警比例</span>
           <span class="m-val">{{ agreement['视频预警符合率_%'] ?? agreement['视频判黑准确率_%'] ?? '—' }}<small>%</small></span>
           <span class="m-sub">以传感器阈值预警为参照</span>
         </div>
         <div class="metric">
-          <span class="m-label">传感器预警的视频覆盖率</span>
+          <span class="m-label">传感器预警的暗色线索覆盖率</span>
           <span class="m-val">{{ agreement['传感器预警视频覆盖率_%'] ?? agreement['视频判黑召回率_%'] ?? '—' }}<small>%</small></span>
         </div>
       </div>

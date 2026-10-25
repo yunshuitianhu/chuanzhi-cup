@@ -43,6 +43,7 @@ export const useSessionStore = defineStore('session', {
     statusRequest: 0,
     resultsRequest: 0,
     projectRequest: 0,
+    previewRequest: 0,
     investigationRevision: 0,
     selectedInvestigationId: '',
   }),
@@ -186,7 +187,7 @@ export const useSessionStore = defineStore('session', {
 
     /** @param {() => Promise<import('../types/contracts').ProjectState>} request */
     async changeProject(request) {
-      this.statusRequest++; this.resultsRequest++; this.projectRequest++
+      this.statusRequest++; this.resultsRequest++; this.projectRequest++; this.previewRequest++
       this.switchingProject = true
       try { await this.adoptProject(await request()) }
       finally { this.switchingProject = false }
@@ -268,6 +269,8 @@ export const useSessionStore = defineStore('session', {
       else {
         this.blackSpots = this.crossValidation = this.comprehensive = null
         this.resultsWarnings = []
+        this.previewRequest++
+        this.preview = { columns:[], rows:[], total:0 }
       }
     },
 
@@ -294,8 +297,22 @@ export const useSessionStore = defineStore('session', {
 
     /** @param {number} [limit] */
     async refreshPreview(limit = 50) {
-      if (!this.status.has_data) return
-      this.preview = await api.preview(limit)
+      const request = ++this.previewRequest
+      if (!this.status.has_data) {
+        this.preview = { columns:[], rows:[], total:0 }
+        return
+      }
+      const project = this.projectState.current?.id, workspace = this.workspaceRevision
+      const revision = this.status.analysis_revision, switching = this.switchingProject
+      const current = () => request === this.previewRequest && project === this.projectState.current?.id
+        && workspace === this.workspaceRevision && revision === this.status.analysis_revision
+        && switching === this.switchingProject && this.status.has_data
+      try {
+        const result = await api.preview(limit)
+        if (current()) this.preview = result
+      } catch (error) {
+        if (current()) throw error
+      }
     },
 
     /** @param {File} file */

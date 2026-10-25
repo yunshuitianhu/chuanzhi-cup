@@ -80,3 +80,15 @@ test('工具和报告中的HTML仅显示为文本',async()=>{
   assert.doesNotMatch(html,/<img\b/)
   assert.match(html,/&lt;img/)
 })
+
+test('报告安全排版与原文入口并存，工具日志保持纯文本',async()=>{
+  const {default:Bubble}=await server.ssrLoadModule('/src/components/ChatBubble.vue')
+  async function render(role) {
+    const app=createSSRApp(Bubble,{role,content:'## 受控报告\n\n**DO为0**'});app.use(createPinia())
+    return renderToString(app)
+  }
+  const report=await render('assistant')
+  assert.match(report,/<h2>受控报告<\/h2>/);assert.match(report,/<strong>DO为0<\/strong>/)
+  assert.match(report,/查看原文/)
+  assert.doesNotMatch(await render('tool'),/<h2>|查看原文/)
+})

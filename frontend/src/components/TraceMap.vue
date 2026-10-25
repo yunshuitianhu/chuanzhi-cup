@@ -10,7 +10,7 @@
  *
  * 高德官方静态底图经后端取图；显示坐标转GCJ-02，原始数据保持WGS-84。
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { severityLayer } from '../utils/severityLayer'
@@ -26,13 +26,15 @@ const props = defineProps({simulation:{type:Object,default:null}, frameIndex:{ty
 
 const store = useSessionStore()
 const el = ref(null)
-const data = ref(null)
+const data = shallowRef(null)
+const displayed = computed(() => displayTrace(data.value, provider.value === 'amap'))
 const loading = ref(false)
 const showHeat = ref(true), showClusters = ref(false), showTop5 = ref(true)
 const showTrack = ref(false), heatRadius = ref(26), heatOpacity = ref(.94)
 const wrapper = ref(null), fullscreen = ref(false)
 let map = null
 let layerGroup = null
+let selectionGroup = null
 let baseLayer = null, resizeObserver = null, disposed = false, loadVersion = 0, sourceVersion = 0
 const provider = ref(store.config.keys.starcloud ? 'starcloud' : store.config.keys.amap ? 'amap' : 'esri')
 const baseState = ref('loading'), baseMessage = ref('正在加载底图…'), fallbackReason = ref('')
@@ -112,6 +114,7 @@ function initMap() {
   map = L.map(el.value, { zoomControl: true, attributionControl: true, minZoom:1, worldCopyJump:true })
   map.createPane('sampleFocus').style.zIndex = '625' // 高于Top5标记，低于提示和弹窗。
   layerGroup = L.layerGroup().addTo(map)
+  selectionGroup = L.layerGroup().addTo(map)
   map.setView([30, 105], 3)   // 中性初始视角；有数据后 fitBounds
   map.on('click', onMapClick)
   selectSource(provider.value)
@@ -121,7 +124,7 @@ function initMap() {
 
 function onMapClick(event) {
   if (props.simulation || !data.value) return
-  const d = displayTrace(data.value, provider.value === 'amap')
+  const d = displayed.value
   nearbyIds.value = nearestSamples(d.samples, event.containerPoint || map.latLngToContainerPoint(event.latlng),
     coord=>map.latLngToContainerPoint(coord), Math.max(heatRadius.value,14))
   selectedId.value = nearbyIds.value[0] ?? null
@@ -153,8 +156,9 @@ function renderSimulation(fit) {
 function render(fit = false) {
   if (!map || !layerGroup) return
   layerGroup.clearLayers()
+  selectionGroup.clearLayers()
   if (props.simulation) { renderSimulation(fit); return }
-  const d = displayTrace(data.value, provider.value === 'amap')
+  const d = displayed.value
   if (!d) return
 
   // 轨迹
@@ -215,7 +219,13 @@ function render(fit = false) {
       + `浊度：${p.turbidity ?? '—'} NTU`,
     )
   }
-  const selected=d.samples?.find(s=>s.id === selectedId.value)
+  renderSelection()
+}
+
+function renderSelection() {
+  if (!selectionGroup || props.simulation) return
+  selectionGroup.clearLayers()
+  const selected=displayed.value?.samples?.find(s=>s.id === selectedId.value)
   if (selected) {
     const node=document.createElement('div')
     node.className='sample-popup'
@@ -226,7 +236,7 @@ function render(fit = false) {
     if (selected.quality) node.textContent += '\n质控：' + selected.quality.label
       + '\n' + selected.quality.reasons.map(r=>r.message).join('、') + '\n标记不撤销阈值预警，不能确认仪器故障。'
     L.circleMarker(selected.coord,{pane:'sampleFocus',radius:9,color:'#fff',weight:3,fillColor:'#159aff',fillOpacity:1})
-      .addTo(layerGroup).bindPopup(node,{minWidth:240,maxWidth:310,maxHeight:280}).openPopup()
+      .addTo(selectionGroup).bindPopup(node,{minWidth:Math.min(240,map.getSize().x-60),maxWidth:310,maxHeight:280}).openPopup()
   }
 }
 
@@ -253,12 +263,12 @@ onMounted(() => { initMap(); load(); document.addEventListener('fullscreenchange
 onBeforeUnmount(() => {
   disposed = true; loadVersion++; sourceVersion++; resizeObserver?.disconnect()
   document.removeEventListener('fullscreenchange', updateFullscreen)
-  map?.remove(); map = null; layerGroup = null
+  map?.remove(); map = null; layerGroup = null; selectionGroup = null
 })
 
 watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision, store.status.detection_algorithm_version, store.status.results_revision], load)
 watch([showHeat, showClusters, showTop5, showTrack, heatRadius, heatOpacity], () => render())
-watch(selectedId,()=>render())
+watch(selectedId,renderSelection)
 function focusEvidence() {
   const sample=data.value?.samples?.find(s=>s.id===props.focusSampleId)
   selectedId.value=sample?.id??null
@@ -386,4 +396,9 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
 .gradient { width:205px; height:9px; border-radius:4px; background:linear-gradient(to right,#17a05c 0%,#58d352 12.5%,#ffd91e 25%,#ff7b18 37.5%,#ef2825 62.5%,#ac002d 100%); }
 .ticks { position:relative; height:20px; color:var(--c-sub); }
 .ticks span { position:absolute; transform:translateX(-50%); }
+@media(max-width:600px){
+  .basemap-options label{flex-wrap:wrap;max-width:100%}.basemap-options select{max-width:100%;min-width:0}
+  .map{height:460px;max-height:70dvh;min-height:320px}.legend{max-width:calc(100% - 20px)}.gradient{max-width:100%}
+  .layer-options{gap:10px}.heat-settings{margin-left:0}.heat-sliders{left:0;right:auto;width:min(270px,calc(100vw - 60px))}
+}
 </style>

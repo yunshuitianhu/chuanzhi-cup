@@ -35,6 +35,11 @@ button {
 }
 
 code, pre { font-family: Consolas, 'Courier New', monospace; }
+input,select,textarea { min-width:0; max-width:100%; }
+img,video { max-width:100%; }
+button,a,input,select,textarea,summary,[tabindex] { scroll-margin-top:80px; }
+:focus-visible { outline:2px solid var(--c-accent); outline-offset:3px; }
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 /* 通用滚动条（暗色主题下默认样式很突兀） */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

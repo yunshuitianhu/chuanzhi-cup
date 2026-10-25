@@ -141,7 +141,7 @@ async function submit(text,auto) {
       </button>
     </template>
 
-    <div v-if="!store.status.has_data" class="tip">请先在左侧上传并加载走航数据。</div>
+    <div v-if="!store.status.has_data" class="tip">请展开「项目与数据」上传并加载走航数据。</div>
     <div v-if="store.status.analysis_status === 'stale'" class="tip">检测或视频结果已更新，下方保留的是历史对话；请重新分析以生成当前报告。</div>
     <div v-else-if="store.status.detection_outdated" class="tip">历史检测与报告使用旧版证据口径，请重新分析。历史文字尚未按当前数据身份和走航时空限制复核。</div>
     <AgentProgress :run="store.agentRun" :elapsed="elapsed" :connection-error="store.agentConnectionError" @stop="stop" @sync="refreshRun" />
@@ -152,11 +152,11 @@ async function submit(text,auto) {
         点击右上角「开始自动分析」，或直接在下方提问。<br />
         <span class="ex">例如：「3 号聚类的主要污染物是什么？」「帮我对比上午和下午的氨氮分布」</span>
       </div>
-      <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" />
+      <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" @rendered="scrollDown" />
     </div>
 
     <form class="composer" @submit.prevent="send">
-      <input
+      <input aria-label="向水质分析助手提问"
         v-model="input"
         :disabled="!store.status.has_data || !store.ready || store.loading || running"
         placeholder="请输入问题…"
@@ -187,7 +187,7 @@ async function submit(text,auto) {
 
 .composer { display: flex; gap: 8px; border-top: 1px solid var(--c-border); padding-top: 12px; }
 .composer input {
-  flex: 1; background: var(--c-surface-2); border: 1px solid var(--c-border);
+  flex: 1; min-width:0; background: var(--c-surface-2); border: 1px solid var(--c-border);
   color: var(--c-ink); border-radius: 8px; padding: 10px 14px; font-family: inherit; font-size: 13px;
 }
 .composer input:focus { outline: none; border-color: var(--c-accent); }
@@ -196,4 +196,5 @@ async function submit(text,auto) {
   padding: 0 22px; border-radius: 8px; font-weight: 600;
 }
 .composer button:disabled { opacity: .4; cursor: not-allowed; }
+@media(max-width:600px){.stream{min-height:260px;max-height:65dvh}.composer input{padding:10px}.composer button{padding:0 15px}.placeholder{padding:35px 8px}.primary{min-height:40px}}
 </style>

@@ -593,24 +593,15 @@ def find_black_spots(df, config=None):
 
 
 def analyze_video_frames(frames):
-    """分析视频帧的浑浊度和颜色异常。"""
+    """返回区域、画面质量与暗色线索，不从模糊程度推断水体浑浊度。"""
     if not frames:
         return "无视频帧"
-    results = []
-    for f in frames[:20]:
-        buf = base64.b64decode(f['image_base64'])
-        img = cv2.imdecode(np.frombuffer(buf, np.uint8), cv2.IMREAD_COLOR)
-        if img is None:
-            continue
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        s, v = hsv[:, :, 1].mean(), hsv[:, :, 2].mean()
-        lap = cv2.Laplacian(gray, cv2.CV_64F).var()
-        turb = "清澈" if lap > 200 else ("轻微浑浊" if lap > 100 else ("中度浑浊" if lap > 30 else "重度浑浊"))
-        col = "疑似黑臭" if (s < 40 and v < 70) else "正常"
-        risk = "需关注" if turb in ["中度浑浊", "重度浑浊"] or col == "疑似黑臭" else "正常"
-        results.append(f"时间{f['time_sec']}s: 浑浊度={turb}, 颜色={col}, 风险={risk}")
-    return "\n".join(results)
+    from .video_quality import inspect_video
+    quality=inspect_video(frames)
+    return json.dumps({'版本':quality['version'],'视频质量':quality['summary'],
+        '同步核实':quality['settings']['sync_confirmed'],'逐帧复核':quality['rows'][:20],
+        '展示范围':'前20帧详情，质量计数覆盖全部抽帧；完整列表可在网页逐帧查看。',
+        '限制':quality['notice']},ensure_ascii=False,allow_nan=False)
 
 
 # ============================================================
@@ -623,37 +614,18 @@ def _analyze_video_frames_structured(frames):
     列: time_sec, laplacian_var, mean_saturation, mean_brightness,
          turbidity_label, color_label, risk_label
     """
-    if not frames:
-        return pd.DataFrame()
-    rows = []
-    for f in frames:
-        try:
-            timestamp = f['time_sec']
-            if isinstance(timestamp, bool) or not isinstance(timestamp, (int,float)) or not np.isfinite(timestamp) or timestamp < 0:
-                continue
-            buf = base64.b64decode(f['image_base64'], validate=True)
-            img = cv2.imdecode(np.frombuffer(buf, np.uint8), cv2.IMREAD_COLOR)
-        except (KeyError, TypeError, ValueError, cv2.error):
-            continue
-        if img is None:
-            continue
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        s, v = float(hsv[:, :, 1].mean()), float(hsv[:, :, 2].mean())
-        lap = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-        turb = "清澈" if lap > 200 else ("轻微浑浊" if lap > 100 else ("中度浑浊" if lap > 30 else "重度浑浊"))
-        col = "疑似黑臭" if (s < 40 and v < 70) else "正常"
-        risk = "需关注" if turb in ["中度浑浊", "重度浑浊"] or col == "疑似黑臭" else "正常"
-        rows.append({
-            'time_sec': f['time_sec'],
-            'laplacian_var': lap,
-            'mean_saturation': s,
-            'mean_brightness': v,
-            'turbidity_label': turb,
-            'color_label': col,
-            'risk_label': risk,
-        })
-    return pd.DataFrame(rows)
+    from .video_quality import inspect_video
+    quality=inspect_video(frames);rows=[]
+    for row in quality['rows']:
+        if 'invalid_frame' in row['quality_flags']:continue
+        features=row['features'] or {}
+        rows.append({'time_sec':row['time_sec'],'eligible':row['eligible'],
+            'laplacian_var':features.get('laplacian_var'),'mean_saturation':features.get('mean_saturation'),
+            'mean_brightness':features.get('mean_brightness'),
+            'turbidity_label':'未测量','color_label':'未判定' if not row['eligible'] else '暗色线索' if row['dark_color_cue'] else '未触发暗色线索',
+            'risk_label':'视觉线索，需结合实测' if row['eligible'] else '画面待复核'})
+    result=pd.DataFrame(rows);result.attrs['quality']=quality['summary'];result.attrs['settings']=quality['settings']
+    return result
 
 
 def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_sec=30):
@@ -667,6 +639,7 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
     Returns:
         JSON 字符串, 含相关系数矩阵和黑臭判定一致率
     """
+    from .video_quality import VERSION as VIDEO_VERSION
     df = state.df
     frames = state.video_frames if hasattr(state, 'video_frames') else []
     if df is None or len(df) == 0:
@@ -692,7 +665,10 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
     df = df.loc[assessment_mask(df)]
 
     # 结构化视频分析
-    vid_df = _analyze_video_frames_structured(frames)
+    try:
+        vid_df = _analyze_video_frames_structured(frames)
+    except (ValueError,TypeError) as exc:
+        return json.dumps({'error':f'视频复核设置无效：{exc}'},ensure_ascii=False)
     if vid_df.empty:
         return json.dumps({"error": "未能从视频帧中提取有效指标"}, ensure_ascii=False)
 
@@ -722,6 +698,7 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
             'video_turbidity_label': vrow['turbidity_label'],
             'video_color_label': vrow['color_label'],
             'video_risk': vrow['risk_label'],
+            'eligible': bool(vrow['eligible']),
             'turbidity': float(window['turbidity'].mean()) if 'turbidity' in window.columns else None,
             'ammonia': float(window['ammonia_nitrogen'].mean()) if 'ammonia_nitrogen' in window.columns else None,
             'do': float(window['dissolved_oxygen'].mean()) if 'dissolved_oxygen' in window.columns else None,
@@ -732,6 +709,21 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
         return json.dumps({"error": f"时间匹配的记录不足 ({len(matched)} < 3)，请调整 time_offset_sec 或 time_window_sec"}, ensure_ascii=False)
 
     match_df = pd.DataFrame(matched)
+    settings=vid_df.attrs['settings']
+    usable=match_df.loc[match_df['eligible']].copy()
+    alignment={'视频基准时间':str(base_time),'时间偏移秒':time_offset_sec,'匹配窗口秒':time_window_sec,
+        '匹配成功帧数':len(match_df),'可分析匹配帧数':len(usable),'总视频帧数':len(frames),
+        '有效视频帧数':len(vid_df),'无效视频帧数':len(frames)-len(vid_df),
+        '同步已人工声明':settings['sync_confirmed'] and time_offset_sec==settings['time_offset_sec'] and time_window_sec==settings['time_window_sec'],
+        '同步依据':settings['sync_note']}
+    if not alignment['同步已人工声明'] or len(usable)<3:
+        reason=('同步尚未由人工核实，或本次偏移/窗口与核实设置不一致。' if not alignment['同步已人工声明']
+                else '通过水面区域与画面质量检查的匹配帧不足3帧。')
+        return json.dumps({'状态':'未判定','视频质量版本':VIDEO_VERSION,'时间对齐':alignment,'视频质量':vid_df.attrs['quality'],
+            '相关系数矩阵':[],'相关性限制':[reason],'相关性说明':'未满足区域、画面质量与同步条件，不计算相关或符合比例。',
+            '黑臭判定一致性':{'一致率_%':None,'视频预警符合率_%':None,'传感器预警视频覆盖率_%':None,
+                '解读':reason,'指标口径':'未判定；不输出污染准确率。'},'关键发现':[reason]},ensure_ascii=False,allow_nan=False)
+    match_df=usable
 
     # Pearson 相关系数矩阵 (视频指标 × 传感器指标)
     corr_pairs = []
@@ -766,7 +758,7 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
         'ammonia': 'ammonia_nitrogen', 'do': 'dissolved_oxygen'}))
     match_df['sensor_black_odor'] = sensor_labels  # "轻度黑臭" / "重度黑臭" / "无黑臭"
     match_df['sensor_is_black'] = [l != '无黑臭' for l in sensor_labels]
-    match_df['video_is_black'] = match_df['video_color_label'] == '疑似黑臭'
+    match_df['video_is_black'] = match_df['video_color_label'] == '暗色线索'
 
     both_black = int((match_df['video_is_black'] & match_df['sensor_is_black']).sum())
     both_clean = int((~match_df['video_is_black'] & ~match_df['sensor_is_black']).sum())
@@ -776,15 +768,10 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
     agreement = round((both_black + both_clean) / total * 100, 1) if total > 0 else 0
 
     result = json.dumps({
-        "时间对齐": {
-            "视频基准时间": str(base_time),
-            "时间偏移秒": time_offset_sec,
-            "匹配窗口秒": time_window_sec,
-            "匹配成功帧数": len(match_df),
-            "总视频帧数": len(frames),
-            "有效视频帧数": len(vid_df),
-            "无效视频帧数": len(frames)-len(vid_df),
-        },
+        "状态":"探索性线索对照",
+        "视频质量版本":VIDEO_VERSION,
+        "时间对齐": alignment,
+        "视频质量":vid_df.attrs['quality'],
         "相关系数矩阵": corr_pairs,
         "相关性限制": correlation_limits,
         "相关性说明": '探索性相关分析；窗口可能重叠、序列可能自相关，p值未作多重比较校正，不用于证明因果关系。',
@@ -795,12 +782,10 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
             "仅视频判黑": video_only,
             "仅传感器判黑": sensor_only,
             "一致率_%": agreement,
-            "解读": f"视频与传感器阈值筛查一致率为 {agreement}%；以传感器筛查为参照，没有人工真值，不代表现场准确率。",
-            "指标口径": '以下比例仅比较视频启发式判断与同一窗口的传感器筛查，不是人工复核准确率。',
+            "解读": f"暗色视觉线索与传感器阈值预警的对照符合比例为 {agreement}%；暗色不等于黑臭，没有人工真值，不代表污染准确率。",
+            "指标口径": '历史字段名仅为接口兼容；比较暗色线索和传感器阈值预警，不将视频判为黑臭或污染真值。',
             "视频预警符合率_%": round(both_black / (both_black + video_only) * 100, 1) if (both_black + video_only) > 0 else None,
             "传感器预警视频覆盖率_%": round(both_black / (both_black + sensor_only) * 100, 1) if (both_black + sensor_only) > 0 else None,
-            "视频判黑准确率_%": round(both_black / (both_black + video_only) * 100, 1) if (both_black + video_only) > 0 else None,
-            "视频判黑召回率_%": round(both_black / (both_black + sensor_only) * 100, 1) if (both_black + sensor_only) > 0 else None,
         },
         "关键发现": _summarize_cross_validation(corr_pairs, agreement),
     }, ensure_ascii=False, allow_nan=False)
@@ -817,12 +802,7 @@ def _summarize_cross_validation(corr_pairs, agreement):
         findings.append(f"最强显著相关: {best['视频指标']} vs {best['传感器指标']} ({direction}, r={best['Pearson_r']}, p={best['p_value']})")
     else:
         findings.append("未发现视频指标与传感器指标的显著相关性，可能时间未对齐或水质变化在视频中不可见")
-    if agreement >= 70:
-        findings.append(f"黑臭判定一致率 {agreement}% — 视频视觉判断与传感器检测基本吻合")
-    elif agreement >= 50:
-        findings.append(f"黑臭判定一致率 {agreement}% — 部分吻合，存在一定偏差")
-    else:
-        findings.append(f"黑臭判定一致率 {agreement}% — 偏差较大，视频颜色判断可能受光照条件影响")
+    findings.append(f"暗色线索与传感器预警的对照符合比例 {agreement}%；不能据此判定黑臭或现场准确率。")
     return findings
 
 
@@ -981,11 +961,18 @@ def build_comprehensive_summary(state, river_state=None, config=None):
     if hasattr(state, 'cross_validation_result') and state.cross_validation_result:
         cv = state.cross_validation_result
         if 'error' not in cv:
+            from .video_quality import VERSION as VIDEO_VERSION
+            if cv.get('视频质量版本')!=VIDEO_VERSION:
+                cv={'状态':'历史视频结果未按当前区域、质量与同步规则核实，需重新运行',
+                    '相关性限制':['历史比例和相关系数不作为本轮有效证据'],
+                    '黑臭判定一致性':{'一致率_%':None,'视频预警符合率_%':None,'传感器预警视频覆盖率_%':None}}
             agreement_info = dict(cv.get('黑臭判定一致性', {}))
             agreement_info.setdefault('视频预警符合率_%', agreement_info.pop('视频判黑准确率_%', None))
             agreement_info.setdefault('传感器预警视频覆盖率_%', agreement_info.pop('视频判黑召回率_%', None))
             agreement_info['指标口径'] = '仅以传感器阈值筛查为参照，没有人工真值，不代表现场准确率。'
             sections["交叉印证"] = {
+                "状态":cv.get('状态','历史结果；区域、画面质量及同步核实状态未记录'),
+                "视频质量":cv.get('视频质量',{}),
                 "时间对齐": cv.get("时间对齐", {}),
                 "黑臭判定一致性": agreement_info,
                 "相关性限制": cv.get('相关性限制', []),

@@ -1,6 +1,8 @@
 """报告快照与原始记录关联；受控数据用于契约验收，不代表现场准确率。"""
 from copy import deepcopy
 import json
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace as NS
@@ -108,6 +110,30 @@ class ReportEvidenceTests(unittest.TestCase):
         self.assertEqual(bundle_status(self.s, b)[0], 'current')
         self.s.river_state.geometry_revision += 1
         self.assertEqual(bundle_status(self.s, b)[0], 'stale')
+
+    def test_real_artifact_roundtrip_preserves_current_evidence(self):
+        from backend.projects import apply_snapshot
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary);source=directory/'source';source.mkdir()
+            output=source/'river_hydro_profile.png';output.write_bytes(b'controlled-artifact')
+            self.s.river_state=RiverModelState(output_dir=str(source))
+            self.s.river_ui={'hydro':{'输出文件':[str(output)],'文件生成说明':[]}}
+            b=make_bundle(self.s)
+            self.assertEqual(bundle_status(self.s,b)[0],'current')
+            snapshot=load_project(dump_project(self.s,'受控附件迁移'))
+            destination=directory/'restored';destination.mkdir()
+            restored=Session('another-session')
+            with patch('backend.projects.runtime_directory',return_value=str(destination)):
+                apply_snapshot(restored,{'id':'1'*32,'revision':1},snapshot)
+            self.assertTrue(Path(restored.river_ui['hydro']['输出文件'][0]).is_file())
+            self.assertEqual(bundle_status(restored,restored.messages[-1]['evidence'])[0],'current')
+            restored.river_ui['alignment']={'confirmed':True,'reference_path':[[30,120],[30,120.01]]}
+            self.assertEqual(bundle_status(restored,restored.messages[-1]['evidence'])[0],'stale')
+
+    def test_old_fingerprint_format_is_explicitly_stale(self):
+        b=make_bundle(self.s);b['version']='report-evidence-v1'
+        status,notice=bundle_status(self.s,b)
+        self.assertEqual(status,'stale');self.assertIn('格式',notice)
 
     def test_project_round_trip_preserves_snapshot_without_runtime_revision_dependency(self):
         self.s.river_state = RiverModelState()

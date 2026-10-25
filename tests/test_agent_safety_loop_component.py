@@ -71,13 +71,13 @@ class LoopCompletionComponentTests(unittest.TestCase):
             analysis_done=False,analysis_steps={},tool_evidence={},data_identity={'kind':'synthetic'},
             full_messages=[],messages=[],df=None,video_frames=[],black_spots=None)
 
-    def run_sequence(self, sequence, tool_result=None, dispatch=None):
+    def run_sequence(self, sequence, tool_result=None, dispatch=None, auto=False):
         with patch.object(self.loop,'resolve_api_key',return_value='mock-only'), \
                 patch.object(self.loop,'OpenAI') as factory, \
                 patch.object(self.loop,'execute_tool',side_effect=dispatch,
                     return_value=(tool_result or outcome(),False)):
             factory.return_value.chat.completions.create.side_effect = sequence
-            frames = list(self.loop.run_agent(self.session,'Q07受控问题'))
+            frames = list(self.loop.run_agent(self.session,'Q07受控问题',auto=auto))
             factory.return_value.close.assert_called_once()
         return frames
 
@@ -108,6 +108,27 @@ class LoopCompletionComponentTests(unittest.TestCase):
         self.assertIn('"status": "partial"',frames[-1])
         self.assertTrue(self.session.messages[-1]['incomplete'])
         self.assertNotIn('evidence',self.session.messages[-1])
+
+    def test_partial_answer_stays_visible_but_not_in_next_model_context(self):
+        previous=[{'role':'user','content':'上一轮已完成的问题'},{'role':'assistant','content':'上一轮完整回答'}]
+        self.session.full_messages=list(previous)
+        self.run_sequence([[chunk(name='get_data_summary')],[chunk(text='未完整核验的受控回答')]],
+            dispatch=lambda *a:(outcome(ok=False),True))
+        self.assertEqual(self.session.agent_run.status,'partial')
+        self.assertTrue(self.session.messages[-1]['incomplete'])
+        self.assertEqual(self.session.full_messages,previous)
+
+    def test_failed_auto_answer_cannot_reappear_as_verified_assistant_history(self):
+        self.run_sequence([[chunk(name='get_data_summary')],[chunk(text='受控失败正文')]],
+            dispatch=lambda *a:(outcome(ok=False),True),auto=True)
+        self.assertEqual(self.session.agent_run.status,'failed')
+        self.assertTrue(self.session.messages[-1]['incomplete'])
+        self.assertEqual(self.session.full_messages,[])
+        with patch.object(self.loop,'resolve_api_key',return_value='mock-only'),patch.object(self.loop,'OpenAI') as factory:
+            factory.return_value.chat.completions.create.return_value=[chunk(text='重新核对当前数据')]
+            list(self.loop.run_agent(self.session,'普通追问'))
+            context=factory.return_value.chat.completions.create.call_args.kwargs['messages']
+        self.assertFalse(any(m.get('content')=='受控失败正文' for m in context))
 
     def test_failed_interface_does_not_allow_data_inside_failed_wrapper(self):
         def dispatch(*args):

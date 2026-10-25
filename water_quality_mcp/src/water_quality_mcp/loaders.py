@@ -269,49 +269,56 @@ def extract_video(file_bytes: str, interval: int = 5):
 
     优化：顺序读取帧（避免 CAP_PROP_POS_FRAMES seek 开销），
     非目标帧用 grab() 跳过（省去 retrieve 的颜色转换+内存分配），
-    像素采样检测暗帧（10×10 网格采1像素），JPEG 质量 75。
+    低亮帧保留给质量复核，JPEG质量75，最长边960像素，最多1000帧。
     """
-    raw = base64.b64decode(file_bytes)
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    tmp.write(raw)
-    vpath = tmp.name
-    tmp.close()
+    if type(interval) not in (int, float) or not np.isfinite(interval) or interval <= 0:
+        return [], "抽帧间隔必须为有限正数"
+    try:
+        raw = base64.b64decode(file_bytes, validate=True)
+    except (ValueError, TypeError):
+        return [], "视频内容不是有效的Base64数据"
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
+        tmp.write(raw)
+        vpath = tmp.name
 
-    cap = cv2.VideoCapture(vpath, cv2.CAP_FFMPEG)
-    if not cap.isOpened():
-        os.unlink(vpath)
-        return [], "无法打开视频文件，请检查格式"
-
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    interval_frame = max(1, int(fps * interval))
-
-    frames, frame_idx, skipped = [], 0, 0
-    while True:
-        if frame_idx % interval_frame == 0:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            if frame is not None and frame.size > 0:
-                # 像素采样检测暗帧：每 10 像素取 1 个，减少 99% 计算量
-                if frame[::10, ::10].mean() > 1.0:
-                    _, buf = cv2.imencode('.jpg', frame,
-                                          [cv2.IMWRITE_JPEG_QUALITY, 75])
-                    frames.append({
-                        'time_sec': round(frame_idx / fps, 1),
-                        'image_base64': base64.b64encode(buf).decode()
-                    })
-                else:
-                    skipped += 1
-        else:
-            # 非目标帧只需 grab() 推进解码器，跳过 retrieve 节省内存复制
-            if not cap.grab():
-                break
-        frame_idx += 1
-
-    cap.release()
-    os.unlink(vpath)
+    cap = None
+    try:
+        cap = cv2.VideoCapture(vpath, cv2.CAP_FFMPEG)
+        if not cap.isOpened():
+            return [], "无法打开视频文件，请检查格式"
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        fps = float(fps) if np.isfinite(fps) and fps > 0 else 25.
+        count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        total_frames = int(count) if np.isfinite(count) and count >= 0 else 0
+        interval_frame = max(1, int(fps * interval), int(np.ceil(total_frames / 1000)))
+        frames, frame_idx, skipped, dark = [], 0, 0, 0
+        while len(frames)<1000:
+            if frame_idx % interval_frame == 0:
+                ret, frame = cap.read()
+                if not ret:break
+                if frame is not None and frame.size>0:
+                    dark += int(frame[::10,::10].mean()<=1.0)
+                    height,width=frame.shape[:2]
+                    if max(height,width)>960:
+                        scale=960/max(height,width)
+                        frame=cv2.resize(frame,(max(1,round(width*scale)),max(1,round(height*scale))))
+                    ok,buf=cv2.imencode('.jpg',frame,[cv2.IMWRITE_JPEG_QUALITY,75])
+                    if ok:
+                        frames.append({'time_sec':round(frame_idx/fps,3),
+                            'image_base64':base64.b64encode(buf).decode(),
+                            'timestamp_source':'frame_index/fps；同步须人工核对',
+                            'original_size':[width,height]})
+                    else:skipped+=1
+            elif not cap.grab():break
+            frame_idx+=1
+    finally:
+        try:
+            if cap is not None:
+                cap.release()
+        finally:
+            os.unlink(vpath)
     return frames, (
         f"视频抽帧完成，共 {len(frames)} 帧"
-        f"（总 {total_frames} 帧，间隔 {interval}s，跳过 {skipped} 个暗帧/损坏帧）"
+        f"（总 {total_frames} 帧，实际间隔约 {interval_frame/fps:.2f}s，最多1000帧；"
+        f"保留 {dark} 个低亮帧供质量复核，跳过 {skipped} 个无法编码帧；图像最长边≤960像素）"
     )

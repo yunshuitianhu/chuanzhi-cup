@@ -16,6 +16,7 @@ import {
   VisualMapComponent, DataZoomComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { frameScheduler } from '../utils/frameScheduler'
 
 echarts.use([
   BarChart, LineChart, ScatterChart, HeatmapChart,
@@ -32,41 +33,56 @@ const props = defineProps({
 const el = ref(null)
 const chart = shallowRef(null)   // shallowRef：ECharts 实例不需要深层响应式
 let ro = null
+let observer = null, frames = null, visible = false, dirty = true
 
 function ensure() {
-  if (chart.value || !el.value) return
+  if (!visible || chart.value || !el.value) return
   if (el.value.clientWidth === 0 || el.value.clientHeight === 0) return  // 尺寸未就绪
   chart.value = echarts.init(el.value, 'dark', { renderer: 'canvas' })
   chart.value.setOption(props.option)
+  dirty = false
   if (props.loading) chart.value.showLoading('default', { text: '加载中', color: '#2ea3f2' })
 }
 
 onMounted(() => {
-  ensure()
-  ro = new ResizeObserver(() => {
+  frames = frameScheduler(() => {
+    if (!visible) return
     ensure()
+    if (chart.value && dirty) { chart.value.setOption(props.option, true); dirty=false }
     chart.value?.resize()
+    if (props.loading) chart.value?.showLoading('default', { text:'处理中', color:'#2ea3f2' })
+    else chart.value?.hideLoading()
+  })
+  if (typeof IntersectionObserver === 'undefined') { visible=true; frames.schedule() }
+  else {
+    observer = new IntersectionObserver(entries => {
+      visible = entries[0]?.isIntersecting || false
+      if (visible) frames.schedule()
+    }, { rootMargin:'200px' })
+    observer.observe(el.value)
+  }
+  ro = new ResizeObserver(() => {
+    frames.schedule()
   })
   if (el.value) ro.observe(el.value)
 })
 
 onBeforeUnmount(() => {
+  frames?.dispose(); observer?.disconnect()
   ro?.disconnect()
   ro = null
   chart.value?.dispose()
   chart.value = null
 })
 
-watch(() => props.option, (opt) => {
-  if (!chart.value) { ensure(); return }
+watch(() => props.option, () => {
+  dirty = true
   // notMerge=true：系列数量变化时（如切数据）必须整体替换，否则残留旧系列
-  chart.value.setOption(opt, true)
-}, { deep: true })
+  frames?.schedule()
+})
 
-watch(() => props.loading, (v) => {
-  if (!chart.value) return
-  if (v) chart.value.showLoading('default', { text: '处理中', color: '#2ea3f2' })
-  else chart.value.hideLoading()
+watch(() => props.loading, () => {
+  frames?.schedule()
 })
 </script>
 
@@ -79,5 +95,5 @@ watch(() => props.loading, (v) => {
 </template>
 
 <style scoped>
-.echart { width: 100%; }
+.echart { width:100%; min-width:0; }
 </style>

@@ -156,7 +156,7 @@ test('技术页直接显示恢复的检测结果，包含零预警情形',async(
   assert.match(html,/检测结果使用旧算法/)
 })
 
-test('交叉印证恢复旧项目比例时改用参照表述，保留零值',async()=>{
+test('旧视频比例缺少质量版本时仅保留时间草稿，不当作当前结果',async()=>{
   globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
   const {default:Cross}=await server.ssrLoadModule('/src/components/CrossValidation.vue')
   const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
@@ -166,10 +166,22 @@ test('交叉印证恢复旧项目比例时改用参照表述，保留零值',asy
     '黑臭判定一致性':{'一致率_%':0,'视频判黑准确率_%':0,'视频判黑召回率_%':0}}
   const app=createSSRApp(Cross);app.use(pinia)
   const html=await renderToString(app)
-  assert.match(html,/视频预警符合率/);assert.match(html,/传感器预警的视频覆盖率/)
-  assert.match(html,/未经过人工真值复核/)
+  assert.match(html,/历史视频结果未按当前区域、质量与同步规则核实/)
   assert.doesNotMatch(html,/>视频判黑准确率</)
   assert.match(html,/value="-5"/);assert.match(html,/value="20"/)
+  assert.equal((html.match(/>0<small/g)||[]).length,0)
+})
+
+test('当前视频质量版本的线索比例保留零值并说明非现场准确率',async()=>{
+  const {default:Cross}=await server.ssrLoadModule('/src/components/CrossValidation.vue')
+  const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
+  const pinia=createPinia(),store=useSessionStore(pinia)
+  store.status.video_frames=3
+  store.crossValidation={'视频质量版本':'video-quality-v1','时间对齐':{'可分析匹配帧数':3},
+    '黑臭判定一致性':{'一致率_%':0,'视频预警符合率_%':0,'传感器预警视频覆盖率_%':0}}
+  const app=createSSRApp(Cross);app.use(pinia)
+  const html=await renderToString(app)
+  assert.match(html,/暗色线索与预警对照符合比例/);assert.match(html,/不能解释为现场准确率/)
   assert.ok((html.match(/>0<small/g)||[]).length>=3)
 })
 
@@ -307,4 +319,29 @@ test('质控设置可提交响应式表单且项目更新后丢弃旧草稿',asy
   // 等待本次加载，以免迟到的测试请求混入下一用例。
   await controls.load()
   assert.equal(controls.settings.spike_thresholds.ammonia_nitrogen,2)
+})
+
+test('知识库索引可读不冒充实际检索已通过',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:Rag}=await server.ssrLoadModule('/src/components/RagSearch.vue')
+  async function render(verified){
+    const app=createSSRApp(Rag)
+    app.mixin({created(){if(this.$options.__file?.endsWith('RagSearch.vue'))this.$.setupState.status={
+      available:true,retrieval_verified:verified,chunks:147,source_documents:29,embedding_model:'controlled-model',
+      notice:verified?'已完成真实检索':'索引可读，模型待实际检索验证',state:verified?'ready':'index_ready'} }})
+    return renderToString(app)
+  }
+  const before=await render(false);assert.match(before,/索引可读/);assert.doesNotMatch(before,/知识库就绪/)
+  const after=await render(true);assert.match(after,/检索已验证/);assert.match(after,/147/)
+})
+
+test('知识库缺依赖时显示诊断并提供重新检查入口',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:Rag}=await server.ssrLoadModule('/src/components/RagSearch.vue')
+  const app=createSSRApp(Rag)
+  app.mixin({created(){if(this.$options.__file?.endsWith('RagSearch.vue'))this.$.setupState.status={
+    available:false,state:'dependency_missing',notice:'缺少 sentence_transformers，尚未执行检索',error:null} }})
+  const html=await renderToString(app)
+  assert.match(html,/sentence_transformers/);assert.match(html,/重新检查知识库/)
+  assert.doesNotMatch(html,/索引未构建，请运行/)
 })

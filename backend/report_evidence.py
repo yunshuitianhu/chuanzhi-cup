@@ -14,7 +14,7 @@ from water_quality_mcp.src.water_quality_mcp.data_quality import coordinate_mask
 from water_quality_mcp.src.water_quality_mcp.evidence import EVIDENCE_VERSION
 from .map_samples import METRICS, finite
 
-VERSION = 'report-evidence-v1'
+VERSION = 'report-evidence-v2'
 TOOL_LIMIT = 30000
 TOOLS = {'get_data_summary', 'find_black_spots', 'get_comprehensive_summary',
     'analyze_video', 'cross_validate_video', 'search_treatment_cases',
@@ -58,13 +58,23 @@ def _digest(value):
 
 
 def fingerprints(session):
+    from .project_codec import MODEL_FILES
+    def model_ui(value):
+        if isinstance(value, dict):
+            return {k: ([str(path).replace('\\', '/').rsplit('/', 1)[-1]
+                         if isinstance(path, str) and path.replace('\\', '/').rsplit('/', 1)[-1] in MODEL_FILES
+                         else path for path in v] if k == '输出文件' and isinstance(v, list) else model_ui(v))
+                    for k, v in value.items() if k != '文件生成说明'}
+        if isinstance(value, list):
+            return [model_ui(v) for v in value]
+        return value
     data = _digest({'df': session.df, 'filename': session.data_filename})
     context = _digest({'data': data, 'rules': EVIDENCE_VERSION,
         'target': session.target_water_class, 'detection': session.black_spots_json,
         'black': session.black_spots, 'cross': session.cross_validation,
         'video': session.video_frames, 'video_filename': session.video_filename,
         'stations': session.national_station_result, 'tools': session.tool_evidence,
-        'river': session.river_state, 'river_ui': session.river_ui})
+        'river': session.river_state, 'river_ui': model_ui(session.river_ui)})
     return {'data': data, 'context': context}
 
 

@@ -75,7 +75,12 @@ def preflight(port: int):
     for key, label in (('DEEPSEEK_API_KEY', '智能体/报告'), ('AMAP_KEY', '高德查询'), ('CLOUD_TOKEN', '星图影像')):
         print(f'[{"OK" if resolve_api_key(key) else "WARN"}] {label}：'
               f'{"已配置" if resolve_api_key(key) else "未配置，相关能力不可用或降级"}', flush=True)
-    print('[INFO] RAG索引与嵌入模型按需加载；本预检不下载模型，也不证明外部服务可达。', flush=True)
+    from water_quality_mcp.src.water_quality_mcp.rag_engine import configured_index_dir, optional_dependencies
+    missing = [name for name, found in optional_dependencies().items() if not found]
+    print(f'[INFO] RAG索引目录：{configured_index_dir()}', flush=True)
+    if missing:
+        print('[WARN] 知识库依赖缺失：' + '、'.join(missing) + '；请确认当前Python安装了完整依赖。', flush=True)
+    print('[INFO] RAG模型按需加载；索引存在和依赖探测不代表真实检索已通过。', flush=True)
     return create_app()
 
 

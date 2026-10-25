@@ -302,7 +302,9 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         evidence = build_bundle(session, evidence_traces, run.id) if status == 'succeeded' else None
         check()
         def commit():
-            session.full_messages = msgs
+            # 界面保留失败/部分回答供复核，后续模型只继承完整成功的对话。
+            if status == 'succeeded':
+                session.full_messages = msgs
             session.messages.append({"role":"assistant","content":final_text,'run_id':run.id,
                 'incomplete':status!='succeeded', **({'evidence': evidence} if evidence else {})})
             if auto:

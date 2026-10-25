@@ -42,3 +42,18 @@ test('旧结果恢复原网格，新结果恢复实际细分数，草稿不能�
   const draft=restoreRiverWorkspace(saved,{wq_refinement:4},{...defaults,wq_refinement:4})
   assert.ok(draft.hydro);assert.equal(draft.pollution,null)
 })
+
+test('污染情景的每个草稿字段均不能冒用旧结果',()=>{
+  const saved=fixture()
+  Object.assign(saved.model.wq_params,{load_kg:50,chainage_m:400,pollutant_type:'ammonia',
+    source_start_h:0,duration_min:30,wq_refinement:4,simulation_hours:.5})
+  const defaultsWithScenario={...defaults,load_kg:50,chainage_m:400,pollutant_type:'ammonia',
+    source_start_h:0,duration_min:30,wq_refinement:4}
+  assert.ok(restoreRiverWorkspace(saved,null,defaultsWithScenario).pollution)
+  for(const [key,value] of Object.entries({load_kg:500,chainage_m:200,pollutant_type:'cbod',source_start_h:1,duration_min:5})) {
+    const restored=restoreRiverWorkspace(saved,{[key]:value},defaultsWithScenario)
+    assert.equal(restored.form[key],value);assert.ok(restored.hydro);assert.equal(restored.pollution,null,key)
+  }
+  saved.model.wq_params.simulation_hours=.25
+  assert.equal(restoreRiverWorkspace(saved,null,defaultsWithScenario).pollution,null)
+})

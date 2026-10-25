@@ -1,7 +1,10 @@
 /** @type {import('../types/contracts').GeometryKey[]} */
-const GEOMETRY_KEYS = ['river_name','length_m','width_avg_m','depth_avg_m','longitudinal_slope',
+export const GEOMETRY_KEYS = ['river_name','length_m','width_avg_m','depth_avg_m','longitudinal_slope',
   'bed_elevation_avg_m','mannings_n','ammonia_nh3_mgL','dissolved_oxygen_mgL',
   'bod_cbod_mgL','water_temp_C','k_nitrification','k_cbod_decay','k_sediment_oxygen_demand','do_saturation_mgL']
+
+/** @type {('load_kg'|'chainage_m'|'pollutant_type'|'source_start_h'|'duration_min')[]} */
+export const POLLUTION_KEYS = ['load_kg','chainage_m','pollutant_type','source_start_h','duration_min']
 
 /** @param {Pick<import('../types/contracts').ProjectState,'model'|'river_ui'>} saved
  * @param {Partial<import('../types/contracts').RiverForm>|null} draft
@@ -36,6 +39,9 @@ export function restoreRiverWorkspace(saved, draft, defaults) {
     init: model && geometryMatches ? { 断面数:model.cross_section_count, 河段长度_km:model.config.length_m/1000,
       曼宁糙率:model.config.mannings_n, ...ui.init } : null,
     hydro: hydroMatches ? { 工况:'恒定流', 结果可信度:'已恢复恒定流情景；请核实断面、边界和反应参数，结果不代表现场率定。', ...ui.hydro } : null,
-    pollution: model && hydroMatches && model.has_wq && form.wq_refinement === (model.wq_params.wq_refinement ?? 1)
+    pollution: model && hydroMatches && model.has_wq
+      && POLLUTION_KEYS.every(k => form[k] === model.wq_params[k])
+      && form.duration_h === (model.wq_params.simulation_hours ?? model.hydro_params.duration_h)
+      && form.wq_refinement === (model.wq_params.wq_refinement ?? 1)
       ? (ui.pollution || { 状态:'已恢复水质结果' }) : null }
 }

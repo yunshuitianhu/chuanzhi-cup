@@ -29,7 +29,7 @@ async def upload_data(file: UploadFile = File(...),
     与 app.py 一致：加载新数据会**清除上一轮的全部分析结果**，
     避免新旧数据混淆。
     """
-    raw = await file.read()
+    raw = await file.read(MAX_DATA_MB * 1024 * 1024 + 1)
     if len(raw) > MAX_DATA_MB * 1024 * 1024:
         raise HTTPException(413, f"文件超过 {MAX_DATA_MB}MB")
     if not raw:
@@ -57,7 +57,7 @@ async def upload_data(file: UploadFile = File(...),
 async def upload_video(file: UploadFile = File(...), interval: int = Query(5, ge=1, le=3600),
                        session: Session = Depends(get_exclusive_session)) -> dict:
     """上传巡航视频并抽帧（可选功能，供视频-传感器交叉印证使用）。"""
-    raw = await file.read()
+    raw = await file.read(MAX_VIDEO_MB * 1024 * 1024 + 1)
     if len(raw) > MAX_VIDEO_MB * 1024 * 1024:
         raise HTTPException(413, f"视频超过 {MAX_VIDEO_MB}MB")
     if not raw:

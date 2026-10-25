@@ -283,6 +283,7 @@ def tool_river_pollution_event(
     source_start_h: float = 0.0,
     output_interval_s: float = 60.0,
     wq_refinement: int = 4,
+    alignment_config: dict | None = None,
 ) -> str:
     """在当前河段指定位置模拟污染事件。"""
     if not state.has_hydro():
@@ -337,13 +338,9 @@ def tool_river_pollution_event(
     ]
 
     def generate_animation(path):
-        if monitoring_data is None or len(monitoring_data) == 0:
-            raise ValueError('当前会话没有提供监测轨迹，已跳过动画')
-        from .geo_mapping import build_chainage_gps_mapping
+        from .geo_mapping import checked_model_mapping
         from .animation import build_pollution_map_animation
-        gps_mapping = build_chainage_gps_mapping(monitoring_data, smoothing_sigma=3.0)
-        if float(result.chainage[-1]) > gps_mapping['total_length_m'] + 1:
-            raise ValueError('当前轨迹的桩号范围未覆盖模拟河段；请核实映射，已跳过动画')
+        gps_mapping = checked_model_mapping(result.chainage, monitoring_data, alignment_config)
         build_pollution_map_animation(gps_mapping, result, pollutant_type,
                                      source_chainage_m=chainage_m, output_path=path, max_frames=40)
 

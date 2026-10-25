@@ -209,6 +209,14 @@ export const api = {
   blackSpots: () => request('/analysis/black-spots', { method: 'POST' }),
   /** @param {import('../types/contracts').CrossValidationRequest} [payload] */
   crossValidate: (payload) => request('/analysis/cross-validate', { method: 'POST', body: payload || {} }),
+  /** @returns {Promise<import('../types/contracts').VideoQualityResponse>} */
+  videoQuality: (offset = 0) => request(`/video/quality?offset=${offset}&limit=20`),
+  /** @param {number} id @param {string} revision @returns {Promise<import('../types/contracts').VideoFrameResponse>} */
+  videoFrame: (id, revision) => request(`/video/frames/${id}?expected_revision=${encodeURIComponent(revision)}`),
+  /** @param {import('../types/contracts').VideoSettingsChange} payload */
+  saveVideoSettings: (payload) => request('/video/settings', { method:'PUT', body:payload }),
+  /** @param {number} id @param {import('../types/contracts').JsonObject} payload */
+  saveVideoFrame: (id, payload) => request(`/video/frames/${id}`, { method:'PUT', body:payload }),
   comprehensive: () => request('/analysis/comprehensive'),
 
   timeSeries: () => request('/charts/time-series'),

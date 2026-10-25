@@ -129,6 +129,8 @@ function panelOption(key) {
 }
 
 const PANEL_KEYS = ['ammonia_nitrogen', 'dissolved_oxygen', 'turbidity', 'ph']
+// Stable options: selection/UI changes must not rebuild all four time-series arrays.
+const panels = computed(() => PANEL_KEYS.map(key => ({key, option:panelOption(key)})))
 const caption = computed(() => store.status.has_data
   ? `监测时段 ${store.status.time_range?.[0]?.slice(5, 16) || ''} ~ ${store.status.time_range?.[1]?.slice(11, 16) || ''}，`
     + `共 ${store.status.rows} 条记录。散点为检出黑臭的点位，按等级着色。`
@@ -153,9 +155,9 @@ const caption = computed(() => store.status.has_data
 
       <div class="grid-2">
         <EChart
-          v-for="k in PANEL_KEYS"
-          :key="k"
-          :option="panelOption(k)"
+          v-for="panel in panels"
+          :key="panel.key"
+          :option="panel.option"
           :loading="loading"
           :height="260"
         />

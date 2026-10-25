@@ -29,8 +29,6 @@ def _try_retrieve_treatment_cases(summary: str, top_k: int = 3) -> str:
         from .rag_engine import get_rag_engine
 
         engine = get_rag_engine()
-        engine._collection = None  # 强制从磁盘刷新
-        engine._chroma_client = None  # 也重置客户端，避免 SQLite 文件锁残留
         query = engine.build_query_from_summary(summary)
         results = engine.retrieve(query, top_k=top_k)
         return engine.format_context(results)
@@ -101,6 +99,16 @@ def generate_report(api_key, summary, *, reference_sink=None):
         header.append(f"> 首末有效GPS直线距离：{spatial['首末直线距离_m']} m；不是河道长度或污染覆盖范围。")
     if isinstance(quality, dict) and '需质控复核预警点数' in quality:
         header.append(f"> 其中需质控复核预警：{quality['需质控复核预警点数']}；仍保留全部预警，标记不能确认仪器故障。")
+    model = facts.get('河道模型', {})
+    model = model if isinstance(model, dict) else {}
+    if model.get('结论限制'):
+        header.append('> 物理模型：本次有模型结果因适用范围或验收限制已排除；不得用于结论。')
+    elif model.get('水动力模拟'):
+        header.append('> 物理模型：本次提供一维恒定流情景计算；正演设定源不是反演识别结果。')
+    elif model.get('模型已初始化'):
+        header.append('> 物理模型：仅已初始化；本次未提供物理模型计算结果，未运行不代表求解失败。')
+    else:
+        header.append('> 物理模型：本次未提供物理模型计算结果；未运行不代表求解失败。')
     prompt += ('\n\n请按数据事实、候选解释、证据缺口、复核建议组织正文。'
                '正文约1200字，不要完整复写全部工具表格，须保留局限和复核建议。'
                '不得确认因果来源；工具给出的时间趋势未判定时，只描述沿航迹读数变化。')

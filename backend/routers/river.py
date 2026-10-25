@@ -269,7 +269,7 @@ def pollution(payload: PollutionRequest | None = None,
     kwargs.setdefault('chainage_m', float((st.hydro_result.chainage[0] + st.hydro_result.chainage[-1]) / 2))
     session.river_ui.pop('pollution',None)
     result = _json(tool_river_pollution_event(st, **kwargs, target_water_class=session.target_water_class,
-                                            monitoring_data=session.df))
+                                            monitoring_data=session.df, alignment_config=session.river_ui.get('alignment')))
     session.river_ui['pollution'] = result
     session.invalidate_report()
     session.results_revision += 1

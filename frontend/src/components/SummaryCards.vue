@@ -7,28 +7,38 @@ import { toastErr } from '../composables/useToast'
 
 const store = useSessionStore()
 const data = ref(null)
+const loading = ref(false)
+const error = ref('')
 const FIELDS = ['氨氮', '溶解氧', '浊度', 'pH', 'COD']
 let requestVersion = 0
 
 async function load() {
   const version = ++requestVersion
-  if (!store.status.has_data) { data.value = null; return }
   data.value = null
+  error.value = ''
+  if (store.switchingProject || !store.status.has_data) { loading.value = false; return }
+  loading.value = true
   try {
     const result = await api.summary()
     if (version === requestVersion) data.value = result
   } catch (e) {
-    if (version === requestVersion) toastErr(`统计加载失败：${e.message}`)
+    if (version === requestVersion) {
+      error.value = `统计加载失败：${e.message}`
+      toastErr(error.value)
+    }
+  } finally {
+    if (version === requestVersion) loading.value = false
   }
 }
 
 onMounted(load)
 onBeforeUnmount(() => { requestVersion++ })
-watch(() => [store.status.rows, store.status.analysis_revision], load)
+watch(() => [store.projectState.current?.id, store.workspaceRevision, store.switchingProject,
+  store.status.has_data, store.status.rows, store.status.analysis_revision], load, {flush:'sync'})
 </script>
 
 <template>
-  <div v-if="!data" class="tip">需先上传走航数据</div>
+  <div v-if="!data" class="tip" :role="error ? 'alert' : undefined">{{ error || (loading ? '正在加载统计…' : store.switchingProject ? '正在切换项目…' : '需先上传走航数据') }}</div>
   <div v-else class="cards">
     <div class="card">
       <div class="k">记录数</div>

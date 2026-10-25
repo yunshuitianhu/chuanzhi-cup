@@ -19,7 +19,7 @@ from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
 from water_quality_mcp.src.water_quality_mcp.geo_tools import reverse_geocode
 from water_quality_mcp.src.water_quality_mcp.trace_engine import multi_source_trace
 
-from ..deps import get_session
+from ..deps import get_exclusive_session
 from ..session import Session
 
 router = APIRouter(prefix="/trace", tags=["trace"])
@@ -75,7 +75,7 @@ class TraceRequest(BaseModel):
 
 @router.post("/multi-source")
 def multi_source(payload: TraceRequest | None = None,
-                 session: Session = Depends(get_session)) -> dict:
+                 session: Session = Depends(get_exclusive_session)) -> dict:
     """多渠道污染溯源：高德 POI + 排污许可证 + 国控站点，加权融合去重。
 
     未传坐标时自动取黑点最密集的聚类中心。

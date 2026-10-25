@@ -21,16 +21,18 @@ defineProps({
 
 <style scoped>
 .card {
+  min-width:0;
   background: var(--c-surface); border: 1px solid var(--c-border);
   border-radius: 10px; margin-bottom: 16px; overflow: hidden;
 }
 .head {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  display: flex; flex-wrap:wrap; align-items: flex-start; justify-content: space-between; gap: 12px;
   padding: 14px 18px; border-bottom: 1px solid var(--c-border);
   background: var(--c-surface-2);
 }
 .title { margin: 0; font-size: 15px; font-weight: 600; }
 .sub { margin: 3px 0 0; font-size: 12px; color: var(--c-sub); }
-.actions { flex-shrink: 0; }
-.body { padding: 16px 18px; }
+.head>div { min-width:0; }.actions { max-width:100%; }
+.body { padding: 16px 18px; min-width:0; }
+@media(max-width:600px){.head{padding:12px}.body{padding:12px}.title,.sub{overflow-wrap:anywhere}}
 </style>

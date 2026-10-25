@@ -4,7 +4,7 @@
  *
  * 结构对应 app.py：侧边栏 = st.sidebar，标签导航 = st.tabs 的四个页签。
  */
-import { onMounted, ref, computed } from 'vue'
+import { nextTick, onMounted, onBeforeUnmount, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSessionStore } from './stores/session'
 import { routes } from './router'
@@ -16,6 +16,47 @@ import Toast from './components/Toast.vue'
 const store = useSessionStore()
 const route = useRoute()
 const navItems = routes.filter((r) => r.meta)
+const narrow = ref(false), mobileOpen = ref(false), desktopCollapsed = ref(false)
+const sidebar = ref(null), sidebarToggle = ref(null)
+const sidebarOpen = computed(() => narrow.value ? mobileOpen.value : !desktopCollapsed.value)
+let media, previousOverflow = ''
+
+function toggleSidebar() {
+  if (narrow.value) mobileOpen.value = !mobileOpen.value
+  else {
+    desktopCollapsed.value = !desktopCollapsed.value
+    try { localStorage.setItem('wq:sidebar-collapsed', String(desktopCollapsed.value)) } catch { /* UI preference is optional. */ }
+  }
+}
+async function closeSidebar() {
+  mobileOpen.value = false
+  await nextTick()
+  sidebarToggle.value?.focus()
+}
+function sidebarKeys(event) {
+  if (!narrow.value || !mobileOpen.value) return
+  if (event.key === 'Escape') { event.preventDefault(); closeSidebar(); return }
+  if (event.key !== 'Tab') return
+  const controls = [...sidebar.value.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]')]
+    .filter(node => node.getClientRects().length)
+  const first = controls[0], last = controls.at(-1)
+  if ((event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
+    event.preventDefault(); (event.shiftKey ? last : first)?.focus()
+  }
+}
+function syncViewport() { narrow.value = media.matches; mobileOpen.value = false }
+watch(() => narrow.value && mobileOpen.value, async open => {
+  document.body.style.overflow = open ? 'hidden' : previousOverflow
+  if (open) { await nextTick(); sidebar.value?.querySelector('button')?.focus() }
+})
+watch(() => route.path, () => { if (narrow.value && mobileOpen.value) closeSidebar() })
+onMounted(() => {
+  previousOverflow = document.body.style.overflow
+  media = window.matchMedia('(max-width: 767px)')
+  syncViewport(); media.addEventListener('change', syncViewport)
+  try { desktopCollapsed.value = localStorage.getItem('wq:sidebar-collapsed') === 'true' } catch { /* optional */ }
+})
+onBeforeUnmount(() => { media?.removeEventListener('change',syncViewport); document.body.style.overflow=previousOverflow })
 
 onMounted(() => store.bootstrap())
 
@@ -31,8 +72,11 @@ const keySummary = computed(() => {
 
 <template>
   <div class="shell">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+    <button v-if="narrow && mobileOpen" class="sidebar-backdrop" tabindex="-1" aria-label="关闭项目侧栏" @click="closeSidebar"></button>
     <!-- ─────────── 侧边栏 ─────────── -->
-    <aside class="sidebar">
+    <aside v-show="sidebarOpen" id="project-sidebar" ref="sidebar" class="sidebar" :class="{drawer:narrow}" :role="narrow ? 'dialog' : undefined" :aria-modal="narrow ? 'true' : undefined" aria-label="项目与数据" @keydown="sidebarKeys">
+      <button v-if="narrow" class="drawer-close" @click="closeSidebar">关闭项目侧栏</button>
       <div class="brand">
         <div class="brand-title">水质监测与污染溯源助手</div>
         <div class="brand-sub">AI Web 应用 · Vue 3 + FastAPI</div>
@@ -77,8 +121,10 @@ const keySummary = computed(() => {
     </aside>
 
     <!-- ─────────── 主区 ─────────── -->
-    <main class="main">
-      <nav class="tabs">
+    <main class="main" :inert="narrow && mobileOpen">
+      <nav class="tabs" aria-label="主要导航">
+        <button ref="sidebarToggle" class="sidebar-toggle" :aria-expanded="sidebarOpen" aria-controls="project-sidebar" :aria-label="sidebarOpen ? '收起项目侧栏' : '展开项目侧栏'" :title="sidebarOpen ? '收起项目侧栏' : '展开项目侧栏'" @click="toggleSidebar">☰<span class="toggle-label">项目与数据</span></button>
+        <div class="tab-links">
         <RouterLink
           v-for="item in navItems"
           :key="item.path"
@@ -89,6 +135,7 @@ const keySummary = computed(() => {
           <span class="tab-icon">{{ item.meta.icon }}</span>
           <span>{{ item.meta.title }}</span>
         </RouterLink>
+        </div>
 
         <div class="tabs-right">
           <template v-if="store.status.has_data">
@@ -102,7 +149,7 @@ const keySummary = computed(() => {
         </div>
       </nav>
 
-      <div class="content">
+      <div id="main-content" class="content" tabindex="-1">
         <section v-if="!store.ready" class="connection-panel" aria-live="polite">
           <h2>{{ store.connecting ? '正在连接项目服务' : '项目服务尚未就绪' }}</h2>
           <p v-if="store.connecting">{{ store.bootstrapStage }}…</p>
@@ -180,11 +227,17 @@ const keySummary = computed(() => {
 
 .tabs {
   display: flex; align-items: center; gap: 4px;
-  padding: 0 20px; height: 54px;
+  padding: 6px 16px; min-height: 54px;
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-border);
   position: sticky; top: 0; z-index: 20;
 }
+.tab-links { display:flex; min-width:0; overflow-x:auto; }
+.sidebar-toggle,.drawer-close { flex-shrink:0; border:1px solid var(--c-border); border-radius:6px; padding:7px 10px; background:var(--c-surface-2); color:var(--c-ink); }
+.toggle-label { margin-left:6px; font-size:12px; }
+.sidebar-backdrop { position:fixed; inset:0; background:#0009; border:0; z-index:900; }
+.skip-link { position:fixed; left:12px; top:-100px; z-index:1100; padding:8px 12px; background:var(--c-accent); color:#06121c; }
+.skip-link:focus { top:8px; }
 .tab {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 16px; border-radius: 7px;
@@ -212,5 +265,11 @@ const keySummary = computed(() => {
 .error-bar {
   background: #3a1620; border: 1px solid #7b2740; color: #ffb3c1;
   padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;
+}
+@media(max-width:1200px){.tabs-right{display:none}.tab{padding:8px 11px}.toggle-label{display:none}}
+@media(max-width:767px){
+  .sidebar.drawer{position:fixed;inset:0 auto 0 0;z-index:1000;width:min(320px,calc(100vw - 32px));height:100dvh;overscroll-behavior:contain}
+  .drawer-close{align-self:flex-end}.tabs{padding:6px 8px;gap:6px}.tab-links{flex:1;justify-content:space-between}
+  .tab{font-size:12px;padding:8px 7px}.tab-icon{display:none}.content{padding:12px 10px}.sidebar-toggle{min-height:38px}
 }
 </style>

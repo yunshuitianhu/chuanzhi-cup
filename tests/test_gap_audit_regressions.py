@@ -163,8 +163,8 @@ class GapSummaryTests(unittest.TestCase):
         state.cross_validation_result={'黑臭判定一致性':legacy}
         summary=json.loads(build_comprehensive_summary(state))['交叉印证']['黑臭判定一致性']
         self.assertNotIn('视频判黑准确率_%',summary)
-        self.assertEqual(summary['视频预警符合率_%'],0)
-        self.assertEqual(summary['传感器预警视频覆盖率_%'],50)
+        self.assertIsNone(summary['视频预警符合率_%'])
+        self.assertIsNone(summary['传感器预警视频覆盖率_%'])
         self.assertIn('没有人工真值',summary['指标口径'])
         self.assertIn('视频判黑准确率_%',legacy)
 

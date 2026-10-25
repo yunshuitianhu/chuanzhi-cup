@@ -13,6 +13,7 @@
   },
   "include": [
     "src/types/**/*.ts", "src/api/client.js", "src/stores/session.js",
-    "src/utils/agentStream.js", "src/utils/projectRestore.js", "tests/types/**/*.ts"
+    "src/utils/agentStream.js", "src/utils/projectRestore.js", "src/utils/reportMarkdown.js",
+    "src/utils/frameScheduler.js", "tests/types/**/*.ts"
   ]
 }

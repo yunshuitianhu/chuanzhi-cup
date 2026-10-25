@@ -5,7 +5,7 @@
  * 整合高德 POI、排污许可证、国控站点三路真实数据源，加权融合去重。
  * 未给坐标时自动取黑点最密集的聚类中心（已排除 DBSCAN 噪声簇 -1）。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
@@ -19,22 +19,38 @@ const loading = ref(false)
 const data = ref(null)
 const requestState = computed(() => traceRequest(lat.value,lon.value,radius.value))
 const canRun = computed(() => !requestState.value.error && (requestState.value.manual || store.status.has_data))
-watch(() => store.status.analysis_revision, () => { data.value=null })
+const error = ref('')
+const busy = computed(() => loading.value || store.loading || store.chatRunning || store.switchingProject || store.connecting || !store.ready)
+let requestVersion = 0, disposed = false
+watch(() => [store.projectState.current?.id, store.workspaceRevision, store.status.analysis_revision,
+  store.switchingProject, lat.value, lon.value, radius.value], () => {
+  requestVersion++
+  data.value = null
+  error.value = ''
+}, {flush:'sync'})
+onBeforeUnmount(() => { disposed = true; requestVersion++ })
 
 async function run() {
-  const request=requestState.value
-  if (request.error) { toastErr(request.error);return }
-  const revision=store.status.analysis_revision
+  if (disposed || busy.value) return
+  const request = requestState.value
+  if (request.error) { toastErr(request.error); return }
+  if (!canRun.value) return
+  const version = ++requestVersion
   loading.value = true
+  data.value = null
+  error.value = ''
   try {
-    const result = await api.multiSource(request.payload)
-    if (revision !== store.status.analysis_revision) return
+    const result = await store._run(() => api.multiSource(request.payload))
+    if (disposed || version !== requestVersion) return
     data.value = result
     toastOk(`查询完成：返回 ${(result['综合污染源列表'] || []).length} 条候选线索`)
   } catch (e) {
-    toastErr(`溯源失败：${e.message}`)
+    if (!disposed && version === requestVersion) {
+      error.value = `溯源失败：${e.message}`
+      toastErr(error.value)
+    }
   } finally {
-    loading.value = false
+    if (!disposed) loading.value = false
   }
 }
 
@@ -61,13 +77,14 @@ const centerText = computed(() => {
 <template>
   <div class="wrap">
     <div class="bar">
-      <label>纬度<input v-model.number="lat" type="number" step="0.000001" placeholder="留空自动" /></label>
-      <label>经度<input v-model.number="lon" type="number" step="0.000001" placeholder="留空自动" /></label>
-      <label>半径 m<input v-model.number="radius" type="number" min="50" max="50000" step="50" /></label>
-      <button :disabled="!canRun || loading || store.chatRunning" @click="run">
+      <label>纬度<input v-model.number="lat" type="number" :disabled="busy" step="0.000001" placeholder="留空自动" /></label>
+      <label>经度<input v-model.number="lon" type="number" :disabled="busy" step="0.000001" placeholder="留空自动" /></label>
+      <label>半径 m<input v-model.number="radius" type="number" :disabled="busy" min="50" max="50000" step="50" /></label>
+      <button :disabled="!canRun || busy" @click="run">
         {{ loading ? '溯源中…' : '运行多渠道溯源' }}
       </button>
     </div>
+    <p v-if="error" class="note warn" role="alert">{{ error }}</p>
     <p v-if="requestState.error" class="tip note warn">{{ requestState.error }}</p>
     <p v-else class="tip">
       <template v-if="!store.status.has_black_spots">

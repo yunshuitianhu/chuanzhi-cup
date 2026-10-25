@@ -17,7 +17,7 @@ import EChart from '../components/EChart.vue'
 import PollutionPlayback from '../components/PollutionPlayback.vue'
 import NumericalResolution from '../components/NumericalResolution.vue'
 import CruiseAlignment from '../components/CruiseAlignment.vue'
-import { restoreRiverWorkspace } from '../utils/projectRestore'
+import { GEOMETRY_KEYS, POLLUTION_KEYS, restoreRiverWorkspace } from '../utils/projectRestore'
 
 const store = useSessionStore()
 
@@ -50,6 +50,17 @@ const form = ref({
 
 let hydrating = false
 let disposed = false
+let requestVersion = 0
+const geometryKeys = [...GEOMETRY_KEYS, 'n_cross_sections']
+const hydroKeys = [...geometryKeys, 'upstream_flow_m3s','high_water_mean_m','duration_h','tidal_amplitude_m']
+const pollutionKeys = [...hydroKeys, ...POLLUTION_KEYS, 'wq_refinement']
+function captureRequest(keys) {
+  const ticket = ++requestVersion, revision = store.status.analysis_revision, workspace = store.workspaceRevision
+  const snapshot = JSON.stringify(keys.map(k => form.value[k]))
+  const current = () => !disposed && ticket === requestVersion && revision === store.status.analysis_revision
+    && workspace === store.workspaceRevision && !store.switchingProject
+  return { current, matches: () => current() && snapshot === JSON.stringify(keys.map(k => form.value[k])) }
+}
 onBeforeUnmount(() => { disposed = true })
 onMounted(async () => {
   const workspaceRevision = store.workspaceRevision
@@ -125,7 +136,7 @@ async function detectParams() {
 }
 
 async function runInit() {
-  const revision = store.status.analysis_revision
+  const request = captureRequest([...geometryKeys, 'upstream_flow_m3s'])
   initResult.value = hydroResult.value = pollutionResult.value = null
   busy.value = 'init'
   try {
@@ -138,18 +149,19 @@ async function runInit() {
         'k_cbod_decay','k_sediment_oxygen_demand','do_saturation_mgL'].map(k => [k, form.value[k]]).concat([
         ['avg_discharge_m3s', form.value.upstream_flow_m3s]])),
     })
-    if (revision !== store.status.analysis_revision) return
+    if (!request.current()) return
+    if (!request.matches()) { toastOk('参数已变化，请重新初始化；旧参数结果未采用'); return }
     initResult.value = result
     toastOk('模型初始化完成')
   } catch (e) {
-    toastErr(`初始化失败：${e.message}`)
+    if (request.current()) toastErr(`初始化失败：${e.message}`)
   } finally {
-    if (revision === store.status.analysis_revision) busy.value = ''
+    if (request.current()) busy.value = ''
   }
 }
 
 async function runHydro() {
-  const revision = store.status.analysis_revision
+  const request = captureRequest(hydroKeys)
   hydroResult.value = pollutionResult.value = null
   busy.value = 'hydro'
   try {
@@ -159,18 +171,19 @@ async function runHydro() {
       tidal_amplitude_m: form.value.tidal_amplitude_m,
       duration_h: form.value.duration_h,
     })
-    if (revision !== store.status.analysis_revision) return
+    if (!request.current()) return
+    if (!request.matches()) { toastOk('参数已变化，请重新运行水动力；旧参数结果未采用'); return }
     hydroResult.value = result
     toastOk('水动力模拟完成')
   } catch (e) {
-    toastErr(`水动力模拟失败：${e.message}`)
+    if (request.current()) toastErr(`水动力模拟失败：${e.message}`)
   } finally {
-    if (revision === store.status.analysis_revision) busy.value = ''
+    if (request.current()) busy.value = ''
   }
 }
 
 async function runPollution() {
-  const revision = store.status.analysis_revision
+  const request = captureRequest(pollutionKeys)
   pollutionResult.value = null
   busy.value = 'pollution'
   try {
@@ -183,13 +196,14 @@ async function runPollution() {
       simulation_hours: form.value.duration_h,
       wq_refinement: form.value.wq_refinement,
     })
-    if (revision !== store.status.analysis_revision) return
+    if (!request.current()) return
+    if (!request.matches()) { toastOk('参数已变化，请重新模拟污染事件；旧参数结果未采用'); return }
     pollutionResult.value = result
     toastOk('污染事件模拟完成')
   } catch (e) {
-    toastErr(`污染模拟失败：${e.message}`)
+    if (request.current()) toastErr(`污染模拟失败：${e.message}`)
   } finally {
-    if (revision === store.status.analysis_revision) busy.value = ''
+    if (request.current()) busy.value = ''
   }
 }
 
@@ -232,19 +246,19 @@ const pollutionCompare = computed(() => {
   const std = d['相对标准限值'] || {}
   const base = d['相对监测基线'] || {}
   return {
-    grid: { left: 96, right: 60, top: 20, bottom: 28 },
+    grid: { left: 6, right: 80, top: 20, bottom: 28, containLabel: true },
     tooltip: {
       backgroundColor: 'rgba(20,30,40,.95)', borderColor: '#2a3947',
       textStyle: { color: '#e8eef5', fontSize: 12 },
     },
     xAxis: {
-      type: 'value', axisLabel: { color: '#94a7b8' },
+      type: 'value', splitNumber:3, axisLabel: { color: '#94a7b8' },
       splitLine: { lineStyle: { color: '#1e2a36' } },
     },
     yAxis: {
       type: 'category',
       data: [`相对标准限值 (${std['基准_mgL']} mg/L)`, `相对监测基线 (${base['基准_mgL']} mg/L)`],
-      axisLabel: { color: '#94a7b8', fontSize: 11 },
+      axisLabel: { color: '#94a7b8', fontSize: 11, width:110, overflow:'break', lineHeight:14 },
       axisLine: { lineStyle: { color: '#2a3947' } },
     },
     series: [{
@@ -454,7 +468,7 @@ const pollutionCompare = computed(() => {
 .mini:disabled { opacity: .45; cursor: not-allowed; }
 .mini.primary { background: var(--c-accent); color: #06121c; border-color: var(--c-accent); font-weight: 600; }
 
-.params { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px; }
+.params { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,280px), 1fr)); gap: 6px; }
 .prow {
   display: flex; align-items: baseline; gap: 8px; font-size: 12px;
   background: var(--c-surface-2); border-radius: 6px; padding: 7px 11px;
@@ -468,7 +482,7 @@ const pollutionCompare = computed(() => {
 .ps.low { color: #f59e0b; }
 .ps.bad { color: #ff6b81; }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,190px), 1fr)); gap: 10px; margin-bottom: 12px; }
 .grid label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--c-sub); }
 .grid input, .grid select {
   background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-ink);
@@ -476,7 +490,7 @@ const pollutionCompare = computed(() => {
 }
 .warn-text { color: var(--sev-mild); font-size: 10px; }
 
-.btn-row { display: flex; gap: 10px; }
+.btn-row { display: flex; flex-wrap:wrap; gap: 10px; }
 
 .result {
   display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px;

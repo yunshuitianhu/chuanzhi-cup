@@ -6,34 +6,63 @@
  * 覆盖全国 1800+ 断面、每小时更新。实时模式必须选省份 ——
  * 全量拉取会让政府服务器超时（内核已对此做了保护）。
  */
-import { onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
+import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
 
+const store = useSessionStore()
 const provinces = ref([])
 const province = ref('')
 const keyword = ref('')
 const live = ref(true)
 const loading = ref(false)
 const data = ref(null)
+const error = ref('')
+const busy = computed(() => loading.value || store.loading || store.chatRunning || store.switchingProject || store.connecting || !store.ready)
+let requestVersion = 0, disposed = false
+watch(() => [store.projectState.current?.id, store.workspaceRevision, store.status.analysis_revision,
+  store.switchingProject, province.value, keyword.value, live.value], () => {
+  requestVersion++
+  data.value = null
+  error.value = ''
+}, {flush:'sync'})
+onBeforeUnmount(() => { disposed = true; requestVersion++ })
 
 onMounted(async () => {
   try {
-    provinces.value = (await api.provinces()).provinces
+    const result = await api.provinces()
+    if (!disposed) provinces.value = result.provinces
   } catch { /* 省份列表拉不到不影响手输 */ }
 })
 
 async function run() {
+  if (disposed || busy.value) return
+  const version = ++requestVersion
+  const payload = {province:province.value, keyword:keyword.value, live:live.value}
   loading.value = true
+  data.value = null
+  error.value = ''
   try {
-    data.value = await api.queryStations({
-      province: province.value, keyword: keyword.value, live: live.value,
+    const {result, warning} = await store._run(async () => {
+      const result = await api.queryStations(payload)
+      let warning = ''
+      // 查询会更新报告依据，即使随后状态刷新失败，也保留本次查询结果。
+      try { await store.refreshStatus() }
+      catch { warning = '查询已完成，但分析状态刷新失败，请刷新页面核对报告状态。' }
+      return {result, warning}
     })
-    toastOk(`查询完成：${data.value['站点数量']} 个站点`)
+    if (disposed || version !== requestVersion) return
+    data.value = result
+    error.value = warning
+    toastOk(`查询完成：${result['站点数量']} 个站点`)
   } catch (e) {
-    toastErr(`查询失败：${e.message}`)
+    if (!disposed && version === requestVersion) {
+      error.value = `查询失败：${e.message}`
+      toastErr(error.value)
+    }
   } finally {
-    loading.value = false
+    if (!disposed) loading.value = false
   }
 }
 
@@ -59,21 +88,23 @@ function classColor(c) {
 <template>
   <div class="wrap">
     <div class="bar">
-      <select v-model="province" :disabled="loading">
+      <select v-model="province" :disabled="busy">
         <option value="">请选择查询省份</option>
         <option v-for="p in provinces" :key="p" :value="p">{{ p }}</option>
       </select>
-      <input v-model="keyword" placeholder="站名/流域关键词（可选），如 珠江" :disabled="loading" />
+      <input v-model="keyword" placeholder="站名/流域关键词（可选），如 珠江" :disabled="busy" />
       <label class="switch">
-        <input v-model="live" type="checkbox" :disabled="loading" />
+        <input v-model="live" type="checkbox" :disabled="busy" />
         <span>实时数据</span>
       </label>
-      <button :disabled="loading" @click="run">{{ loading ? '查询中…' : '查询' }}</button>
+      <button :disabled="busy" @click="run">{{ loading ? '查询中…' : '查询' }}</button>
     </div>
 
     <p class="tip">
       实时模式需选择省份（全量拉取会让政府服务器超时）；查不到时自动降级到内置离线站点库。
     </p>
+
+    <p v-if="error" class="note" role="alert">{{ error }}</p>
 
     <template v-if="data">
       <div class="meta">

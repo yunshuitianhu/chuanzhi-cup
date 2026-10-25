@@ -165,6 +165,48 @@ def build_chainage_gps_mapping(excel_path,
     }
 
 
+def checked_model_mapping(chainage, monitoring_data=None, alignment_config=None):
+    """网页及导出动画共用的核对入口；不把返航累计距离当作河道桩号。"""
+    from .cruise_alignment import audit_track, reference_geometry
+    axis = np.asarray(chainage, dtype=float)
+    if axis.ndim != 1 or len(axis) < 2 or not np.isfinite(axis).all() or np.any(np.diff(axis) <= 0) or axis[0] < 0:
+        raise ValueError('模拟桩号轴无效')
+    if alignment_config is not None:
+        if (not isinstance(alignment_config, dict) or alignment_config.get('confirmed') is not True
+                or not str(alignment_config.get('reference_note', '')).strip()):
+            raise ValueError('须确认参考线方向并记录来源')
+        reference, reference_axis = reference_geometry(alignment_config.get('reference_path'))
+        if axis[-1] > reference_axis[-1] + 1e-6:
+            raise ValueError('已配置参考线未覆盖全部模拟桩号，地图不缩放或外推；仍可查看沿程动画。')
+        latitude = np.interp(axis, reference_axis, reference[:, 0])
+        longitude = (np.interp(axis, reference_axis,
+            np.degrees(np.unwrap(np.radians(reference[:, 1]))))+180) % 360-180
+        length = float(reference_axis[-1])
+        confirmation = 'user_supplied_not_independently_verified'
+        notice = '按用户确认的参考线映射，不累计船的返航航程；参考线和流向仍需独立核实。'
+    else:
+        if monitoring_data is None or not {'latitude', 'longitude'} <= set(monitoring_data.columns):
+            raise ValueError('当前项目没有有效走航轨迹，可查看沿程浓度动画。')
+        if audit_track(monitoring_data)['warnings']:
+            raise ValueError('走航轨迹存在返航、缺失坐标或时间等待核对项，请先配置参考线；累计航程不能直接作为河道桩号。')
+        gps = build_chainage_gps_mapping(monitoring_data, smoothing_sigma=3.0)
+        if gps['total_length_m'] <= 0 or axis[-1] > gps['total_length_m'] + 1e-6:
+            raise ValueError('当前走航轨迹未覆盖模拟桩号范围；请核对河段长度、起点与方向。')
+        latitude, longitude = chainage_array_to_gps(gps, axis)
+        length = gps['total_length_m']
+        confirmation = 'illustrative_boat_route_not_registered'
+        notice = '桩号从当前走航起点累计映射；地图为示意，起点、方向及GPS需现场核实。'
+    if not np.isfinite([latitude, longitude]).all():
+        raise ValueError('轨迹映射包含无效坐标，请核实GPS。')
+    # 兼容既有动画的映射结构；插值只在已经核对的模型范围内使用。
+    unwrapped = np.degrees(np.unwrap(np.radians(longitude)))
+    return {'chainage_grid': axis, 'lat_grid': latitude, 'lon_grid': longitude,
+        'lat_raw': latitude, 'lon_raw': longitude, 'total_length_m': length,
+        '_chainage_to_lat': lambda x: np.interp(x, axis, latitude),
+        '_chainage_to_lon': lambda x: (np.interp(x, axis, unwrapped)+180) % 360-180,
+        'confirmation': confirmation, 'notice': notice}
+
+
 def chainage_to_gps(gps_mapping: dict, chainage_m: float) -> Tuple[float, float]:
     """将桩号转换为 GPS 坐标 (lat, lon)。"""
     lat = float(np.clip(gps_mapping["_chainage_to_lat"](chainage_m),

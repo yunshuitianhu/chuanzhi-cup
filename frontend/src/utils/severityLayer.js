@@ -1,5 +1,6 @@
 import L from 'leaflet'
 import { severityRaster } from './severityHeat'
+import { frameScheduler } from './frameScheduler'
 
 export function severityLayer(points, { radius = 26, opacity = .94 } = {}) {
   const Layer = L.Layer.extend({
@@ -7,14 +8,17 @@ export function severityLayer(points, { radius = 26, opacity = .94 } = {}) {
       this.map = map
       this.canvas = L.DomUtil.create('canvas', 'severity-heat', map.getPanes().overlayPane)
       this.canvas.style.pointerEvents = 'none'
+      this.frames = frameScheduler(() => this.draw())
       map.on('moveend zoomend resize', this.redraw, this)
       this.redraw()
     },
     onRemove(map) {
       map.off('moveend zoomend resize', this.redraw, this)
+      this.frames.dispose()
       this.canvas.remove()
     },
-    redraw() {
+    redraw() { this.frames?.schedule() },
+    draw() {
       const size = this.map.getSize(), scale = 1
       const width = Math.ceil(size.x/scale), height = Math.ceil(size.y/scale)
       if (!width || !height) return

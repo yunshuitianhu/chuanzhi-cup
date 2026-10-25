@@ -97,7 +97,7 @@ export interface PollutionRequest {
 export interface ModelState {
   config: RiverConfig; cross_section_count: number; initialized: boolean; has_hydro: boolean; has_wq: boolean
   hydro_params: Partial<{ upstream_flow_m3s: number; downstream_stage_m: number; duration_h: number; tidal_amplitude_m: number }>
-  wq_params: Partial<Pick<RiverForm, 'load_kg' | 'source_start_h' | 'duration_min' | 'chainage_m' | 'pollutant_type' | 'wq_refinement'>>
+  wq_params: Partial<Pick<RiverForm, 'load_kg' | 'source_start_h' | 'duration_min' | 'chainage_m' | 'pollutant_type' | 'wq_refinement'>> & { simulation_hours?: number }
 }
 export interface RiverUI {
   form?: Partial<RiverForm>
@@ -111,6 +111,24 @@ export interface ProjectState {
 export interface SaveProjectRequest { name?: string; river_form?: Partial<RiverForm> | null }
 export interface CreateProjectRequest extends SaveProjectRequest { name: string; from_current?: boolean }
 export interface CrossValidationRequest { time_offset_sec?: number; time_window_sec?: number }
+export interface VideoSettings {
+  roi: number[]; roi_confirmed: boolean; roi_note: string; reviewer: string
+  sync_confirmed: boolean; sync_note: string; time_offset_sec: number; time_window_sec: number
+}
+export interface FrameReview { decision:'pending'|'include'|'exclude'; reviewer:string; notes:string; roi:number[]|null; reviewed_at?:string }
+export interface VideoFrameQuality {
+  id:number; time_sec:number|null; roi:number[]; roi_confirmed:boolean; review:FrameReview
+  eligible:boolean; quality_status:'invalid'|'needs_review'|'usable'; quality_flags:string[]; quality_messages:string[]
+  features:{laplacian_var:number;mean_saturation:number;mean_brightness:number;contrast_std:number;dark_fraction:number;glare_fraction:number}|null
+  dark_color_cue:boolean|null; width:number|null; height:number|null
+}
+export interface VideoQualityResponse {
+  version:string;revision:string;settings:VideoSettings;notice:string;rows:VideoFrameQuality[]
+  summary:{frames:number;eligible:number;invalid:number;needs_review:number;manual_excluded:number}
+  total:number;offset:number;limit:number
+}
+export interface VideoFrameResponse { revision:string;frame:VideoFrameQuality;image_base64:string;media_type:'image/jpeg' }
+export interface VideoSettingsChange { expected_revision:string;settings:VideoSettings;frame_id?:number;review?:FrameReview }
 export interface QualityConfig {
   max_gap_s: number; flat_duration_s: number; flat_min_points: number
   spike_thresholds: { ammonia_nitrogen: number; dissolved_oxygen: number }
@@ -125,6 +143,6 @@ export interface SessionState {
   projectState: ProjectState; riverForm: Partial<RiverForm> | null
   config: Config; status: DataStatus; preview: Preview
   blackSpots: BlackSpots | null; crossValidation: JsonObject | null; comprehensive: JsonObject | null
-  resultsWarnings: string[]; statusRequest: number; resultsRequest: number; projectRequest: number
+  resultsWarnings: string[]; statusRequest: number; resultsRequest: number; projectRequest: number; previewRequest: number
   investigationRevision: number; selectedInvestigationId: string
 }

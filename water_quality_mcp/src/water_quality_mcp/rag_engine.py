@@ -14,9 +14,11 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import logging
 import os
 import re
+from threading import RLock
 from typing import Any, TYPE_CHECKING
 from .rag_retrieval import CANDIDATES, MAX_LEXICAL_CHUNKS, RAG_RULES, fuse_cases, public_cases
 
@@ -35,6 +37,27 @@ EMBEDDING_MODEL_NAME = "shibing624/text2vec-base-chinese"
 
 # 集合名称
 COLLECTION_NAME = "treatment_cases"
+_ENGINE_LOCK = RLock()
+_ENGINES = {}
+
+
+def configured_index_dir() -> str:
+    return os.path.abspath(os.environ.get('WQ_RAG_INDEX_DIR') or DEFAULT_PERSIST_DIR)
+
+
+def configured_embedding_model() -> str:
+    return os.environ.get('WQ_EMBEDDING_MODEL', '').strip() or EMBEDDING_MODEL_NAME
+
+
+def optional_dependencies() -> dict[str, bool]:
+    """只探测模块可定位性；不加载模型、不下载文件，不能替代真实检索验证。"""
+    result = {}
+    for name in ('chromadb', 'sentence_transformers'):
+        try:
+            result[name] = importlib.util.find_spec(name) is not None
+        except (ImportError, ValueError, AttributeError):
+            result[name] = False
+    return result
 
 
 class RAGEngine:
@@ -53,11 +76,14 @@ class RAGEngine:
             persist_dir: ChromaDB 持久化目录。默认使用项目根目录下的 .rag_index。
         """
         self._persist_dir = os.path.abspath(
-            persist_dir or DEFAULT_PERSIST_DIR
+            persist_dir or configured_index_dir()
         )
         os.makedirs(self._persist_dir, exist_ok=True)
 
+        self._lock = RLock()
         self._embedding_model = None
+        self._retrieval_verified = False
+        self._retrieval_error = None
         self._chroma_client: chromadb.PersistentClient | None = None
         self._collection: Any = None
 
@@ -65,46 +91,58 @@ class RAGEngine:
 
     @property
     def embedding_model(self):
-        """延迟加载 sentence-transformers 嵌入模型（单例）。"""
-        if self._embedding_model is None:
-            from sentence_transformers import SentenceTransformer
-
-            logger.info("加载嵌入模型: %s", EMBEDDING_MODEL_NAME)
-            self._embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-            logger.info(
-                "嵌入模型已加载，向量维度: %d",
-                self._embedding_model.get_embedding_dimension(),
-            )
-        return self._embedding_model
-
-    # ---- ChromaDB ----
+        """延迟加载嵌入模型；同一实例的冷启动只执行一次。"""
+        with self._lock:
+            if self._embedding_model is None:
+                from sentence_transformers import SentenceTransformer
+                model = configured_embedding_model()
+                logger.info("加载嵌入模型: %s", model)
+                self._embedding_model = SentenceTransformer(model, trust_remote_code=False)
+                logger.info("嵌入模型已加载，向量维度: %d", self._embedding_model.get_embedding_dimension())
+            return self._embedding_model
 
     @property
     def chroma_client(self) -> chromadb.PersistentClient:
-        """延迟初始化 ChromaDB 持久化客户端。"""
-        if self._chroma_client is None:
-            # 检索依赖缺失时由调用方报告降级，不阻止数据导入、检测和报告服务启动。
-            import chromadb
-            from chromadb.config import Settings as ChromaSettings
-            self._chroma_client = chromadb.PersistentClient(
-                path=self._persist_dir,
-                settings=ChromaSettings(anonymized_telemetry=False),
-            )
-        return self._chroma_client
+        """延迟初始化持久化客户端，避免并发重复建立。"""
+        with self._lock:
+            if self._chroma_client is None:
+                import chromadb
+                from chromadb.config import Settings as ChromaSettings
+                self._chroma_client = chromadb.PersistentClient(
+                    path=self._persist_dir,
+                    settings=ChromaSettings(anonymized_telemetry=False),
+                )
+            return self._chroma_client
 
     @property
     def collection(self):
-        """获取或创建 ChromaDB 集合。"""
-        if self._collection is None:
-            self._collection = self.chroma_client.get_or_create_collection(
-                name=COLLECTION_NAME,
-                metadata={"hnsw:space": "cosine"},
-            )
-        return self._collection
+        """获取或创建索引集合，建库与查询均在实例锁内操作。"""
+        with self._lock:
+            if self._collection is None:
+                self._collection = self.chroma_client.get_or_create_collection(
+                    name=COLLECTION_NAME, metadata={"hnsw:space": "cosine"},
+                )
+            return self._collection
 
     # ---- 检索 ----
 
-    def retrieve(
+    def retrieve(self, query: str, top_k: int = 5,
+                 filters: dict[str, Any] | None = None, strategy: str = 'hybrid') -> list[dict[str, Any]]:
+        """检索及就绪证据共用入口；失败不能保留上一次的“已验证”标记。"""
+        with self._lock:
+            self._retrieval_verified = False
+            # 复用持久客户端，按名称重取集合以兼容已重建的索引；不重复加载模型。
+            if self._chroma_client is not None:
+                self._collection = None
+            try:
+                result = self._retrieve(query, top_k, filters, strategy)
+            except Exception as exc:
+                self._retrieval_error = type(exc).__name__
+                raise
+            self._retrieval_error = None
+            return result
+
+    def _retrieve(
         self,
         query: str,
         top_k: int = 5,
@@ -156,13 +194,16 @@ class RAGEngine:
                     "distance": results["distances"][0][i] if results.get("distances") else 0.0,
                 })
         if strategy=='dense_v1':
+            self._retrieval_verified = True
             return hits
         raw = collection.get(where=where if where else None,
             include=['documents','metadatas'],limit=MAX_LEXICAL_CHUNKS+1)
         corpus = [{'id':ident,'document':doc,'metadata':meta or {}} for ident,doc,meta in
             zip(raw.get('ids',[]),raw.get('documents',[]),raw.get('metadatas',[]))]
         enabled = len(corpus)<=MAX_LEXICAL_CHUNKS
-        return fuse_cases(query,hits,corpus if enabled else [],top_k,lexical_enabled=enabled)
+        fused = fuse_cases(query,hits,corpus if enabled else [],top_k,lexical_enabled=enabled)
+        self._retrieval_verified = True
+        return fused
 
     # ---- 格式化 ----
 
@@ -298,10 +339,21 @@ class RAGEngine:
 # ---- 模块级便捷函数 ----
 
 def get_rag_engine(persist_dir: str | None = None) -> RAGEngine:
-    """获取 RAGEngine 单例。"""
-    if RAGEngine._instance is None:
-        RAGEngine._instance = RAGEngine(persist_dir)
-    return RAGEngine._instance
+    """按索引目录复用实例；显式指定另一索引不会切换默认服务。"""
+    path = os.path.abspath(persist_dir or configured_index_dir())
+    key = os.path.normcase(path)
+    with _ENGINE_LOCK:
+        current = RAGEngine._instance
+        if persist_dir is None and current is not None and os.path.normcase(current._persist_dir) == key:
+            _ENGINES[key] = current
+            return current
+        if key not in _ENGINES:
+            _ENGINES[key] = RAGEngine(path)
+        engine = _ENGINES[key]
+        if persist_dir is None:
+            RAGEngine._instance = engine
+        return engine
+
 
 
 def search_treatment_cases(
@@ -319,10 +371,8 @@ def search_treatment_cases(
     Returns:
         JSON 字符串，包含检索到的案例列表。
     """
-    engine = get_rag_engine()
-    engine._collection = None  # 强制重新从磁盘读取，避免 Singleton 缓存过期状态
-    engine._chroma_client = None  # 也重置 chroma 客户端，避免 SQLite 文件锁残留
     try:
+        engine = get_rag_engine()
         results = engine.retrieve(query, top_k, filters)
         empty_index = not results and engine.collection.count()==0
     except ImportError:

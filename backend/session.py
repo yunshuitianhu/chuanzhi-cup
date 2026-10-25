@@ -156,7 +156,14 @@ class Session:
         self.invalidate_report()
         self.results_revision += 1
 
+    def set_station_result(self, result) -> None:
+        """新的站点事实使依赖旧证据的完成标记失效；历史正文保留。"""
+        self.national_station_result = result
+        self.invalidate_report()
+        self.results_revision += 1
+
     def replace_video(self, frames, filename) -> None:
+        self._video_quality_cache = None
         self.video_frames = frames
         self.video_filename = filename
         self.cross_validation = None
@@ -169,6 +176,7 @@ class Session:
     def clear_all(self) -> None:
         """加载新数据时调用 —— 与原 app.py 的「重置所有分析状态」一致。"""
         self.video_frames = []
+        self._video_quality_cache = None
         self.data_filename = ""
         self.video_filename = ""
         self.reset_analysis()

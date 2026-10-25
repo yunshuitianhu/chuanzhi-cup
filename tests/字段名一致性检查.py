@@ -146,8 +146,8 @@ miss1 = compare("1. find_black_spots  →  _display_black_spot_result（tab4 第
 import cv2
 frames = []
 for i in range(12):
-    img = np.full((120, 160, 3), 60 + i * 5, dtype=np.uint8)
-    cv2.circle(img, (80, 60), 30, (40, 90, 110), -1)
+    cells=(np.indices((120,160)).sum(axis=0)//4)%2
+    img=np.repeat((60+i*5+cells*60).astype(np.uint8)[:,:,None],3,axis=2)
     _, buf = cv2.imencode(".jpg", img)
     frames.append({"time_sec": i * 30.0, "image_base64": base64.b64encode(buf).decode()})
 
@@ -167,6 +167,10 @@ dense = pd.DataFrame({
 st_ws = WaterQualityState()
 st_ws.df = dense
 st_ws.video_frames = frames
+from water_quality_mcp.src.water_quality_mcp.video_quality import DEFAULTS
+frames[0]['video_settings']={**DEFAULTS,'roi_confirmed':True,'roi_note':'受控像素，非实拍水面',
+    'reviewer':'自动契约测试（非人工现场复核）','sync_confirmed':True,'sync_note':'受控相同时钟',
+    'time_window_sec':60.}
 st_ws.black_spots = black
 cv_json = cross_validate_video_with_monitoring(st_ws, 0, 60)
 cv_obj = json.loads(cv_json)

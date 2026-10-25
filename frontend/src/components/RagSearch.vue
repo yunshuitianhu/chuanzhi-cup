@@ -5,7 +5,7 @@
  * 本地整理的治理参考资料，经向量与词面融合后按来源合并。
  * 对话和报告共用检索内核，具体引用须核对片段；原始发布内容未独立核验。
  */
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/client'
 import { toastErr, toastOk } from '../composables/useToast'
 import RagCase from './RagCase.vue'
@@ -15,6 +15,9 @@ const query = ref('')
 const topK = ref(5)
 const loading = ref(false)
 const data = ref(null)
+const statusLoading = ref(false)
+let disposed=false, statusRequest=0, searchRequest=0
+onBeforeUnmount(()=>{disposed=true;statusRequest++;searchRequest++})
 
 const QUICK = ['黑臭水体治理', '氨氮工业废水处理', '富营养化湖泊修复', '城市河道综合治理']
 
@@ -32,26 +35,33 @@ const DEFAULT_QUERY = '黑臭水体治理'
 onMounted(loadStatus)
 
 async function loadStatus() {
+  const ticket=++statusRequest
+  statusLoading.value=true
   try {
-    status.value = await api.ragStatus()
+    const value=await api.ragStatus()
+    if(!disposed&&ticket===statusRequest)status.value=value
   } catch (e) {
-    status.value = { available: false, error: e.message }
+    if(!disposed&&ticket===statusRequest)status.value={available:false,error:e.message}
+  } finally {
+    if(ticket===statusRequest)statusLoading.value=false
   }
 }
 
 async function run(q) {
-  // 空输入走默认查询，而不是直接 return —— 后者会让用户以为按钮坏了
-  const text = (q || query.value).trim() || DEFAULT_QUERY
-  query.value = text
-  data.value = null
-  loading.value = true
+  if(disposed||loading.value)return
+  const ticket=++searchRequest
+  const text=(q||query.value).trim()||DEFAULT_QUERY
+  query.value=text;data.value=null;loading.value=true
   try {
-    data.value = await api.ragSearch(text, topK.value)
-    toastOk(`检索到 ${data.value['共检索到']} 份参考资料`)
+    const result=await api.ragSearch(text,topK.value)
+    if(disposed||ticket!==searchRequest)return
+    data.value=result
+    await loadStatus()
+    if(!disposed&&ticket===searchRequest)toastOk(`检索到 ${result['共检索到']} 份参考资料`)
   } catch (e) {
-    toastErr(`检索失败：${e.message}`)
+    if(!disposed&&ticket===searchRequest){await loadStatus();if(!disposed)toastErr(`检索失败：${e.message}`)}
   } finally {
-    loading.value = false
+    if(ticket===searchRequest)loading.value=false
   }
 }
 
@@ -62,14 +72,16 @@ async function run(q) {
     <!-- 知识库状态 -->
     <div v-if="status" class="status">
       <template v-if="status.available">
-        <span class="ok">● 知识库就绪</span>
+        <span class="ok">● {{status.retrieval_verified ? '检索已验证' : '索引可读，检索待验证'}}</span>
         <span class="dim">{{ status.source_documents }} 份资料 · {{ status.chunks }} 个向量块</span>
         <span class="dim">{{ status.embedding_model }}</span>
       </template>
       <template v-else>
         <span class="bad">● 知识库不可用</span>
-        <span class="dim">{{ status.error || '索引未构建，请运行 python scripts/build_rag_index.py' }}</span>
+        <span class="dim">{{ status.notice || status.error || '尚未核对索引、依赖与模型，请重新检查。' }}</span>
       </template>
+      <span v-if="status.available && status.notice" class="dim">{{status.notice}}</span>
+      <button class="qbtn" :disabled="statusLoading || loading" @click="loadStatus">{{statusLoading?'检查中…':'重新检查知识库'}}</button>
     </div>
 
     <!-- 检索 -->
