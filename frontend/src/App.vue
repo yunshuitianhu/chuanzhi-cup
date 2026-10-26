@@ -52,7 +52,7 @@ watch(() => narrow.value && mobileOpen.value, async open => {
 watch(() => route.path, () => { if (narrow.value && mobileOpen.value) closeSidebar() })
 onMounted(() => {
   previousOverflow = document.body.style.overflow
-  media = window.matchMedia('(max-width: 767px)')
+  media = window.matchMedia('(max-width:1023px)')
   syncViewport(); media.addEventListener('change', syncViewport)
   try { desktopCollapsed.value = localStorage.getItem('wq:sidebar-collapsed') === 'true' } catch { /* optional */ }
 })
@@ -79,7 +79,7 @@ const keySummary = computed(() => {
       <button v-if="narrow" class="drawer-close" @click="closeSidebar">关闭项目侧栏</button>
       <div class="brand">
         <div class="brand-title">水质监测与污染溯源助手</div>
-        <div class="brand-sub">AI Web 应用 · Vue 3 + FastAPI</div>
+        <div class="brand-sub">河道巡检 · 证据辅助研判</div>
       </div>
 
       <ProjectPanel />
@@ -215,8 +215,8 @@ const keySummary = computed(() => {
 }
 .class-btn:hover:not(:disabled) { border-color: var(--c-accent); color: var(--c-ink); }
 .class-btn.active {
-  background: var(--c-accent); border-color: var(--c-accent);
-  color: #06121c;
+  background: var(--c-surface-2); border-color: var(--c-ink);
+  color: var(--c-ink); box-shadow: inset 0 -2px 0 var(--c-ink);
 }
 .class-btn:disabled { opacity: .5; cursor: not-allowed; }
 
@@ -267,7 +267,7 @@ const keySummary = computed(() => {
   padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;
 }
 @media(max-width:1200px){.tabs-right{display:none}.tab{padding:8px 11px}.toggle-label{display:none}}
-@media(max-width:767px){
+@media(max-width:1023px){
   .sidebar.drawer{position:fixed;inset:0 auto 0 0;z-index:1000;width:min(320px,calc(100vw - 32px));height:100dvh;overscroll-behavior:contain}
   .drawer-close{align-self:flex-end}.tabs{padding:6px 8px;gap:6px}.tab-links{flex:1;justify-content:space-between}
   .tab{font-size:12px;padding:8px 7px}.tab-icon{display:none}.content{padding:12px 10px}.sidebar-toggle{min-height:38px}

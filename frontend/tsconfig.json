@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "allowJs": true,
     "checkJs": true,
     "strict": true,
@@ -12,8 +16,14 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/types/**/*.ts", "src/api/client.js", "src/stores/session.js",
-    "src/utils/agentStream.js", "src/utils/projectRestore.js", "src/utils/reportMarkdown.js",
-    "src/utils/frameScheduler.js", "tests/types/**/*.ts"
+    "src/types/**/*.ts",
+    "src/api/client.js",
+    "src/stores/session.js",
+    "src/utils/agentStream.js",
+    "src/utils/projectRestore.js",
+    "src/utils/reportMarkdown.js",
+    "src/utils/frameScheduler.js",
+    "tests/types/**/*.ts",
+    "src/utils/chatScroll.js"
   ]
 }

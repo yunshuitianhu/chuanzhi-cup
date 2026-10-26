@@ -1,0 +1,232 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {readFile} from 'node:fs/promises'
+import {pathToFileURL,fileURLToPath} from 'node:url'
+import {createRequire} from 'node:module'
+
+// Exercise the real Vue setup with isolated services and an optional fixture root.
+const project = process.env.Q17_PROJECT_ROOT || fileURLToPath(new URL('../../',import.meta.url))
+const require = createRequire(pathToFileURL(project + '/frontend/package.json'))
+const compiler = await import(pathToFileURL(require.resolve('@vue/compiler-sfc')).href)
+const vueURL = pathToFileURL(project + '/frontend/node_modules/vue/dist/vue.runtime.esm-bundler.js').href
+const {createRenderer,nextTick,reactive} = await import(vueURL)
+const source = await readFile(project + '/frontend/src/views/ChatView.vue', 'utf8')
+const {descriptor} = compiler.parse(source)
+const compiled = compiler.compileScript(descriptor, {id:'q17-chat-setup'}).content
+let serial=0
+const renderer=createRenderer({
+  createElement:tag=>({tag,children:[]}),createText:text=>({text}),createComment:text=>({text}),
+  insert(node,parent){parent.children.push(node)},remove(){},setText(){},setElementText(){},
+  parentNode:()=>null,nextSibling:()=>null,patchProp(){},
+})
+const settle=async()=>{await nextTick();await new Promise(r=>setImmediate(r));await nextTick()}
+
+async function mount() {
+  const calls=[],scrolls=[],listeners=new Map(),frames=new Map()
+  let selection={isCollapsed:true},frameId=0
+  const store=reactive({
+    ready:true,loading:false,chatRunning:false,chatMessages:[],chatStreaming:false,
+    workspaceRevision:1,projectState:{current:{id:'a',name:'test'}},
+    status:{has_data:true,analysis_revision:1,rows:6},config:{target_water_class:'V'},
+    agentRun:null,agentRunAt:0,agentConnectionError:'',agentActiveId:null,
+    selectedInvestigationId:'',investigationRevision:0,
+    refreshAgentRun:async()=>{store.chatRunning=false},
+    refreshStatus:async()=>{},stopAgentRun:async()=>{},
+    beginAgentStream(){if(store.chatRunning||store.loading||!store.ready)return false;store.chatRunning=true;return true},
+    adoptAgentRun(){},
+  })
+  const saved={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch,
+    request:globalThis.requestAnimationFrame,cancel:globalThis.cancelAnimationFrame}
+  globalThis.window={getSelection:()=>selection}
+  globalThis.document={addEventListener:(name,fn)=>listeners.set(name,fn),
+    removeEventListener:(name,fn)=>{if(listeners.get(name)===fn)listeners.delete(name)},
+    getElementById:id=>({scrollIntoView:options=>scrolls.push({id,options})})}
+  globalThis.requestAnimationFrame=fn=>{frames.set(++frameId,fn);return frameId}
+  globalThis.cancelAnimationFrame=id=>frames.delete(id)
+  globalThis.fetch=async(_url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,body:{},headers:{get:()=> 'run-test'}}}
+  globalThis.__q17ChatStore=store
+  const fixture='data:text/javascript,'+encodeURIComponent(
+    "import {toRefs} from "+JSON.stringify(vueURL)+";export const storeToRefs=toRefs;"+
+    "export const useSessionStore=()=>globalThis.__q17ChatStore;"+
+    "export const sseHeaders=()=>({});export const adoptSessionFrom=()=>{};"+
+    "export const toastErr=()=>{};export const consumeAgentStream=async()=>{};"+
+    "export default {render:()=>null}")
+  const code=compiled.replace(/from ['"]([^'"]+)['"]/g,(_match,dependency)=>{
+    const target=dependency==='vue'?vueURL:
+      dependency==='../utils/chatScroll'?pathToFileURL(project+'/frontend/src/utils/chatScroll.js').href:fixture
+    return 'from '+JSON.stringify(target)
+  })
+  const {default:Component}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64')+'#'+(++serial))
+  Component.render=()=>null
+  const app=renderer.createApp(Component),vm=app.mount({children:[]})
+  await settle()
+  return {state:vm.$.setupState,store,calls,scrolls,listeners,frames,settle,
+    setSelection(next){selection=next},
+    close(){app.unmount();globalThis.window=saved.window;globalThis.document=saved.document;globalThis.fetch=saved.fetch;
+      globalThis.requestAnimationFrame=saved.request;globalThis.cancelAnimationFrame=saved.cancel},
+  }
+}
+
+function enter(extra={}) {
+  return {key:'Enter',shiftKey:false,isComposing:false,keyCode:13,prevented:0,
+    preventDefault(){this.prevented++},...extra}
+}
+
+test('Chinese IME Enter and legacy composing keyCode do not send or erase the draft',async()=>{
+  const v=await mount()
+  try {
+    v.state.input='正在输入的问题'
+    for(const event of [enter({isComposing:true}),enter({keyCode:229})]){
+      v.state.composerKey(event);await v.settle()
+      assert.equal(event.prevented,0);assert.equal(v.state.input,'正在输入的问题')
+    }
+    assert.equal(v.calls.length,0);assert.equal(v.store.chatMessages.length,0)
+  }finally{v.close()}
+})
+
+test('Shift+Enter preserves the native newline and ordinary Enter sends the trimmed question',async()=>{
+  const v=await mount()
+  try {
+    v.state.input='  解释这条记录  '
+    const newline=enter({shiftKey:true})
+    v.state.composerKey(newline);await v.settle()
+    assert.equal(newline.prevented,0);assert.equal(v.calls.length,0)
+    assert.equal(v.state.input,'  解释这条记录  ')
+    const send=enter()
+    v.state.composerKey(send);await v.settle()
+    assert.equal(send.prevented,1)
+    assert.equal(v.calls.length,1);assert.deepEqual(v.calls[0],{message:'解释这条记录',auto:false})
+    assert.equal(v.state.input,'')
+    assert.equal(v.store.chatMessages[0].content,'解释这条记录')
+  }finally{v.close()}
+})
+
+for(const condition of ['chatRunning','loading','notReady','noData']){
+  test('send guard preserves the draft when '+condition,async()=>{
+    const v=await mount()
+    try {
+      v.state.input='尚未发送的原始问题'
+      if(condition==='notReady')v.store.ready=false
+      else if(condition==='noData')v.store.status.has_data=false
+      else v.store[condition]=true
+      await v.state.send()
+      assert.equal(v.state.input,'尚未发送的原始问题')
+      assert.equal(v.calls.length,0);assert.equal(v.store.chatMessages.length,0)
+    }finally{v.close()}
+  })
+}
+
+test('blank draft never creates a model request',async()=>{
+  const v=await mount()
+  try{v.state.input=' \n ';await v.state.send();assert.equal(v.calls.length,0);assert.equal(v.store.chatMessages.length,0)}
+  finally{v.close()}
+})
+
+test('only selections in the conversation pause follow and latest clears that selection',async()=>{
+  const v=await mount()
+  try {
+    const inside={},outside={}
+    v.state.scroller={scrollTop:0,scrollHeight:1000,clientHeight:300,contains:node=>node===inside}
+    v.setSelection({isCollapsed:false,anchorNode:outside,focusNode:outside})
+    v.state.selectionChanged()
+    assert.equal(v.state.scrollState.following,true)
+    let removed=0
+    v.setSelection({isCollapsed:false,anchorNode:inside,focusNode:inside,removeAllRanges(){removed++}})
+    v.state.selectionChanged()
+    assert.equal(v.state.scrollState.following,false)
+    await v.state.latest()
+    assert.equal(removed,1);assert.equal(v.state.scrollState.following,true)
+  }finally{v.close()}
+})
+
+test('manually closing the investigation section does not clear its visited state or chat draft',async()=>{
+  const v=await mount()
+  try {
+    v.state.input='待补充的复测问题'
+    v.state.openInvestigation({target:{open:true}})
+    assert.equal(v.state.investigationVisited,true)
+    v.state.openInvestigation({target:{open:false}})
+    assert.equal(v.state.investigationVisited,true)
+    assert.equal(v.state.input,'待补充的复测问题')
+  }finally{v.close()}
+})
+
+test('unmount releases the document selection listener and pending animation frame',async()=>{
+  const v=await mount()
+  assert.equal(v.listeners.has('selectionchange'),true)
+  v.close()
+  assert.equal(v.listeners.size,0);assert.equal(v.frames.size,0)
+})
+
+test('adding a referenced investigation opens the section and preserves the question draft',async()=>{
+  const v=await mount()
+  try {
+    const details={open:false}
+    v.state.investigationDetails=details
+    v.state.input='尚未发送的补充问题'
+    v.store.selectedInvestigationId='task-new';v.store.investigationRevision++
+    await v.settle()
+    assert.equal(v.state.investigationVisited,true);assert.equal(details.open,true)
+    assert.equal(v.state.input,'尚未发送的补充问题')
+    assert.equal(v.scrolls.at(-1).id,'investigation-board')
+    assert.equal(v.calls.length,0)
+  }finally{v.close()}
+})
+
+test('a repeated task ID with a new investigation revision still reveals the existing task',async()=>{
+  const v=await mount()
+  try {
+    const details={open:false};v.state.investigationDetails=details
+    v.store.selectedInvestigationId='same-task';v.store.investigationRevision++
+    await v.settle();details.open=false
+    const before=v.scrolls.length
+    v.store.investigationRevision++;await v.settle()
+    assert.equal(details.open,true);assert.equal(v.scrolls.length,before+1)
+  }finally{v.close()}
+})
+
+test('a project switch between ticks discards the pending reveal',async()=>{
+  const v=await mount()
+  try {
+    const details={open:false};v.state.investigationDetails=details
+    v.store.selectedInvestigationId='old-project-task';v.store.investigationRevision++
+    const switchProject=nextTick(()=>{v.store.workspaceRevision++;v.store.switchingProject=true})
+    await switchProject;await v.settle()
+    assert.equal(details.open,false);assert.equal(v.scrolls.length,0)
+  }finally{v.close()}
+})
+
+test('an added referenced task refreshes the investigation list without overwriting its dirty draft',async()=>{
+  const boardSource=await readFile(project+'/frontend/src/components/InvestigationBoard.vue','utf8')
+  const {descriptor}=compiler.parse(boardSource)
+  let result={scope_id:'scope-a',revision:1,persisted_project:false,items:[
+    {id:'task-old',draft:{title:'已有任务',hypothesis:'旧假设',supporting_notes:''}},
+  ]}
+  const store=reactive({ready:true,chatRunning:false,loading:false,workspaceRevision:1,
+    status:{analysis_revision:1,results_revision:1},investigationRevision:0,selectedInvestigationId:'task-old'})
+  globalThis.__q17BoardStore=store
+  globalThis.__q17BoardApi={investigations:async()=>structuredClone(result)}
+  const fixture='data:text/javascript,'+encodeURIComponent(
+    'export const api=globalThis.__q17BoardApi;export const useSessionStore=()=>globalThis.__q17BoardStore')
+  const code=compiler.compileScript(descriptor,{id:'q17-board-setup'}).content
+    .replace(/from ['"]([^'"]+)['"]/g,(_m,dependency)=>'from '+JSON.stringify(dependency==='vue'?vueURL:fixture))
+  const {default:Component}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))
+  Component.render=()=>null
+  const app=renderer.createApp(Component),vm=app.mount({children:[]}),state=vm.$.setupState
+  try{
+    await settle()
+    state.draft.title='正在编辑、尚未保存的标题'
+    state.draft.supporting_notes='待核查的证据草稿'
+    state.edit({target:{name:'supporting_notes'}})
+    result={...result,revision:2,items:[...result.items,
+      {id:'task-new',draft:{title:'刚从报告加入的任务',hypothesis:'新假设',supporting_notes:''}}]}
+    store.selectedInvestigationId='task-new';store.investigationRevision++
+    await settle()
+    assert.equal(state.board.items.length,2)
+    assert.equal(state.selected,'task-old')
+    assert.equal(state.draft.title,'正在编辑、尚未保存的标题')
+    assert.equal(state.draft.supporting_notes,'待核查的证据草稿')
+    assert.equal(state.dirty,true)
+    assert.match(state.message,/草稿保留/)
+  }finally{app.unmount();delete globalThis.__q17BoardStore;delete globalThis.__q17BoardApi}
+})

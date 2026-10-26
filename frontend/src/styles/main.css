@@ -1,13 +1,18 @@
 /* 全局样式。配色取自项目既有图表用色，保持与水环境主题一致。 */
 :root {
-  --c-bg:        #0f1720;
-  --c-surface:   #17212b;
-  --c-surface-2: #1e2a36;
-  --c-border:    #2a3947;
-  --c-ink:       #e8eef5;
-  --c-sub:       #94a7b8;
-  --c-accent:    #2ea3f2;
+  --c-bg:        #0f1923;
+  --c-surface:   #15232e;
+  --c-surface-2: #1c2d3a;
+  --c-border:    #2b4051;
+  --c-ink:       #edf4fa;
+  --c-sub:       #a4b7c7;
+  --c-accent:    #55bfe8;
   --c-accent-2:  #00c9a7;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --duration-fast: 160ms;
+  --shadow-float: 0 6px 20px #0005;
 
   /* 与 analysis.py 的 GB3838 内梅罗分级色一致 */
   --sev-normal:   #2E8B57;

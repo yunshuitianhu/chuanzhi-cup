@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-26",
+  "phase": "Q17 representative view and reading protection; overall Q17 remains in progress",
+  "base_commit": "547f05bc3a0269eee2c07e956aa3d69e977551ff",
+  "frontend": {
+    "tests": 179,
+    "passed": 179,
+    "failed": 0,
+    "new_scroll_tests": 11,
+    "new_setup_tests": 14,
+    "core_typecheck": true,
+    "production_build": true
+  },
+  "previous_source_validation": {
+    "python_tests": 465,
+    "scope": "Completed before the initial three-commit GitHub synchronization; no backend source changes in Q17; not rerun in this phase"
+  },
+  "browser": {
+    "mode": "Actual production Vue frontend with isolated Node HTTP/SSE fixture",
+    "model_calls": 0,
+    "backend_integration_validated": false,
+    "layouts": [
+      {
+        "composerBottom": 737.1875228881836,
+        "height": 740,
+        "pageWidth": 312,
+        "streamWidth": 259,
+        "width": 320
+      },
+      {
+        "composerBottom": 822.0312728881836,
+        "height": 844,
+        "pageWidth": 382,
+        "streamWidth": 329,
+        "width": 390
+      },
+      {
+        "composerBottom": 865.2395858764648,
+        "height": 900,
+        "pageWidth": 760,
+        "streamWidth": 687,
+        "width": 768
+      },
+      {
+        "composerBottom": 873.2395858764648,
+        "height": 900,
+        "pageWidth": 1272,
+        "streamWidth": 887,
+        "width": 1280
+      }
+    ],
+    "stream_reading": {
+      "scope": "Node frontend fixture; not model/backend benchmark",
+      "a": {
+        "at": 1792974065051,
+        "chars": 15840,
+        "height": 15735,
+        "top": 0
+      },
+      "b": {
+        "at": 1792974065841,
+        "chars": 16431,
+        "height": 16289,
+        "latest": "有新内容 · 回到最新 ↓",
+        "top": 0
+      }
+    },
+    "return_to_latest_gap_px": 0,
+    "fixture_stop_visible": true,
+    "draft_preservation": {
+      "boardOpen": true,
+      "boardPresent": true,
+      "composer": "Q17 主聊天草稿\n",
+      "investigationTitle": "Q17 未保存排查草稿"
+    },
+    "console_errors_final": 0
+  },
+  "visual": {
+    "independent_rounds": 2,
+    "review_scores_subjective_only": [
+      6.7,
+      7.5
+    ],
+    "remaining": [
+      "Mobile continuous long-report reading space",
+      "Sidebar hierarchy and auxiliary text contrast"
+    ],
+    "scores_are_not_functional_or_performance_acceptance": true
+  },
+  "limitations": [
+    "Python backend preview could not be restarted because existing dependency files remained access denied",
+    "Background persistent preview launch was rejected by automatic approval; frontend fixture used a managed session",
+    "No true-device/Safari/screen-reader or complete browser performance profile",
+    "Markdown DOM updates can still affect live text selection; Q14 not implemented",
+    "Q13-Q16 not implemented; Q17 integration acceptance remains after Q16"
+  ]
+}
