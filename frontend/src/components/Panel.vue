@@ -20,19 +20,13 @@ defineProps({
 </template>
 
 <style scoped>
-.card {
-  min-width:0;
-  background: var(--c-surface); border: 1px solid var(--c-border);
-  border-radius: var(--radius-md); margin-bottom: 20px; overflow: hidden;
-}
-.head {
-  display: flex; flex-wrap:wrap; align-items: flex-start; justify-content: space-between; gap: 12px;
-  padding: 18px 22px; border-bottom: 1px solid var(--c-border);
-  background: var(--c-surface);
-}
-.title { margin: 0; font-size: 18px; font-weight: 600; }
-.sub { margin: 5px 0 0; font-size: 13px; color: var(--c-sub); }
-.head>div { min-width:0; }.actions { max-width:100%; }
-.body { padding: 18px 22px; min-width:0; }
-@media(max-width:600px){.head{padding:12px}.body{padding:12px}.title,.sub{overflow-wrap:anywhere}}
+
+.card{min-width:0;background:var(--c-surface);border:1px solid var(--c-border-soft);border-radius:var(--radius-md);margin-bottom:24px;overflow:hidden}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;padding:22px 24px;border-bottom:1px solid var(--c-border-soft)}
+.title{margin:0;font-size:19px;font-weight:650;letter-spacing:.02em;line-height:1.5}
+.sub{margin:6px 0 0;font-size:12px;color:var(--c-sub);line-height:1.8}
+.head>div{min-width:0}.actions{max-width:100%}.actions:empty{display:none}
+.body{padding:22px 24px;min-width:0}
+@media(max-width:600px){.card{border-radius:10px;margin-bottom:18px}.head{padding:16px;gap:12px}.body{padding:16px}.title{font-size:18px}.title,.sub{overflow-wrap:anywhere}}
+
 </style>

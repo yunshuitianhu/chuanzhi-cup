@@ -61,3 +61,16 @@ test('失败问题可查看，不能覆盖已写的新草稿或冒充另一线�
     assert.equal(v.state.failedQuestion.text,'原始问题');assert.match(v.q.error,/另一解释线程/)
   }finally{d.resolve();v.close()}
 })
+
+test('已收尾或历史已回传的解释不重复标为正在解释',async()=>{
+  const v=await mount(),d=deferred()
+  try{
+    v.service.consume=async(_body,callback)=>{callback('delta',{thread_id:a,text:'A的回答'});await d.promise;callback('done',{thread_id:a,status:'succeeded'})}
+    const pending=v.state.send();await v.settle()
+    v.q.threads=[{id:a,messages:[{role:'assistant',content:'A的回答',run_id:'run'}]}]
+    assert.equal(v.state.visiblePartial,'')
+    v.q.threads=[];v.store.loadSideThreads=async()=>{v.store.sideRunning=true}
+    d.resolve();await pending
+    assert.equal(v.state.visiblePartial,'')
+  }finally{d.resolve();v.close()}
+})

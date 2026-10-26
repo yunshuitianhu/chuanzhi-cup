@@ -6,7 +6,7 @@ import { toasts } from '../composables/useToast'
 </script>
 
 <template>
-  <div class="toast-wrap">
+  <div class="toast-wrap" role="status" aria-live="polite" aria-atomic="false">
     <TransitionGroup name="toast">
       <div v-for="t in toasts" :key="t.id" class="toast" :class="t.type">
         <span class="ico">{{ t.type === 'error' ? '✕' : t.type === 'warn' ? '!' : '✓' }}</span>
@@ -18,7 +18,7 @@ import { toasts } from '../composables/useToast'
 
 <style scoped>
 .toast-wrap {
-  position: fixed; right: 20px; bottom: 20px; z-index: 9999;
+  position: fixed; right: 20px; top: 76px; pointer-events:none; z-index: 9999;
   display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
 }
 .toast {
@@ -36,6 +36,7 @@ import { toasts } from '../composables/useToast'
 .toast.error .ico { color: #ff6b81; }
 .toast.warn .ico  { color: var(--sev-mild); }
 
-.toast-enter-active, .toast-leave-active { transition: all .25s ease; }
+.toast-enter-active, .toast-leave-active { transition: opacity .2s ease,transform .2s ease; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(20px); }
+@media(max-width:600px){.toast-wrap{top:66px;left:12px;right:12px;align-items:stretch}.toast{max-width:none;padding:9px 12px;font-size:12px}}
 </style>

@@ -1,52 +1,44 @@
-/* 全局样式。配色取自项目既有图表用色，保持与水环境主题一致。 */
-:root {
-  --c-bg:        #0f1923;
-  --c-surface:   #15232e;
-  --c-surface-2: #1c2d3a;
-  --c-border:    #2b4051;
-  --c-ink:       #edf4fa;
-  --c-sub:       #a4b7c7;
-  --c-accent:    #55bfe8;
-  --c-accent-2:  #00c9a7;
-
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --duration-fast: 160ms;
-  --shadow-float: 0 6px 20px #0005;
-
-  /* 与 analysis.py 的 GB3838 内梅罗分级色一致 */
-  --sev-normal:   #2E8B57;
-  --sev-mild:     #FFA500;
-  --sev-moderate: #FF4500;
-  --sev-severe:   #DC143C;
-  --sev-critical: #8B0000;
+/* Shared visual tokens. Severity colors retain their existing data meaning. */
+:root{
+  color-scheme:dark;
+  --c-bg:#0c1520;
+  --c-surface:#14212d;
+  --c-surface-2:#1a2b39;
+  --c-border:#2d4252;
+  --c-border-soft:#243644;
+  --c-ink:#edf4f8;
+  --c-sub:#adc0cd;
+  --c-muted:#8198a8;
+  --c-accent:#7cd4eb;
+  --c-accent-2:#68c9b0;
+  --c-accent-soft:#1b3c4b;
+  --radius-sm:8px;
+  --radius-md:14px;
+  --duration-fast:160ms;
+  --shadow-float:0 12px 36px #0004;
+  --control-height:40px;
+  --sev-normal:#2E8B57;
+  --sev-mild:#FFA500;
+  --sev-moderate:#FF4500;
+  --sev-severe:#DC143C;
+  --sev-critical:#8B0000;
 }
-
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  font-family: 'Microsoft YaHei', 'PingFang SC', -apple-system, system-ui, sans-serif;
-  background: var(--c-bg);
-  color: var(--c-ink);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-button {
-  font-family: inherit;
-  font-size: inherit;
-  cursor: pointer;
-}
-
-code, pre { font-family: Consolas, 'Courier New', monospace; }
-input,select,textarea { min-width:0; max-width:100%; }
-img,video { max-width:100%; }
-button,a,input,select,textarea,summary,[tabindex] { scroll-margin-top:80px; }
-:focus-visible { outline:2px solid var(--c-accent); outline-offset:3px; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--c-bg);color:var(--c-ink);font-family:'Microsoft YaHei','PingFang SC',-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.7;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit}
+button{font-size:inherit;cursor:pointer}
+button:disabled{cursor:not-allowed}
+a{color:var(--c-accent)}
+code,pre{font-family:Consolas,'Courier New',monospace}
+input,select,textarea{min-width:0;max-width:100%;accent-color:var(--c-accent)}
+input::placeholder,textarea::placeholder{color:var(--c-muted);opacity:1}
+input:disabled,textarea:disabled,select:disabled{cursor:not-allowed}
+img,video{max-width:100%}
+button,a,input,select,textarea,summary,[tabindex]{scroll-margin-top:88px}
+summary{cursor:pointer}
+:focus-visible{outline:2px solid var(--c-accent);outline-offset:3px}
+::selection{background:#32657c;color:#fff}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-thumb{background:#3a5264;border-radius:8px}
+::-webkit-scrollbar-track{background:transparent}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
-
-/* 通用滚动条（暗色主题下默认样式很突兀） */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #33475a; border-radius: 4px; }
-::-webkit-scrollbar-track { background: transparent; }

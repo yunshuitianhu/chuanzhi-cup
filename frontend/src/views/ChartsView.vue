@@ -169,23 +169,53 @@ const caption = computed(() => store.status.has_data
 </script>
 
 <template>
+  <div class="charts-page">
+  <header class="page-heading">
+    <div class="page-copy">
+      <span class="page-kicker">巡航记录 / 可视化研判</span>
+      <h1>分析图表</h1>
+      <p>沿时间和河道核对异常，从监测记录回到可追溯的证据。</p>
+    </div>
+    <div v-if="store.status.has_data" class="dataset-summary" aria-label="当前图表数据">
+      <div><strong>{{ store.status.rows }}</strong><span>条监测记录</span></div>
+      <span class="dataset-tag">目标 {{ store.status.target_water_class }} 类</span>
+      <span v-if="store.status.data_identity?.label" class="dataset-identity">{{ store.status.data_identity.label }}</span>
+    </div>
+  </header>
   <ContextSourceFocus :kinds="['sample','time_range','video_frame']" @focus="acceptContext" />
   <div v-if="!store.status.has_data" class="empty">
-    <div class="empty-ico">📊</div>
+    <div class="empty-ico" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <h2>先载入一份巡航记录</h2>
     <p>请先在左侧上传并加载走航数据</p>
+    <p class="empty-note">加载后可查看时间趋势、河道点位和传感器质量复核。</p>
   </div>
 
   <template v-else>
-    <Panel title="传感器质量复核" subtitle="突刺 · 近恒值 · 采样异常 · 原始阈值预警保持">
-      <DataQualityPanel />
-    </Panel>
-    <Panel id="time-series" style="scroll-margin-top:80px" title="时间序列趋势" subtitle="氨氮 / 溶解氧 / 浑浊度 / pH，黑点按严重等级着色">
+    <nav class="section-nav" aria-label="图表内容导航">
+      <a href="#quality-review">质量复核</a><a href="#time-series">时间趋势</a><a href="#trace-map">溯源地图</a><a href="#pollution-playback">扩散演示</a><a href="#video-quality">视频核证</a>
+    </nav>
+    <details id="quality-review" class="quality-entry">
+      <summary><strong>传感器质量复核</strong><span>查看质控标记与原始记录</span></summary>
+      <div class="quality-details"><p class="caption">突刺、近恒值与采样异常需要复核；原始阈值预警保持。</p><DataQualityPanel /></div>
+    </details>
+    <Panel id="time-series" class="chart-section" title="时间序列趋势" subtitle="氨氮 / 溶解氧 / 浑浊度 / pH，黑点按严重等级着色">
       <template #actions>
         <button class="mini" :disabled="loading" @click="loadTimeSeries">刷新</button>
       </template>
       <p v-if="caption" class="caption">{{ caption }}</p>
 
+      <div class="grid-2">
+        <section v-for="panel in panels" :key="panel.key" class="trend-card" :aria-label="indicatorNames[panel.key]+'时间趋势'">
+        <div class="trend-heading"><h3>{{ indicatorNames[panel.key] }}</h3><span>监测趋势</span></div>
+        <EChart
+          :option="panel.option" @range-selected="applyZoom(panel.key,$event)"
+          :loading="loading"
+          :height="260"
+        />
+        </section>
+      </div>
       <div class="range-context">
+        <div class="range-heading"><h3>圈定时间，精准追问</h3><span>引用当前监测时段</span></div>
         <p>拖动任一图表的缩放条选择时间范围，也可填写开始和结束时间；按监测表时间填写，未提供时区时不跨时区推算。</p>
         <div class="range-fields">
           <label>开始时间<input v-model="rangeStart" aria-label="追问范围开始时间" maxlength="80" :disabled="loading||store.loading||store.chatRunning" /></label>
@@ -194,46 +224,79 @@ const caption = computed(() => store.status.has_data
         </div>
         <AskContext :selector="rangeSelector" :disabled="loading" label="让AI分析这个时间范围" />
       </div>
-      <div class="grid-2">
-        <EChart
-          v-for="panel in panels"
-          :key="panel.key"
-          :option="panel.option" @range-selected="applyZoom(panel.key,$event)"
-          :loading="loading"
-          :height="260"
-        />
-      </div>
     </Panel>
 
-    <Panel id="trace-map" style="scroll-margin-top:80px" title="交互式溯源地图" subtitle="严重程度渐变热力图 · 轨迹 · 可选聚类与 Top5 点位">
+    <Panel id="trace-map" class="chart-section" title="交互式溯源地图" subtitle="严重程度渐变热力图 · 轨迹 · 可选聚类与 Top5 点位">
       <EvidenceFocus @focus="evidenceSampleId=$event" />
       <TraceMap :focus-sample-id="evidenceSampleId" />
     </Panel>
 
-    <Panel title="污染扩散演示" subtitle="当前项目模拟结果 · 时间轴播放 · 沿程浓度与卫星地图同步">
+    <Panel id="pollution-playback" class="chart-section" title="污染扩散演示" subtitle="当前项目模拟结果 · 时间轴播放 · 沿程浓度与卫星地图同步">
       <PollutionPlayback />
     </Panel>
-    <Panel id="video-quality" style="scroll-margin-top:80px" title="视频-传感器交叉印证" subtitle="需要先上传巡航视频">
+    <Panel id="video-quality" class="chart-section" title="视频-传感器交叉印证" subtitle="需要先上传巡航视频">
       <CrossValidation :focus-frame-id="focusFrameId" :focus-video-revision="focusVideoRevision" />
     </Panel>
   </template>
+  </div>
 </template>
 
 <style scoped>
-.empty { text-align: center; padding: 80px 20px; color: var(--c-sub); }
-.empty-ico { font-size: 40px; margin-bottom: 12px; }
-
-.caption { margin: 0 0 12px; font-size: 12px; color: var(--c-sub); }
-
-.range-context{padding:12px 14px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:8px;margin-bottom:16px}.range-context p{font-size:12px;color:var(--c-sub);margin:0 0 10px}.range-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(90px,.5fr);gap:10px}.range-fields label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--c-sub)}.range-fields input,.range-fields select{min-width:0;width:100%;font:inherit;color:var(--c-ink);background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;padding:8px}
-@media(max-width:700px){.range-fields{grid-template-columns:1fr}.range-context{padding:10px}}
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-@media (max-width: 1200px) { .grid-2 { grid-template-columns: 1fr; } }
-
-.mini {
-  background: transparent; border: 1px solid var(--c-border); color: var(--c-sub);
-  padding: 4px 12px; border-radius: 6px; font-size: 12px;
+.charts-page { min-width:0; }
+.page-heading { display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:6px 0 24px; }
+.page-copy { min-width:0; }
+.page-kicker { color:var(--c-accent);font-size:11px;letter-spacing:1.2px; }
+.page-heading h1 { margin:6px 0 8px;font-size:28px;line-height:1.4;font-weight:650;letter-spacing:.5px; }
+.page-heading p { margin:0;color:var(--c-sub);font-size:13px;line-height:1.8; }
+.dataset-summary { display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:9px 12px;padding-top:4px;max-width:330px; }
+.dataset-summary>div { display:flex;align-items:baseline;gap:7px; }
+.dataset-summary strong { font-size:27px;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums; }
+.dataset-summary>div>span { color:var(--c-sub);font-size:11px; }
+.dataset-tag,.dataset-identity { font-size:11px;line-height:1.5; }
+.dataset-tag { color:var(--c-ink);border-left:1px solid var(--c-border);padding-left:12px; }
+.dataset-identity { color:var(--c-sub);width:100%;text-align:right;overflow-wrap:anywhere; }
+.section-nav { display:flex;flex-wrap:wrap;gap:5px;margin:0 0 20px;padding:5px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface); }
+.section-nav a { padding:7px 13px;border-radius:6px;color:var(--c-sub);font-size:12px;text-decoration:none;transition:background var(--duration-fast),color var(--duration-fast); }
+.section-nav a:hover,.section-nav a:focus-visible { background:var(--c-surface-2);color:var(--c-ink); }
+.chart-section { scroll-margin-top:80px; }
+.empty { text-align:center;padding:72px 24px;color:var(--c-sub);border:1px dashed var(--c-border);border-radius:var(--radius-md);background:var(--c-surface); }
+.empty h2 { margin:22px 0 8px;font-size:18px;color:var(--c-ink);font-weight:500; }
+.empty p { margin:5px 0;font-size:13px; }
+.empty .empty-note { font-size:12px; }
+.empty-ico { display:flex;align-items:flex-end;justify-content:center;gap:7px;height:42px; }
+.empty-ico span { width:7px;border-radius:3px;background:var(--c-accent);opacity:.65; }
+.empty-ico span:nth-child(1){height:20px}.empty-ico span:nth-child(2){height:35px}.empty-ico span:nth-child(3){height:27px}.empty-ico span:nth-child(4){height:42px;opacity:1}
+.caption { margin:0 0 16px;font-size:12px;line-height:1.8;color:var(--c-sub); }
+.range-context { padding:17px 18px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:10px;margin-bottom:22px; }
+.range-heading { display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 16px;margin-bottom:7px; }
+.range-heading h3 { margin:0;font-size:14px;font-weight:600; }
+.range-heading>span { font-size:11px;color:var(--c-sub); }
+.range-context p { font-size:12px;line-height:1.8;color:var(--c-sub);margin:0 0 14px;max-width:75em; }
+.range-fields { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(100px,.55fr);gap:12px;margin-bottom:14px; }
+.range-fields label { display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--c-sub);min-width:0; }
+.range-fields input,.range-fields select { min-width:0;width:100%;font:inherit;font-size:12px;color:var(--c-ink);background:var(--c-surface);border:1px solid var(--c-border);border-radius:7px;padding:9px 10px;min-height:38px; }
+.grid-2 { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px; }
+.trend-card { min-width:0;border:1px solid var(--c-border);border-radius:9px;overflow:hidden;background:var(--c-bg); }
+.trend-heading { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px 8px; }
+.trend-heading h3 { margin:0;font-size:13px;font-weight:600; }
+.trend-heading span { color:var(--c-sub);font-size:10px; }
+.mini { background:var(--c-surface-2);border:1px solid var(--c-border);color:var(--c-sub);padding:6px 12px;min-height:32px;border-radius:7px;font-size:12px; }
+.mini:hover:not(:disabled) { border-color:var(--c-accent);color:var(--c-ink); }
+.mini:disabled { opacity:.5; }
+@media(max-width:1200px){.grid-2{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:700px){
+  .page-heading{flex-direction:column;gap:16px;padding-bottom:20px}.page-heading h1{font-size:24px}
+  .dataset-summary{justify-content:flex-start;max-width:none;padding:0}.dataset-summary strong{font-size:23px}
+  .dataset-identity{width:auto;text-align:left}.section-nav{gap:2px}.section-nav a{padding:7px 9px;font-size:11px}
+  .range-fields{grid-template-columns:minmax(0,1fr)}.range-context{padding:14px}.range-heading{gap:5px 12px}
+  .empty{padding:54px 16px}.grid-2{gap:12px}
 }
-.mini:hover:not(:disabled) { border-color: var(--c-accent); color: var(--c-ink); }
-.mini:disabled { opacity: .5; }
+
+.quality-entry{border:1px solid var(--c-border-soft);border-radius:var(--radius-sm);background:var(--c-surface);margin-bottom:18px;scroll-margin-top:84px}
+.quality-entry>summary{padding:13px 16px;color:var(--c-sub);font-size:12px;line-height:1.8}
+.quality-entry>summary strong{font-weight:500;color:var(--c-ink);margin-right:18px}
+.quality-entry>summary span{font-size:11px}
+.quality-details{padding:8px 18px 18px;border-top:1px solid var(--c-border-soft)}
+.range-context{margin:20px 0 0}
+@media(max-width:600px){.quality-entry>summary{padding:12px}.quality-entry>summary span{display:block;margin-left:15px}.quality-details{padding:10px 12px}}
 </style>

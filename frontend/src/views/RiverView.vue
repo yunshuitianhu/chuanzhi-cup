@@ -285,10 +285,16 @@ const pollutionCompare = computed(() => {
 
     <div v-if="!store.status.has_data" class="empty">未加载走航数据时可手工配置并运行情景模型；自动参数建议和轨迹动画需上传对应数据。</div>
 
+    <nav class="model-guide" aria-label="河道模型步骤导航">
+      <a href="#river-parameters"><span>01</span><div><b>参数来源</b><small>核对建议与现场依据</small></div></a>
+      <a href="#river-hydrodynamics"><span>02</span><div><b>配置与水动力</b><small>初始化断面，计算流场</small></div></a>
+      <a href="#river-pollution"><span>03</span><div><b>污染情景</b><small>设定排放，查看模拟结果</small></div></a>
+    </nav>
+
     <div class="river-workspace">
       <!-- 参数自动检测 -->
-      <section class="block">
-        <h3 class="st">① 河道参数自动检测</h3>
+      <section class="block" id="river-parameters">
+        <h3 class="st"><span class="section-number" aria-hidden="true">01</span>河道参数自动检测</h3>
         <p class="desc">
           GPS 与地名识别提供位置和长度建议；缺失的水力参数以经验关系生成初始情景，需手工核实。
           参数建议不等于实测断面。缺少 GPS 时请直接手工配置；不自动套用任何特定河流的几何或流量。
@@ -312,24 +318,37 @@ const pollutionCompare = computed(() => {
       </section>
 
       <!-- 模拟参数与运行 -->
-      <section class="block">
-        <h3 class="st">② 运行模拟</h3>
+      <section class="block" id="river-hydrodynamics">
+        <h3 class="st"><span class="section-number" aria-hidden="true">02</span>运行模拟</h3>
         <p class="desc">以下参数均可编辑。初始模板仅用于情景分析；水位与河底须使用同一高程基准。修改后重新初始化，才会进入本次计算。</p>
-        <div class="grid">
-          <label>河段名称<input v-model="form.river_name" /></label>
-          <label>河段长度 m<input v-model.number="form.length_m" type="number" min="10" /></label>
-          <label>参考水面宽 m<input v-model.number="form.width_avg_m" type="number" min="0.5" /></label>
-          <label>参考水深 m<input v-model.number="form.depth_avg_m" type="number" min="0.1" step="0.1" /></label>
-          <label>河底坡降<input v-model.number="form.longitudinal_slope" type="number" min="0" step="0.0001" /></label>
-          <label>平均河底高程 m<input v-model.number="form.bed_elevation_avg_m" type="number" step="0.1" /></label>
-          <label>下游水位 m<input v-model.number="form.high_water_mean_m" type="number" step="0.1" /></label>
-          <label>初始氨氮 mg/L<input v-model.number="form.ammonia_nh3_mgL" type="number" min="0" step="0.1" /></label>
-          <label>初始 DO mg/L<input v-model.number="form.dissolved_oxygen_mgL" type="number" min="0" step="0.1" /></label>
-          <label>断面数<input v-model.number="form.n_cross_sections" type="number" min="3" max="100" /></label>
-          <label>曼宁糙率<input v-model.number="form.mannings_n" type="number" step="0.001" /></label>
-          <label>上游流量 m³/s<input v-model.number="form.upstream_flow_m3s" type="number" step="0.1" /></label>
-          <label>模拟时长 h<input v-model.number="form.duration_h" type="number" min="0.5" max="48" step="0.5" /></label>
-        </div>
+        <fieldset class="form-section">
+          <legend>河段几何与离散</legend>
+          <div class="grid">
+            <label>河段名称<input v-model="form.river_name" /></label>
+            <label>河段长度 m<input v-model.number="form.length_m" type="number" min="10" /></label>
+            <label>参考水面宽 m<input v-model.number="form.width_avg_m" type="number" min="0.5" /></label>
+            <label>参考水深 m<input v-model.number="form.depth_avg_m" type="number" min="0.1" step="0.1" /></label>
+            <label>河底坡降<input v-model.number="form.longitudinal_slope" type="number" min="0" step="0.0001" /></label>
+            <label>平均河底高程 m<input v-model.number="form.bed_elevation_avg_m" type="number" step="0.1" /></label>
+            <label>断面数<input v-model.number="form.n_cross_sections" type="number" min="3" max="100" /></label>
+            <label>曼宁糙率<input v-model.number="form.mannings_n" type="number" step="0.001" /></label>
+          </div>
+        </fieldset>
+        <fieldset class="form-section">
+          <legend>水力边界与计算时段</legend>
+          <div class="grid">
+            <label>下游水位 m<input v-model.number="form.high_water_mean_m" type="number" step="0.1" /></label>
+            <label>上游流量 m³/s<input v-model.number="form.upstream_flow_m3s" type="number" step="0.1" /></label>
+            <label>模拟时长 h<input v-model.number="form.duration_h" type="number" min="0.5" max="48" step="0.5" /></label>
+          </div>
+        </fieldset>
+        <fieldset class="form-section">
+          <legend>初始水质</legend>
+          <div class="grid">
+            <label>初始氨氮 mg/L<input v-model.number="form.ammonia_nh3_mgL" type="number" min="0" step="0.1" /></label>
+            <label>初始 DO mg/L<input v-model.number="form.dissolved_oxygen_mgL" type="number" min="0" step="0.1" /></label>
+          </div>
+        </fieldset>
 
         <details class="hint">
           <summary>反应情景参数（未经现场率定，可按河段修改）</summary>
@@ -375,8 +394,8 @@ const pollutionCompare = computed(() => {
       </section>
 
       <!-- 污染事件 -->
-      <section class="block">
-        <h3 class="st">③ 污染事件模拟（ADR 模型）</h3>
+      <section class="block" id="river-pollution">
+        <h3 class="st"><span class="section-number" aria-hidden="true">03</span>污染事件模拟（ADR 模型）</h3>
         <div class="grid">
           <label>污染物
             <select v-model="form.pollutant_type">
@@ -429,7 +448,7 @@ const pollutionCompare = computed(() => {
             <p class="hint">{{ pollutionResult['反应模型'].parameter_status }}。{{ pollutionResult['反应模型'].simplifications }}。</p>
           </div>
           <EChart v-if="pollutionCompare" :option="pollutionCompare" :height="150" />
-          <h3 class="st">④ 污染扩散演示</h3>
+          <h3 class="st playback-title">污染扩散演示</h3>
           <PollutionPlayback :revision="playbackRevision" />
           <p class="hint">
             两个口径的基准不同，故结论未必一致：左为「是否超 GB3838 限值」，
@@ -444,8 +463,8 @@ const pollutionCompare = computed(() => {
 
 <style scoped>
 .caveat {
-  background: #2a1e10; border: 1px solid #6b4a10; border-radius: 9px;
-  padding: 13px 17px; margin-bottom: 18px; font-size: 12px; line-height: 1.85;
+  background: #30291c; border: 1px solid #655539; border-left: 3px solid #b99a61; border-radius: var(--radius-sm);
+  padding: 14px 18px; margin-bottom: 20px; font-size: 12px; line-height: 1.8;
   color: #e8c98a;
 }
 .cv-title { font-weight: 700; margin-bottom: 5px; font-size: 13px; }
@@ -453,16 +472,16 @@ const pollutionCompare = computed(() => {
 .caveat code { background: #3a2a14; padding: 1px 5px; border-radius: 3px; }
 .cv-foot { opacity: .8; font-size: 11px; }
 
-.empty { padding: 40px; text-align: center; color: var(--c-sub); }
+.empty { padding:13px 16px; margin-bottom:16px; background:var(--c-surface-2); border-radius:var(--radius-sm); color:var(--c-sub); font-size:12px; line-height:1.8; }
 
-.block { padding: 18px 0; border-bottom: 1px solid var(--c-border); }
+.block { padding:28px 0; border-bottom:1px solid var(--c-border); scroll-margin-top:84px; }
 .block:last-child { border-bottom: none; }
-.st { margin: 0 0 8px; font-size: 14px; }
-.desc { margin: 0 0 12px; font-size: 12px; color: var(--c-sub); line-height: 1.85; max-width: 800px; }
+.st { display:flex; align-items:center; gap:10px; margin:0 0 12px; font-size:16px; font-weight:600; }
+.desc { margin:0 0 16px; font-size:13px; color:var(--c-sub); line-height:1.85; max-width:860px; }
 
 .mini {
   background: transparent; border: 1px solid var(--c-border); color: var(--c-ink);
-  padding: 7px 16px; border-radius: 7px; font-size: 12px;
+  min-height:38px; padding:8px 16px; border-radius:var(--radius-sm); font-size:12px;
 }
 .mini:hover:not(:disabled) { border-color: var(--c-accent); }
 .mini:disabled { opacity: .45; cursor: not-allowed; }
@@ -470,11 +489,11 @@ const pollutionCompare = computed(() => {
 
 .params { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,280px), 1fr)); gap: 6px; }
 .prow {
-  display: flex; align-items: baseline; gap: 8px; font-size: 12px;
+  display:flex; align-items:baseline; flex-wrap:wrap; gap:5px 8px; font-size:12px;
   background: var(--c-surface-2); border-radius: 6px; padding: 7px 11px;
 }
 .pk { color: var(--c-sub); min-width: 74px; }
-.pv { flex: 1; font-weight: 600; }
+.pv { flex:1; min-width:0; font-weight:600; overflow-wrap:anywhere; }
 .ps { font-size: 11px; color: var(--c-sub); }
 .ps i { opacity: .75; font-style: normal; margin-left: 3px; }
 .ps.good { color: var(--c-accent-2); }
@@ -482,26 +501,39 @@ const pollutionCompare = computed(() => {
 .ps.low { color: #f59e0b; }
 .ps.bad { color: #ff6b81; }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,190px), 1fr)); gap: 10px; margin-bottom: 12px; }
-.grid label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--c-sub); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,190px), 1fr)); gap:14px; margin-bottom:12px; }
+.grid label { display: flex; flex-direction: column; gap:7px; font-size:12px; color:var(--c-sub); min-width:0; }
 .grid input, .grid select {
   background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-ink);
-  border-radius: 7px; padding: 7px 10px; font-family: inherit; font-size: 13px;
+  border-radius:var(--radius-sm); min-height:40px; width:100%; padding:8px 11px; font-family:inherit; font-size:13px;
 }
 .warn-text { color: var(--sev-mild); font-size: 10px; }
 
 .btn-row { display: flex; flex-wrap:wrap; gap: 10px; }
 
-.result {
-  display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px;
-  font-size: 12px; color: var(--c-sub);
-}
-.result b { color: var(--c-ink); font-size: 14px; margin-left: 3px; }
-.cred { margin: 8px 0 0; font-size: 11px; color: #e8c98a; line-height: 1.7; }
-.hint { margin: 6px 0 0; font-size: 11px; color: var(--c-sub); }
+.result { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr)); gap:16px; margin-top:16px; padding:15px 16px; border:1px solid var(--c-border); border-radius:var(--radius-sm); font-size:12px; color:var(--c-sub); }
+.result span { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.result b { color:var(--c-ink); font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.cred { margin:10px 0 0; font-size:12px; color:#e8c98a; line-height:1.8; }
+.hint { margin:10px 0; font-size:12px; color:var(--c-sub); line-height:1.8; }
 .seq-hint {
   margin: 8px 0 0; font-size: 11px; color: #e8c98a;
   padding: 6px 11px; background: #2a1e10; border-radius: 6px;
   border-left: 2px solid #6b4a10; display: inline-block;
 }
+.model-guide { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:6px; }
+.model-guide a { display:flex; align-items:center; gap:12px; padding:13px 14px; min-width:0; border:1px solid var(--c-border); border-radius:var(--radius-sm); color:var(--c-ink); text-decoration:none; }
+.model-guide a:hover { border-color:var(--c-accent); background:var(--c-surface-2); }
+.model-guide a>span { color:var(--c-accent); font-size:12px; font-variant-numeric:tabular-nums; }
+.model-guide b { display:block; font-size:12px; font-weight:600; }
+.model-guide small { display:block; margin-top:3px; font-size:11px; color:var(--c-sub); }
+.section-number { font-size:11px; letter-spacing:.05em; font-weight:500; color:var(--c-accent); }
+.form-section { min-width:0; margin:0 0 20px; padding:0; border:0; }
+.form-section legend { padding:0; margin-bottom:12px; font-size:12px; font-weight:600; color:var(--c-ink); }
+details.hint { padding:12px 14px; background:var(--c-surface-2); border-radius:var(--radius-sm); margin-bottom:16px; }
+details.hint summary { color:var(--c-ink); cursor:pointer; }
+details.hint[open] summary { margin-bottom:12px; }
+.playback-title { margin-top:24px; }
+@media(max-width:700px){.model-guide { grid-template-columns:1fr; gap:6px; }.model-guide a { padding:10px 12px; }.model-guide a>div { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }.model-guide small { margin-top:0; }.block { padding:24px 0; }.caveat { padding:12px 14px; }.grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }}
+@media(max-width:390px){.grid { grid-template-columns:1fr; }.mini { min-height:40px; }.result { grid-template-columns:1fr 1fr; gap:12px; padding:12px; }.result b { font-size:15px; }}
 </style>

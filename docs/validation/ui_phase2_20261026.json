@@ -1,0 +1,258 @@
+{
+  "date": "2026-10-26",
+  "task": "Q17 visual refinement phase 2",
+  "base_commit": "ba3354295d61380ce115972ff2d1c4461dc226ec",
+  "frontend": {
+    "tests": 254,
+    "passed": 254,
+    "failed": 0,
+    "typecheck": true,
+    "production_build": true,
+    "new_behavior_regressions": 1
+  },
+  "backend_validation": "Not rerun in this frontend-only phase; no backend source edits",
+  "browser": {
+    "url": "http://127.0.0.1:5188",
+    "production_vue": true,
+    "interface": "Node interface fixture, manual data/report/SSE/state, no actual backend/model/retrieval/map-service validation",
+    "records": 120,
+    "map": "Locally labeled non-geographic SVG grid; provider capability flag simulated",
+    "responsive": [
+      {
+        "page": "智能对话",
+        "active": [
+          "智能对话"
+        ],
+        "composerBottom": 705.3333358764648,
+        "documentWidth": 313,
+        "height": 740,
+        "overflow": false,
+        "width": 320
+      },
+      {
+        "page": "分析图表",
+        "active": [
+          "分析图表"
+        ],
+        "composerBottom": null,
+        "documentWidth": 313,
+        "height": 740,
+        "overflow": false,
+        "width": 320
+      },
+      {
+        "page": "河道模型",
+        "active": [
+          "河道模型"
+        ],
+        "composerBottom": null,
+        "documentWidth": 313,
+        "height": 740,
+        "overflow": false,
+        "width": 320
+      },
+      {
+        "page": "技术展示",
+        "active": [
+          "技术展示"
+        ],
+        "composerBottom": null,
+        "documentWidth": 313,
+        "height": 740,
+        "overflow": false,
+        "width": 320
+      },
+      {
+        "page": "智能对话",
+        "active": [
+          "智能对话"
+        ],
+        "composerBottom": 809.3333358764648,
+        "documentWidth": 383,
+        "height": 844,
+        "overflow": false,
+        "width": 390
+      },
+      {
+        "page": "分析图表",
+        "active": [
+          "分析图表"
+        ],
+        "composerBottom": null,
+        "documentWidth": 383,
+        "height": 844,
+        "overflow": false,
+        "width": 390
+      },
+      {
+        "page": "河道模型",
+        "active": [
+          "河道模型"
+        ],
+        "composerBottom": null,
+        "documentWidth": 383,
+        "height": 844,
+        "overflow": false,
+        "width": 390
+      },
+      {
+        "page": "技术展示",
+        "active": [
+          "技术展示"
+        ],
+        "composerBottom": null,
+        "documentWidth": 383,
+        "height": 844,
+        "overflow": false,
+        "width": 390
+      },
+      {
+        "page": "智能对话",
+        "active": [
+          "智能对话"
+        ],
+        "composerBottom": 855.3333358764648,
+        "documentWidth": 761,
+        "height": 900,
+        "overflow": false,
+        "width": 768
+      },
+      {
+        "page": "分析图表",
+        "active": [
+          "分析图表"
+        ],
+        "composerBottom": null,
+        "documentWidth": 761,
+        "height": 900,
+        "overflow": false,
+        "width": 768
+      },
+      {
+        "page": "河道模型",
+        "active": [
+          "河道模型"
+        ],
+        "composerBottom": null,
+        "documentWidth": 761,
+        "height": 900,
+        "overflow": false,
+        "width": 768
+      },
+      {
+        "page": "技术展示",
+        "active": [
+          "技术展示"
+        ],
+        "composerBottom": null,
+        "documentWidth": 761,
+        "height": 900,
+        "overflow": false,
+        "width": 768
+      },
+      {
+        "page": "智能对话",
+        "active": [
+          "智能对话"
+        ],
+        "composerBottom": 849.3333358764648,
+        "documentWidth": 1273,
+        "height": 900,
+        "overflow": false,
+        "width": 1280
+      },
+      {
+        "page": "分析图表",
+        "active": [
+          "分析图表"
+        ],
+        "composerBottom": null,
+        "documentWidth": 1273,
+        "height": 900,
+        "overflow": false,
+        "width": 1280
+      },
+      {
+        "page": "河道模型",
+        "active": [
+          "河道模型"
+        ],
+        "composerBottom": null,
+        "documentWidth": 1273,
+        "height": 900,
+        "overflow": false,
+        "width": 1280
+      },
+      {
+        "page": "技术展示",
+        "active": [
+          "技术展示"
+        ],
+        "composerBottom": null,
+        "documentWidth": 1273,
+        "height": 900,
+        "overflow": false,
+        "width": 1280
+      }
+    ],
+    "verified": [
+      "One active navigation per route",
+      "Composer visible in all four viewports",
+      "Native selection menu preserves main draft",
+      "Side stop shows zero ongoing explanation labels",
+      "Side draft and main draft survive closing the drawer",
+      "Project drawer Tab reaches summary and wraps; Escape restores focus",
+      "Quality review expands; time-range context reaches chat",
+      "Directory top offset and cross-page top restore",
+      "Map popup metrics, layer toggles and fullscreen exit",
+      "No captured error-level browser console logs"
+    ],
+    "side_send_bottom_390": 830,
+    "screenshots": {
+      "charts-desktop": "q17-ui-phase2-charts-desktop-20261026.jpg",
+      "chat-desktop": "q17-ui-phase2-chat-desktop-20261026.jpg",
+      "chat-mobile": "q17-ui-phase2-chat-mobile-20261026.jpg",
+      "river-desktop": "q17-ui-phase2-river-desktop-20261026.jpg",
+      "tech-desktop": "q17-ui-phase2-tech-desktop-20261026.jpg",
+      "side-mobile": "q17-ui-phase2-side-mobile-20261026.jpg"
+    }
+  },
+  "review": {
+    "rounds": 2,
+    "first": "Independent fresh screenshot review, subjective score 7.5/10",
+    "second": "Self-review of revised screenshots and actual interactions; no new independent reviewer",
+    "addressed": [
+      "Navigation activation ambiguity",
+      "Charts hidden behind instructions",
+      "Mobile composer and toast competition"
+    ]
+  },
+  "invariants": {
+    "scripts_unchanged": [
+      "frontend/src/views/ChartsView.vue",
+      "frontend/src/views/ChatView.vue",
+      "frontend/src/views/RiverView.vue",
+      "frontend/src/views/TechView.vue",
+      "frontend/src/components/TraceMap.vue",
+      "frontend/src/components/ProjectPanel.vue",
+      "frontend/src/components/DataPanel.vue",
+      "frontend/src/components/QuestionContextCard.vue",
+      "frontend/src/components/TextQuoteCard.vue",
+      "frontend/src/components/ChatBubble.vue",
+      "frontend/src/components/Panel.vue"
+    ],
+    "severity_colors_unchanged": true,
+    "new_runtime_dependencies": 0
+  },
+  "limits": [
+    "No new Python/backend, live AI/RAG/stations/maps or field-accuracy claim",
+    "No real-device/Safari/screen-reader acceptance",
+    "No full browser performance profile or speedup claim",
+    "Q15/Q16 not started; Q17 final integration and performance acceptance remains pending"
+  ],
+  "secret_checks": {
+    "passed": 9,
+    "failed": 0,
+    "temp_isolated": true
+  }
+}
