@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from backend.main import app
 from backend.session import STORE, Session
 from backend.agent.loop import run_agent
-from backend.agent.progress import AgentRun
+from backend.agent.progress import AgentRun, tool_notice
 from backend.routers.agent import start_run, AgentStreamResponse
 
 
@@ -155,3 +155,26 @@ class AgentProgressTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class ToolNoticeTests(unittest.TestCase):
+    def test_no_video_is_skipped_with_explanation_in_snapshot(self):
+        run=AgentRun(1);sid=run.start_tool('analyze_video')
+        notice=tool_notice('analyze_video','skipped',{'data':{'reason':'raw'}})
+        run.finish_tool(sid,'skipped',notice)
+        step=run.snapshot()['steps'][0]
+        self.assertEqual(step['status'],'skipped')
+        self.assertIn('未上传视频',step['notice'])
+        self.assertNotIn('raw',step['notice'])
+
+    def test_failure_notice_never_echoes_provider_raw_error_or_path(self):
+        for error in ('secret=sk-private /Users/private/file','chromadb /private/db','401 token=private','TimeoutError private-url'):
+            notice=tool_notice('search_treatment_cases','failed',{'error':error})
+            self.assertLessEqual(len(notice),160)
+            self.assertNotIn('private',notice)
+        self.assertIn('知识库',tool_notice('search_treatment_cases','failed',{'error':'chromadb'}))
+
+    def test_report_degradation_and_station_directory_are_visible_without_failed_fabrication(self):
+        self.assertIn('未取得可用治理案例',tool_notice('generate_final_report','succeeded',{},references={}))
+        self.assertEqual(tool_notice('generate_final_report','succeeded',{},references={'检索结果':[{}]}),'')
+        self.assertIn('未取得实时监测值',tool_notice('get_national_station_data','succeeded',{'data':{'含实时监测值':False}}))

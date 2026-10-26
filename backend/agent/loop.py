@@ -36,7 +36,7 @@ from .tools import (
     SYSTEM_PROMPT_AUTO, SYSTEM_PROMPT_CHAT, TOOLS,
     execute_tool, truncate, ANALYSIS_CARD_TOOLS,
 )
-from .progress import AgentRun, AgentStopped
+from .progress import AgentRun, AgentStopped, tool_notice
 from ..report_evidence import capture_tool, build_bundle, utc_now
 from ..analysis_cards import attach_cards, CARD_VERSION
 from ..project_codec import _scrubber
@@ -270,11 +270,18 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                 tool_errors += int(is_err and name not in ANALYSIS_CARD_TOOLS)
                 outcome = json.loads(result)
                 step_status = 'failed' if is_err else 'skipped' if outcome.get('skipped') else 'succeeded'
-                run.finish_tool(step_id,step_status)
+                reference_meta = None
+                if name == 'generate_final_report':
+                    try:
+                        reference_meta = json.loads(session.tool_evidence.get('report_treatment_cases', '{}'))
+                    except (TypeError, ValueError):
+                        pass
+                notice = tool_notice(name, step_status, outcome, references=reference_meta)
+                run.finish_tool(step_id,step_status,notice)
                 if auto and name not in ANALYSIS_CARD_TOOLS:
                     session.analysis_steps[name] = step_status
                 yield emit("tool_done", {"name": name, "ok": not is_err, 'step_id':step_id,
-                                         'status':step_status, "chars": len(result)})
+                                         'status':step_status, 'notice':notice, "chars": len(result)})
 
                 msgs.append({
                     "role": "tool",

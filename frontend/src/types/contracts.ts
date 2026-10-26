@@ -4,7 +4,7 @@ export interface JsonObject { [key: string]: JsonValue }
 export type WaterClass = 'I' | 'II' | 'III' | 'IV' | 'V'
 export type TerminalStatus = 'succeeded' | 'partial' | 'failed' | 'cancelled'
 export type ToolStatus = 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled'
-export interface AgentStep { id: string; name: string; status: ToolStatus; elapsed_s: number }
+export interface AgentStep { id: string; name: string; status: ToolStatus; elapsed_s: number; notice?: string }
 export interface ActiveRun {
   run_id: string
   analysis_revision: number
@@ -30,7 +30,7 @@ export type AgentEventArgs =
   | [event: 'turn', payload: EventContext & { turn: number }]
   | [event: 'delta', payload: EventContext & { text: string }]
   | [event: 'tool', payload: EventContext & { name: string; step_id?: string; args?: string[] }]
-  | [event: 'tool_done', payload: EventContext & { name: string; ok: boolean; status: 'succeeded'|'failed'|'skipped'; step_id?: string; chars?: number }]
+  | [event: 'tool_done', payload: EventContext & { name: string; ok: boolean; status: 'succeeded'|'failed'|'skipped'; step_id?: string; chars?: number; notice?: string }]
   | [event: 'done', payload: EventContext & { status: TerminalStatus; turns?: number; tool_errors?: number; message?: string }]
   | [event: 'error', payload: EventContext & { message: string; status?: TerminalStatus }]
 

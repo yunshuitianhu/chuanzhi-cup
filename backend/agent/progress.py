@@ -7,6 +7,35 @@ import time
 import uuid
 
 
+def tool_notice(name, status, outcome, *, references=None):
+    """进度只显示固定原因分类；不回显工具原文、路径、凭据或模型推理。"""
+    data = outcome.get('data') if isinstance(outcome, dict) else None
+    error = str(outcome.get('error') or '') if isinstance(outcome, dict) else ''
+    if status == 'skipped':
+        if name in ('analyze_video', 'cross_validate_video'):
+            return '未上传视频，此步骤不适用；监测表分析可继续。'
+        if name in ('search_nearby_pollution_sources', 'get_national_station_data'):
+            return '仿真数据不关联真实企业和国控站点；地名仅供地图参考。'
+        return '当前输入不满足该可选步骤的条件，已跳过。'
+    if status == 'failed':
+        if any(key in error.lower() for key in ('chromadb', 'sentence_transformers', '依赖', '索引', '知识库')):
+            return '知识库或运行依赖不可用，请在技术展示页核对检索状态。'
+        if any(key in error.lower() for key in ('timeout', 'timed out', 'connect', '网络', '超时')):
+            return '外部请求超时或连接失败，可检查网络后重试。'
+        if any(key in error.lower() for key in ('api key', '401', '403', '未配置', '鉴权')):
+            return '外部服务配置或访问权限不可用，请核对本机服务配置。'
+        if any(key in error for key in ('坐标', '聚类', '黑点')):
+            return '缺少可用定位依据；可在技术展示页指定坐标查询，不自动猜测污染源。'
+        if any(key in error for key in ('先运行', '先完成', '未初始化', '未加载', '自动检测需要', '参数', '必填', '缺少', '类型')):
+            return '输入、参数或前置步骤不满足要求；请核对数据和相应页面的配置。'
+        return '该步骤未完成；已完成的结果保留，可核对输入或服务状态后重试。'
+    if name == 'generate_final_report' and isinstance(references, dict) and not references.get('检索结果'):
+        return '报告已生成，但本次未取得可用治理案例，不补造引用。'
+    if name == 'get_national_station_data' and isinstance(data, dict) and data.get('含实时监测值') is False:
+        return '未取得实时监测值；当前返回站点目录或背景资料，不能作为同期水质证据。'
+    return ''
+
+
 class AgentStopped(Exception):
     pass
 
@@ -68,11 +97,11 @@ class AgentRun:
             self.stage = '执行工具：' + name
             return step_id
 
-    def finish_tool(self, step_id, status):
+    def finish_tool(self, step_id, status, notice=''):
         with self.lock:
             for step in self.steps:
                 if step['id'] == step_id:
-                    step.update(status=status, ended=time.monotonic())
+                    step.update(status=status, ended=time.monotonic(), notice=notice[:160])
 
     def complete(self, status, commit):
         """完成标记与最后正文一次提交，停止请求不能插入到两者之间。"""
@@ -102,5 +131,6 @@ class AgentRun:
                 busy=not self.finished.is_set() if self.managed else self.ended is None,
                 stop_requested=self.cancel.is_set(),
                 steps=[dict(id=s['id'],name=s['name'],status=s['status'],
-                            elapsed_s=round((s['ended'] or now)-s['started'],3)) for s in self.steps],
+                            elapsed_s=round((s['ended'] or now)-s['started'],3),
+                            **({'notice':s['notice']} if s.get('notice') else {})) for s in self.steps],
                 notice='停止为协作请求；等待中的网络或计算调用需先收尾，期间禁止替换数据或启动新任务。')

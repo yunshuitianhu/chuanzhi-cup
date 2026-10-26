@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-27",
+  "model_input": "images via Chat Completions",
+  "application_integration": "planned; not yet implemented",
+  "tests": [
+    {
+      "test": "single",
+      "ok": true,
+      "model": "deepseek-flash",
+      "usage": {
+        "prompt_tokens": 255,
+        "completion_tokens": 14,
+        "total_tokens": 269,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 255
+      },
+      "answer": {
+        "red_shape": "square",
+        "blue_shape": "circle"
+      },
+      "elapsed_s": 0.47,
+      "media": "programmatically generated shapes; no user media sent",
+      "native_video_tested": false
+    },
+    {
+      "test": "sequence",
+      "ok": true,
+      "model": "deepseek-flash",
+      "usage": {
+        "prompt_tokens": 479,
+        "completion_tokens": 31,
+        "total_tokens": 510,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 479
+      },
+      "answer": {
+        "red_shape": "square",
+        "blue_shape": "circle",
+        "red_movement": "right",
+        "blue_movement": "stationary"
+      },
+      "elapsed_s": 0.64,
+      "media": "programmatically generated shapes; no user media sent",
+      "native_video_tested": false
+    }
+  ]
+}

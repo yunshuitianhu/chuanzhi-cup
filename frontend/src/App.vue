@@ -4,8 +4,8 @@
  *
  * 结构对应 app.py：侧边栏 = st.sidebar，标签导航 = st.tabs 的四个页签。
  */
-import { nextTick, onMounted, onBeforeUnmount, ref, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { nextTick, onMounted, onBeforeUnmount, ref, shallowRef, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from './stores/session'
 import { routes } from './router'
 import StatusBadge from './components/StatusBadge.vue'
@@ -16,9 +16,19 @@ import TextSelectionMenu from './components/TextSelectionMenu.vue'
 import SideQuestions from './components/SideQuestions.vue'
 import QuestionContextCard from './components/QuestionContextCard.vue'
 import Toast from './components/Toast.vue'
+import { createRouteLoadRecovery } from './utils/routeFailures.js'
 
 const store = useSessionStore()
 const route = useRoute()
+const router = useRouter()
+const routeNotice = shallowRef(null)
+const routeRecovery = createRouteLoadRecovery({
+  isBusy: () => !!(store.chatRunning || store.loading || store.switchingProject),
+  notify: notice => { routeNotice.value = notice },
+})
+const detachRecovery = routeRecovery.attach(router)
+watch(() => [store.chatRunning, store.loading, store.switchingProject], () => routeRecovery.refreshBusy())
+onBeforeUnmount(detachRecovery)
 const navItems = routes.filter((r) => r.meta)
 const narrow = ref(false), mobileOpen = ref(false), desktopCollapsed = ref(false)
 const sidebar = ref(null), sidebarToggle = ref(null)
@@ -159,6 +169,16 @@ const keySummary = computed(() => {
       </nav>
 
       <div id="main-content" class="content" tabindex="-1">
+        <section v-if="routeNotice" class="route-notice" role="alert" aria-label="页面加载提示">
+          <strong>{{ routeNotice.title || '页面加载' }}</strong>
+          <p>{{ routeNotice.message }}</p>
+          <p>{{ routeNotice.warning }}</p>
+          <p v-if="routeNotice.blockedReason">{{ routeNotice.blockedReason }}</p>
+          <div class="route-actions">
+            <button :disabled="!routeNotice.canReload" @click="routeRecovery.retry()">{{ routeNotice.reloadLabel }}</button>
+            <button @click="routeRecovery.dismiss()">关闭提示</button>
+          </div>
+        </section>
         <section v-if="!store.ready" class="connection-panel" aria-live="polite">
           <h2>{{ store.connecting ? '正在连接项目服务' : '项目服务尚未就绪' }}</h2>
           <p v-if="store.connecting">{{ store.bootstrapStage }}…</p>
@@ -186,6 +206,12 @@ const keySummary = computed(() => {
 </template>
 
 <style scoped>
+.route-notice{border:1px solid var(--c-warning,#c99f54);background:var(--c-surface);border-radius:8px;padding:16px;margin-bottom:18px;overflow-wrap:anywhere}
+.route-notice p{font-size:13px;line-height:1.7;margin:8px 0;color:var(--c-sub)}
+.route-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.route-actions button{padding:8px 12px;min-height:38px;border:1px solid var(--c-border);border-radius:6px;background:var(--c-surface-2);color:var(--c-ink)}
+.route-actions button:disabled{opacity:.5}
+
 
 .shell{display:flex;min-height:100vh}
 .sidebar{width:280px;flex-shrink:0;background:#101d28;border-right:1px solid var(--c-border-soft);padding:26px 20px;display:flex;flex-direction:column;gap:24px;position:sticky;top:0;height:100dvh;overflow-y:auto;scrollbar-gutter:stable}

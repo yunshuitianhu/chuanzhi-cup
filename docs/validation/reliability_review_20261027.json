@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-27",
+  "source_project": "E:/E-Desktop/传智杯-备赛",
+  "user_named_copy_not_verified": "E:/E-Desktop/传智杯-deep seek/传智杯-备赛",
+  "python": {
+    "tests": 539,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "success": true,
+    "legacy_checks": true,
+    "secret_scan": true,
+    "contracts_exported": true,
+    "elapsed_s": 56.35
+  },
+  "frontend": {
+    "tests": 308,
+    "passed": 308,
+    "failed": 0,
+    "typecheck": true,
+    "strict_sfc_scripts_checked": 1,
+    "build": true,
+    "final_route_tests": 18
+  },
+  "synthetic_matrix": {
+    "real_agent_runs": 6,
+    "rows_each": 1801,
+    "video_frames_each": 0,
+    "statuses": [
+      "succeeded",
+      "succeeded",
+      "succeeded",
+      "succeeded",
+      "succeeded",
+      "succeeded"
+    ],
+    "actual_api_model": "deepseek-flash",
+    "ground_truth_accuracy_verified": false
+  },
+  "runtime_recovery": {
+    "port": 5190,
+    "preserved_project": "111 v2",
+    "rows": 1805,
+    "frames": 147,
+    "saved_report_retained": true,
+    "before_restart_export_backup": true,
+    "rag_real_retrieval": true,
+    "rag_documents": 29,
+    "rag_vector_chunks": 147,
+    "original_index_written_by_probe": false
+  },
+  "browser": {
+    "river_navigation": true,
+    "tech_navigation": true,
+    "charts_navigation_after_frontend_rebuild": true,
+    "tech_query_returned_references": 5,
+    "snapshot_scope": "actual production Vue and FastAPI",
+    "screenshots": [
+      "route_recovery_river_20261027.jpg",
+      "route_recovery_tech_20261027.jpg"
+    ],
+    "new_mobile_browser_checks": false
+  },
+  "review": {
+    "actual_deepseek_draft_jobs": 3,
+    "automatic_apply": false,
+    "root_reviewed_and_corrected": true,
+    "pro_thinking_review": "truncated at 18000 output tokens; no final review, not counted as passed",
+    "pro_non_thinking_review": "final answer obtained; three proposed findings rejected after source verification",
+    "rejected_findings": {
+      "reference_notice_type": "loop explicitly json.loads the reference JSON before tool_notice; no raw reference text returned as notice",
+      "deadlock": "with RLock releases the lock on exceptions; reentrant lock; no asserted deadlock trigger",
+      "reload_loop": "no automatic retries; catch path re-enables explicit manual retry, successful router navigation resets a recovery episode"
+    },
+    "additional_root_fixes": [
+      "honest stop notice requires busy; completed cancelled run no longer says locked",
+      "busy exit restores route reload availability",
+      "same-route query/hash target preserved",
+      "completed history not collapsed while user is reading/selecting",
+      "pointer release outside history clears transient selection flag",
+      "Shift+Home/End preserve native text selection",
+      "Vue renderer test host now really propagates replacement props"
+    ]
+  },
+  "multimodal": {
+    "plan": "Q18图像与视频视觉证据接入方案.md",
+    "api_image_probe": true,
+    "business_integration_implemented": false,
+    "native_video_or_audio_tested": false
+  }
+}

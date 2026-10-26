@@ -42,6 +42,28 @@ class DeliveryTests(unittest.TestCase):
             self.assertEqual(self.client.head(path).status_code, 200)
         self.assertEqual(STORE.count, before)
 
+    def test_running_service_keeps_lazy_assets_when_build_directory_is_replaced(self):
+        old = self.client.get('/assets/app-abcd.js').content
+        (self.dist/'assets/app-abcd.js').unlink()
+        (self.dist/'assets/app-new.js').write_text('export const changed=true;',encoding='utf-8')
+        (self.dist/'index.html').write_text('<html><script src="/assets/app-new.js"></script></html>',encoding='utf-8')
+        self.assertIn('app-abcd.js',self.client.get('/river').text)
+        self.assertEqual(self.client.get('/assets/app-abcd.js').content,old)
+        self.assertEqual(self.client.get('/assets/app-new.js').status_code,404)
+        updated=TestClient(create_app(self.dist))
+        self.assertIn('app-new.js',updated.get('/tech').text)
+        self.assertEqual(updated.get('/assets/app-new.js').status_code,200)
+
+    def test_asset_cache_and_head_describe_the_same_immutable_bytes(self):
+        reply=self.client.get('/assets/app-abcd.js')
+        self.assertEqual(reply.headers['cache-control'],'public, max-age=31536000, immutable')
+        self.assertEqual(self.client.get('/assets/app-abcd.js',headers={'If-None-Match':reply.headers['etag']}).status_code,304)
+        head=self.client.head('/assets/app-abcd.js')
+        self.assertEqual(head.content,b'')
+        self.assertEqual(int(head.headers['content-length']),len(reply.content))
+        self.assertEqual(head.headers['etag'],reply.headers['etag'])
+        self.assertNotIn('x-session-id',reply.headers)
+
     def test_api_same_origin_and_separate_api_entry_still_work(self):
         self.assertEqual(self.client.get('/api/health').json()['service'], 'water-quality-api')
         self.assertEqual(TestClient(api_app).get('/').json()['service'], '水质监测与污染溯源 API')
