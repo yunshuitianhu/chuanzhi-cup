@@ -15,6 +15,7 @@ from ..agent.loop import run_agent
 from ..agent.progress import AgentRun
 from ..deps import get_session, get_exclusive_session
 from ..session import Session
+from ..question_context import ContextRequest, create_context, public_context, resolve_context
 from ..report_evidence import find_bundle, public_bundle, bundle_status, fact_records, record, covered_record
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -32,10 +33,16 @@ class AgentStreamResponse(StreamingResponse):
             self.run.close_transport()
 
 
-def start_run(session, message, auto):
+def start_run(session, message, auto, context_id=None):
     if not session.operation_lock.acquire(blocking=False):
         raise HTTPException(409,'当前会话正在处理任务，请等待当前调用收尾后重试')
-    run = AgentRun(session.analysis_revision, auto, managed=True)
+    try:
+        selected = resolve_context(session,context_id) if context_id is not None else None
+        run = AgentRun(session.analysis_revision, auto, managed=True)
+        run.question_context = selected
+    except BaseException:
+        session.operation_lock.release()
+        raise
     session.agent_run = run
     events = Queue(maxsize=256)
 
@@ -85,6 +92,16 @@ def start_run(session, message, auto):
     return run,events
 
 
+@router.post('/context')
+def select_context(payload:ContextRequest,session:Session=Depends(get_exclusive_session)):
+    return create_context(session,payload)
+
+
+@router.get('/context/{context_id}')
+def selected_context(context_id:str,session:Session=Depends(get_exclusive_session)):
+    return public_context(session,context_id)
+
+
 @router.post("/chat")
 def chat(payload: dict, request: Request, session: Session = Depends(get_session)):
     """与 Agent 对话，SSE 流式返回。
@@ -100,7 +117,15 @@ def chat(payload: dict, request: Request, session: Session = Depends(get_session
 
     if len(message)>20000:
         raise HTTPException(422,'问题过长，请控制在20000字以内')
-    run,events=start_run(session,message,auto)
+    context_id=payload.get('context_id')
+    if context_id is not None:
+        if not isinstance(context_id,str) or not context_id:
+            raise HTTPException(422,'选择上下文ID格式无效。')
+        if auto:
+            raise HTTPException(422,'选中对象追问不与完整自动分析混用，请先移除选择再运行自动分析。')
+        run,events=start_run(session,message,auto,context_id=context_id)
+    else:
+        run,events=start_run(session,message,auto)
 
     async def stream():
         heartbeat=time.monotonic()

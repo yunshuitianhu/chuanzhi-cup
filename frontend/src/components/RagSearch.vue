@@ -5,10 +5,13 @@
  * 本地整理的治理参考资料，经向量与词面融合后按来源合并。
  * 对话和报告共用检索内核，具体引用须核对片段；原始发布内容未独立核验。
  */
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { toastErr, toastOk } from '../composables/useToast'
 import RagCase from './RagCase.vue'
+import {useSessionStore} from '../stores/session'
+const store=useSessionStore()
+const locked=computed(()=>loading.value||store.loading||store.chatRunning||store.switchingProject||!store.ready)
 
 const status = ref(null)
 const query = ref('')
@@ -47,22 +50,36 @@ async function loadStatus() {
   }
 }
 
+function selectionContext() {
+  const workspace=store.workspaceRevision,project=store.projectState.current?.id,
+    revision=store.status.analysis_revision,results=store.status.results_revision,
+    text=query.value,k=topK.value
+  return ()=>!disposed&&!store.switchingProject&&workspace===store.workspaceRevision
+    &&project===store.projectState.current?.id&&revision===store.status.analysis_revision
+    &&results===store.status.results_revision&&text===query.value&&k===topK.value
+}
+watch(()=>[store.workspaceRevision,store.projectState.current?.id,store.status.analysis_revision,
+  store.status.results_revision,store.switchingProject,query.value,topK.value],()=>{
+  searchRequest++;data.value=null
+},{flush:'sync'})
 async function run(q) {
-  if(disposed||loading.value)return
-  const ticket=++searchRequest
+  if(disposed||locked.value)return
   const text=(q||query.value).trim()||DEFAULT_QUERY
-  query.value=text;data.value=null;loading.value=true
+  query.value=text
+  const ticket=++searchRequest,current=selectionContext()
+  data.value=null;loading.value=true
   try {
-    const result=await api.ragSearch(text,topK.value)
-    if(disposed||ticket!==searchRequest)return
+    const result=await store._run(()=>api.ragSearch(text,topK.value))
+    if(ticket!==searchRequest||!current())return
     data.value=result
     await loadStatus()
-    if(!disposed&&ticket===searchRequest)toastOk(`检索到 ${result['共检索到']} 份参考资料`)
+    if(ticket===searchRequest&&current())toastOk(`检索到 ${result['共检索到']} 份参考资料`)
   } catch (e) {
-    if(!disposed&&ticket===searchRequest){await loadStatus();if(!disposed)toastErr(`检索失败：${e.message}`)}
-  } finally {
-    if(ticket===searchRequest)loading.value=false
-  }
+    if(ticket===searchRequest&&current()){
+      await loadStatus()
+      if(ticket===searchRequest&&current())toastErr(`检索失败：${e.message}`)
+    }
+  } finally {loading.value=false}
 }
 
 </script>
@@ -91,16 +108,16 @@ async function run(q) {
         placeholder="例如：氨氮超标 黑臭水体 城市河道治理"
         aria-label="治理资料查询"
         maxlength="1000"
-        :disabled="loading"
+        :disabled="locked"
         @keyup.enter="run()"
       />
       <label class="topk">
         返回
-        <input v-model.number="topK" type="number" min="1" max="10" :disabled="loading" />
+        <input v-model.number="topK" type="number" min="1" max="10" :disabled="locked" />
         个
       </label>
       <button
-        :disabled="loading || !status?.available"
+        :disabled="locked || !status?.available"
         :title="status?.available ? '' : '知识库不可用'"
         @click="run()"
       >
@@ -109,14 +126,14 @@ async function run(q) {
     </div>
 
     <div class="quick">
-      <button v-for="q in QUICK" :key="q" class="qbtn" :disabled="loading" @click="run(q)">{{ q }}</button>
+      <button v-for="q in QUICK" :key="q" class="qbtn" :disabled="locked" @click="run(q)">{{ q }}</button>
     </div>
 
     <!-- 结果 -->
     <template v-if="data">
       <p class="note">查询：{{ data['查询'] }} · 返回 {{ data['共检索到'] }} 份按来源文件合并的参考资料。近似匹配不代表资料包含所问答案；相似度不是治理效果或责任概率。</p>
       <div class="cards">
-        <RagCase v-for="(c,i) in data['检索结果']" :key="c['来源文件']||i" :item="c" />
+        <RagCase v-for="(c,i) in data['检索结果']" :key="c['来源文件']||i" :item="c" :retrieval-id="data.retrieval_id || ''" />
       </div>
     </template>
   </div>

@@ -16,11 +16,38 @@ import CrossValidation from '../components/CrossValidation.vue'
 import PollutionPlayback from '../components/PollutionPlayback.vue'
 import DataQualityPanel from '../components/DataQualityPanel.vue'
 import { toastErr } from '../composables/useToast'
+import AskContext from '../components/AskContext.vue'
+import ContextSourceFocus from '../components/ContextSourceFocus.vue'
+import {timeRangeFromZoom} from '../utils/questionContextSelection'
 
 const store = useSessionStore()
 const ts = ref(null)          // time-series 数据
 const loading = ref(false)
 const evidenceSampleId=ref(null)
+const focusFrameId=ref(null),focusVideoRevision=ref(null)
+const rangeStart=ref(''),rangeEnd=ref(''),rangeIndicator=ref('ammonia_nitrogen'),rangeFromContext=ref(false)
+const rangeSelector=computed(()=>rangeStart.value&&rangeEnd.value
+  ? {kind:'time_range',start:rangeStart.value,end:rangeEnd.value,indicator:rangeIndicator.value}:null)
+const indicatorNames={ammonia_nitrogen:'氨氮',dissolved_oxygen:'溶解氧',turbidity:'浊度',ph:'pH'}
+function acceptContext(card){
+  evidenceSampleId.value=null;focusFrameId.value=null;focusVideoRevision.value=null
+  if(rangeFromContext.value){rangeStart.value='';rangeEnd.value='';rangeFromContext.value=false}
+  if(!card)return
+  if(card.kind==='sample')evidenceSampleId.value=card.selection.sample_id
+  if(card.kind==='video_frame'){
+    focusFrameId.value=card.selection.frame_id
+    focusVideoRevision.value=card.selection.video_revision
+  }
+  if(card.kind==='time_range'){
+    rangeStart.value=card.selection.start;rangeEnd.value=card.selection.end
+    rangeIndicator.value=card.selection.indicator;rangeFromContext.value=true
+  }
+}
+function applyZoom(indicator,event){
+  const range=timeRangeFromZoom(ts.value?.time,event)
+  if(!range)return
+  rangeStart.value=range.start;rangeEnd.value=range.end;rangeIndicator.value=indicator;rangeFromContext.value=false
+}
 let requestVersion = 0
 
 async function loadTimeSeries() {
@@ -30,7 +57,10 @@ async function loadTimeSeries() {
   loading.value = true
   try {
     const result = await api.timeSeries()
-    if (version === requestVersion) ts.value = result
+    if (version === requestVersion) {
+      ts.value = result
+      if(!rangeFromContext.value){rangeStart.value=result.time?.[0]||'';rangeEnd.value=result.time?.at(-1)||''}
+    }
   } catch (e) {
     if (version === requestVersion) toastErr(`图表数据加载失败：${e.message}`)
   } finally {
@@ -98,7 +128,8 @@ function panelOption(key) {
   }
 
   return {
-    grid: { left: 52, right: 20, top: 30, bottom: 34 },
+    grid: { left: 52, right: 20, top: 30, bottom: 54 },
+    dataZoom:[{type:'inside',xAxisIndex:0,filterMode:'none'},{type:'slider',xAxisIndex:0,bottom:3,height:14,filterMode:'none'}],
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'cross', lineStyle: { color: '#3a5163' } },
@@ -138,6 +169,7 @@ const caption = computed(() => store.status.has_data
 </script>
 
 <template>
+  <ContextSourceFocus :kinds="['sample','time_range','video_frame']" @focus="acceptContext" />
   <div v-if="!store.status.has_data" class="empty">
     <div class="empty-ico">📊</div>
     <p>请先在左侧上传并加载走航数据</p>
@@ -147,17 +179,26 @@ const caption = computed(() => store.status.has_data
     <Panel title="传感器质量复核" subtitle="突刺 · 近恒值 · 采样异常 · 原始阈值预警保持">
       <DataQualityPanel />
     </Panel>
-    <Panel title="时间序列趋势" subtitle="氨氮 / 溶解氧 / 浑浊度 / pH，黑点按严重等级着色">
+    <Panel id="time-series" style="scroll-margin-top:80px" title="时间序列趋势" subtitle="氨氮 / 溶解氧 / 浑浊度 / pH，黑点按严重等级着色">
       <template #actions>
         <button class="mini" :disabled="loading" @click="loadTimeSeries">刷新</button>
       </template>
       <p v-if="caption" class="caption">{{ caption }}</p>
 
+      <div class="range-context">
+        <p>拖动任一图表的缩放条选择时间范围，也可填写开始和结束时间；按监测表时间填写，未提供时区时不跨时区推算。</p>
+        <div class="range-fields">
+          <label>开始时间<input v-model="rangeStart" aria-label="追问范围开始时间" maxlength="80" :disabled="loading||store.loading||store.chatRunning" /></label>
+          <label>结束时间<input v-model="rangeEnd" aria-label="追问范围结束时间" maxlength="80" :disabled="loading||store.loading||store.chatRunning" /></label>
+          <label>关注指标<select v-model="rangeIndicator" aria-label="追问范围指标" :disabled="loading||store.loading||store.chatRunning"><option v-for="(label,key) in indicatorNames" :key="key" :value="key">{{label}}</option></select></label>
+        </div>
+        <AskContext :selector="rangeSelector" :disabled="loading" label="让AI分析这个时间范围" />
+      </div>
       <div class="grid-2">
         <EChart
           v-for="panel in panels"
           :key="panel.key"
-          :option="panel.option"
+          :option="panel.option" @range-selected="applyZoom(panel.key,$event)"
           :loading="loading"
           :height="260"
         />
@@ -172,8 +213,8 @@ const caption = computed(() => store.status.has_data
     <Panel title="污染扩散演示" subtitle="当前项目模拟结果 · 时间轴播放 · 沿程浓度与卫星地图同步">
       <PollutionPlayback />
     </Panel>
-    <Panel title="视频-传感器交叉印证" subtitle="需要先上传巡航视频">
-      <CrossValidation />
+    <Panel id="video-quality" style="scroll-margin-top:80px" title="视频-传感器交叉印证" subtitle="需要先上传巡航视频">
+      <CrossValidation :focus-frame-id="focusFrameId" :focus-video-revision="focusVideoRevision" />
     </Panel>
   </template>
 </template>
@@ -184,6 +225,8 @@ const caption = computed(() => store.status.has_data
 
 .caption { margin: 0 0 12px; font-size: 12px; color: var(--c-sub); }
 
+.range-context{padding:12px 14px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:8px;margin-bottom:16px}.range-context p{font-size:12px;color:var(--c-sub);margin:0 0 10px}.range-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(90px,.5fr);gap:10px}.range-fields label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--c-sub)}.range-fields input,.range-fields select{min-width:0;width:100%;font:inherit;color:var(--c-ink);background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;padding:8px}
+@media(max-width:700px){.range-fields{grid-template-columns:1fr}.range-context{padding:10px}}
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 1200px) { .grid-2 { grid-template-columns: 1fr; } }
 

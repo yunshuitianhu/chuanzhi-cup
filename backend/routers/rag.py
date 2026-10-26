@@ -18,7 +18,8 @@ from water_quality_mcp.src.water_quality_mcp.rag_engine import (
 )
 
 from .. import PROJECT_ROOT
-from ..deps import get_session
+from ..deps import get_session, get_exclusive_session
+from ..question_context import register_retrieval
 from ..session import Session
 
 router = APIRouter(prefix="/rag", tags=["rag"])
@@ -88,7 +89,7 @@ class SearchRequest(BaseModel):
 
 
 @router.post("/search")
-def search(payload: SearchRequest, session: Session = Depends(get_session)) -> dict:
+def search(payload: SearchRequest, session: Session = Depends(get_exclusive_session)) -> dict:
     """语义检索治理案例。
 
     Body: { query: str, top_k?: int }
@@ -105,4 +106,4 @@ def search(payload: SearchRequest, session: Session = Depends(get_session)) -> d
         # 内核在索引缺失/依赖问题时返回 {"状态": ..., "建议": ...}
         raise HTTPException(503, data.get("状态", "知识库不可用"))
 
-    return data
+    return {**data,'retrieval_id':register_retrieval(session,data)}

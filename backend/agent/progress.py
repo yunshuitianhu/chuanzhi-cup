@@ -30,6 +30,7 @@ class AgentRun:
     finished: threading.Event = field(default_factory=threading.Event, repr=False)
     transport_closed: threading.Event = field(default_factory=threading.Event, repr=False)
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    question_context: dict | None = field(default=None, repr=False)
 
     def request_stop(self, reason='user') -> bool:
         with self.lock:

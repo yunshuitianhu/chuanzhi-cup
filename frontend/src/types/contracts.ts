@@ -34,12 +34,30 @@ export type AgentEventArgs =
   | [event: 'done', payload: EventContext & { status: TerminalStatus; turns?: number; tool_errors?: number; message?: string }]
   | [event: 'error', payload: EventContext & { message: string; status?: TerminalStatus }]
 
+export type QuestionContextKind = 'sample' | 'time_range' | 'video_frame' | 'rag_excerpt'
+export interface QuestionContextScope {
+  project_id:string|null; analysis_revision:number; results_revision:number; data_version:string
+}
+export type QuestionContextSelector =
+  | {kind:'sample';sample_id:number}
+  | {kind:'time_range';start:string;end:string;indicator:string}
+  | {kind:'video_frame';frame_id:number;video_revision:string}
+  | {kind:'rag_excerpt';retrieval_id:string;evidence_id:string}
+export type QuestionContextRequest = QuestionContextSelector & {
+  project_id:string|null;analysis_revision:number;results_revision:number
+}
+export interface QuestionContext {
+  id:string;kind:QuestionContextKind;title:string;summary:string;notice:string
+  scope:QuestionContextScope;selection:JsonObject;source_url:string;excerpt?:string
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool' | 'error' | 'system'
   content: string
   uiRequest?: string
   incomplete?: boolean
   evidence?: { id: string }
+  question_context?: QuestionContext
 }
 export interface ChatHistory { messages: ChatMessage[]; analysis_revision: number }
 export interface Config {
@@ -138,6 +156,7 @@ export interface InvestigationResult { task_id: string; board: JsonObject; refre
 export interface SessionState {
   ready: boolean; connecting: boolean; bootstrapStage: string; loading: boolean; error: string
   chatMessages: ChatMessage[]; chatRunning: boolean; chatStreaming: boolean
+  chatDraft:string; questionContext:QuestionContext|null; questionContextNotice:string; questionContextRequest:number
   agentRun: AgentRun | null; agentRunAt: number; agentRunRequest: number; agentActiveId: string | null
   agentConnectionError: string; workspaceRevision: number; switchingProject: boolean
   projectState: ProjectState; riverForm: Partial<RiverForm> | null

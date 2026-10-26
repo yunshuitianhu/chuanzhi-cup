@@ -5,6 +5,7 @@ import {createSSRApp} from 'vue'
 import {renderToString} from '@vue/server-renderer'
 const server=await createServer({configLoader:'runner',server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test'})
 test.after(async()=>{await server.close()})
+globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
 const {default:Case}=await server.ssrLoadModule('/src/components/RagCase.vue')
 const render=item=>renderToString(createSSRApp(Case,{item}))
 

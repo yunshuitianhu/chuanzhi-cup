@@ -30,6 +30,7 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
 })
 
+const emit=defineEmits(['rangeSelected'])
 const el = ref(null)
 const chart = shallowRef(null)   // shallowRef：ECharts 实例不需要深层响应式
 let ro = null
@@ -39,6 +40,7 @@ function ensure() {
   if (!visible || chart.value || !el.value) return
   if (el.value.clientWidth === 0 || el.value.clientHeight === 0) return  // 尺寸未就绪
   chart.value = echarts.init(el.value, 'dark', { renderer: 'canvas' })
+  chart.value.on('datazoom', event=>emit('rangeSelected',event))
   chart.value.setOption(props.option)
   dirty = false
   if (props.loading) chart.value.showLoading('default', { text: '加载中', color: '#2ea3f2' })

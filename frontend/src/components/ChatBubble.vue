@@ -1,5 +1,6 @@
 <script setup>
 import ReportEvidence from './ReportEvidence.vue'
+import QuestionContextCard from './QuestionContextCard.vue'
 import SafeMarkdown from './SafeMarkdown.vue'
 import { ref } from 'vue'
 defineProps({
@@ -7,6 +8,7 @@ defineProps({
   content: { type: String, default: '' },
   incomplete: Boolean,
   evidence: {type:Object,default:null},
+  questionContext: {type:Object,default:null},
 })
 const LABEL = { user: '我', assistant: '分析助手', tool: '工具调用', error: '错误' }
 const emit = defineEmits(['rendered'])
@@ -24,6 +26,7 @@ const showSource = ref(false)
         <SafeMarkdown v-else :content="content" @rendered="emit('rendered')" />
       </template>
       <div v-else class="text">{{ content }}</div>
+      <QuestionContextCard v-if="questionContext" :context="questionContext" compact />
       <ReportEvidence v-if="role==='assistant' && !incomplete && evidence?.id" :key="evidence.id" :id="evidence.id" />
     </div>
   </div>

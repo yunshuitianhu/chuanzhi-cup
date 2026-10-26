@@ -24,6 +24,7 @@
     "src/utils/reportMarkdown.js",
     "src/utils/frameScheduler.js",
     "tests/types/**/*.ts",
-    "src/utils/chatScroll.js"
+    "src/utils/chatScroll.js",
+    "src/utils/questionContext.js"
   ]
 }

@@ -2,6 +2,8 @@
 import {computed,onBeforeUnmount,onMounted,ref,watch} from 'vue'
 import {api} from '../api/client'
 import {useSessionStore} from '../stores/session'
+import AskContext from './AskContext.vue'
+const props=defineProps({focusFrameId:{type:Number,default:null},focusVideoRevision:{type:String,default:null}})
 const store=useSessionStore(),emit=defineEmits(['updated'])
 const report=ref(null),settings=ref(null),frame=ref(null),selected=ref(null),offset=ref(0)
 const roi=ref([0,0,1,1]),scope=ref('all'),decision=ref('pending'),notes=ref('')
@@ -52,9 +54,19 @@ async function load(){
       offset.value=0;result=await api.videoQuality(0)
       if(!current()||ticket!==version)return
     }
+    const focused=Number.isInteger(props.focusFrameId)&&props.focusFrameId>=0
+      &&props.focusVideoRevision===result.revision&&props.focusFrameId<result.total
+    if(focused&&!result.rows.some(row=>row.id===props.focusFrameId)){
+      offset.value=Math.floor(props.focusFrameId/20)*20
+      result=await api.videoQuality(offset.value)
+      if(!current()||ticket!==version)return
+    }
     report.value=result;settings.value=structuredClone(result.settings);dirty.value=false
     emit('updated',result.settings)
-    const id=result.rows.some(r=>r.id===selected.value)?selected.value:result.rows[0]?.id
+    const validFocus=focused&&props.focusVideoRevision===result.revision
+      &&result.rows.some(row=>row.id===props.focusFrameId)
+    if(props.focusFrameId!=null&&!validFocus)message.value='引用帧版本或编号与当前视频不一致，未自动定位；请重新核对来源。'
+    const id=validFocus?props.focusFrameId:result.rows.some(r=>r.id===selected.value)?selected.value:result.rows[0]?.id
     if(id!=null)await selectFrame(id)
     else{selected.value=null;frame.value=null}
   }catch(e){if(current()&&ticket===version)error.value=e.message}
@@ -105,6 +117,11 @@ watch(()=>[store.workspaceRevision,store.projectState.current?.id,store.status.a
   if(dirty.value){message.value='视频或分析条件已变化，草稿仍保留；保存时会核对版本，也可重新载入。';return}
   load()
 })
+watch(()=>[props.focusFrameId,props.focusVideoRevision],()=>{
+  if(props.focusFrameId==null)return
+  if(dirty.value){message.value='当前视频复核草稿尚未保存，请先保存或重新载入，再定位引用帧。';return}
+  load()
+})
 onMounted(load)
 onBeforeUnmount(()=>{disposed=true;version++;frameVersion++;saveVersion++})
 </script>
@@ -127,6 +144,7 @@ onBeforeUnmount(()=>{disposed=true;version++;frameVersion++;saveVersion++})
         </div>
         <p>当前帧 #{{selected+1}} · T+{{frame.frame.time_sec}}s · {{names[frame.frame.quality_status]}}。{{frame.frame.quality_messages.join('；')}}</p>
         <p v-if="frame.frame.features">清晰度/纹理指标 {{frame.frame.features.laplacian_var.toFixed(1)}} · 亮斑比例 {{(frame.frame.features.glare_fraction*100).toFixed(1)}}% · 过暗比例 {{(frame.frame.features.dark_fraction*100).toFixed(1)}}%</p>
+        <AskContext :selector="{kind:'video_frame',frame_id:selected,video_revision:report.revision}" :disabled="locked||dirty||selected==null" label="让AI解释这帧的质量与线索" />
       </div>
       <p v-if="scope==='all' && frame?.frame.review.roi">当前帧已有独立区域，分析时优先使用独立区域；选择“仅当前帧”可查看和编辑。此处正在编辑视频共用区域。</p>
       <fieldset :disabled="locked">

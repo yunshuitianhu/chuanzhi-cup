@@ -21,6 +21,7 @@ import { useSessionStore } from '../stores/session'
 import { toastErr } from '../composables/useToast'
 import { nearestSamples, sampleMetrics, numberText } from '../utils/mapInteraction'
 import { simulationColor } from '../utils/playback'
+import AskContext from './AskContext.vue'
 
 const props = defineProps({simulation:{type:Object,default:null}, frameIndex:{type:Number,default:0}, focusSampleId:{type:Number,default:null}})
 
@@ -345,6 +346,7 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
       </label>
       <div class="sample-metrics"><div v-for="row in sampleRows" :key="row.key"><span>{{ row.label }}</span><b>{{ numberText(row.value) }} {{ row.unit }}</b><small v-if="row.value == null && row.interpolated != null">缺测 · 插值参考 {{ numberText(row.interpolated) }}</small><small v-else>{{ row.value == null ? '缺测' : row.source === 'observed' ? '原始观测' : '记录值（无插值标记）' }}</small><small v-if="row.rawPreserved">导入原值：{{ row.rawText ?? '缺测' }}</small><small v-else-if="row.rawPreserved === false">旧记录未单独保留原值</small></div></div>
       <p>原始综合污染指数：{{ numberText(selectedSample.raw_score) }}</p>
+      <AskContext :selector="{kind:'sample',sample_id:selectedSample.id}" :disabled="loading" label="让AI分析这个采样点" />
     </section>
     <p v-if="!simulation" class="map-footnote">沿线颜色表示相对 {{ data?.target_water_class || store.status.target_water_class }} 类的污染指数；横向晕染仅供显示，不表示污染范围。≥8 使用上限色，原始值见点位详情。</p>
     <p v-else class="map-footnote">{{ simulation.mapping.reason }} {{ simulation.notice }}</p>

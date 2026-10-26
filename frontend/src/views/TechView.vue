@@ -19,6 +19,7 @@ import RagSearch from '../components/RagSearch.vue'
 import WaterQualityGridTech from '../components/WaterQualityGridTech.vue'
 import InverseValidationTech from '../components/InverseValidationTech.vue'
 import RagEvaluationTech from '../components/RagEvaluationTech.vue'
+import ContextSourceFocus from '../components/ContextSourceFocus.vue'
 
 const store = useSessionStore()
 const running = ref(false)
@@ -38,6 +39,7 @@ async function runBlackSpots() {
 </script>
 
 <template>
+  <ContextSourceFocus :kinds="['rag_excerpt']" />
   <Panel title="核心技术能力展示" subtitle="独立体验分析能力，了解模型原理与验证依据">
     <StatusBanner />
     <p v-for="message in store.resultsWarnings" :key="message" class="hint">{{ message }}</p>
@@ -77,7 +79,7 @@ async function runBlackSpots() {
       <MultiSourceTrace />
     </section>
 
-    <section class="block">
+    <section class="block" id="rag-search">
       <h2 class="bt">📚 RAG 知识库智能检索</h2>
       <p class="desc">
         本地整理的治理资料经 text2vec-base-chinese 嵌入存入 ChromaDB，

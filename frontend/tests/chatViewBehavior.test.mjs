@@ -29,11 +29,12 @@ async function mount() {
     workspaceRevision:1,projectState:{current:{id:'a',name:'test'}},
     status:{has_data:true,analysis_revision:1,rows:6},config:{target_water_class:'V'},
     agentRun:null,agentRunAt:0,agentConnectionError:'',agentActiveId:null,
-    selectedInvestigationId:'',investigationRevision:0,
+    selectedInvestigationId:'',investigationRevision:0,questionContext:null,questionContextNotice:'',chatDraft:'',
     refreshAgentRun:async()=>{store.chatRunning=false},
     refreshStatus:async()=>{},stopAgentRun:async()=>{},
     beginAgentStream(){if(store.chatRunning||store.loading||!store.ready)return false;store.chatRunning=true;return true},
     adoptAgentRun(){},
+    clearQuestionContext(notice=''){store.questionContext=null;store.questionContextNotice=notice},
   })
   const saved={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch,
     request:globalThis.requestAnimationFrame,cancel:globalThis.cancelAnimationFrame}
@@ -53,7 +54,7 @@ async function mount() {
     "export default {render:()=>null}")
   const code=compiled.replace(/from ['"]([^'"]+)['"]/g,(_match,dependency)=>{
     const target=dependency==='vue'?vueURL:
-      dependency==='../utils/chatScroll'?pathToFileURL(project+'/frontend/src/utils/chatScroll.js').href:fixture
+      ['../utils/chatScroll','../utils/questionContext'].includes(dependency)?pathToFileURL(project+'/frontend/src/utils/'+dependency.split('/').at(-1)+'.js').href:fixture
     return 'from '+JSON.stringify(target)
   })
   const {default:Component}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64')+'#'+(++serial))
@@ -229,4 +230,48 @@ test('an added referenced task refreshes the investigation list without overwrit
     assert.equal(state.dirty,true)
     assert.match(state.message,/草稿保留/)
   }finally{app.unmount();delete globalThis.__q17BoardStore;delete globalThis.__q17BoardApi}
+})
+
+function selectedContext(kind='sample') {
+  return {id:'e'.repeat(32),kind,title:'所选来源',summary:'来自服务端的观测',notice:'说明',
+    scope:{project_id:'a',analysis_revision:1,results_revision:0,data_version:'f'.repeat(64)},
+    selection:{sample_id:0},source_url:'/charts'}
+}
+test('明确发送才携带所选context_id，公卡随用户消息显示',async()=>{
+  const v=await mount()
+  try{v.store.questionContext=selectedContext();v.state.input='解释这个点';await v.state.send()
+    assert.equal(v.calls.length,1);assert.equal(v.calls[0].context_id,selectedContext().id)
+    assert.equal(v.store.chatMessages[0].question_context.id,selectedContext().id)
+  }finally{v.close()}
+})
+test('上下文409保留原问题，撤掉来源且不静默无引用重试',async()=>{
+  const v=await mount()
+  try{v.store.questionContext=selectedContext();v.state.input='不要丢掉我的问题'
+    let calls=0;globalThis.fetch=async()=>{calls++;return {ok:false,status:409,json:async()=>({detail:'上下文已过期'})}}
+    await v.state.send()
+    assert.equal(v.state.input,'不要丢掉我的问题');assert.equal(v.store.questionContext,null)
+    assert.match(v.store.questionContextNotice,/重新选择/)
+    await v.state.retryLast();assert.equal(calls,1);assert.match(v.store.questionContextNotice,/核对选择/)
+  }finally{v.close()}
+})
+test('发送前发现客户端版本过期时不追加消息或发请求',async()=>{
+  const v=await mount()
+  try{v.store.questionContext=selectedContext();v.store.status.analysis_revision=2;v.state.input='保留问题'
+    await v.state.send();assert.equal(v.calls.length,0);assert.equal(v.store.chatMessages.length,0)
+    assert.equal(v.state.input,'保留问题')
+  }finally{v.close()}
+})
+test('移除或更换引用后，上次请求重试必须让用户重新核对',async()=>{
+  const v=await mount()
+  try{v.store.questionContext=selectedContext();v.state.input='最初问题';await v.state.send()
+    v.store.questionContext={...selectedContext(),id:'c'.repeat(32)}
+    await v.state.retryLast();assert.equal(v.calls.length,1);assert.equal(v.state.input,'最初问题')
+  }finally{v.close()}
+})
+test('没有监测表时仍可明确询问已选资料片段',async()=>{
+  const v=await mount()
+  try{v.store.status.has_data=false;v.store.questionContext=selectedContext('rag_excerpt')
+    v.state.input='解释这段原文';await v.state.send()
+    assert.equal(v.calls.length,1);assert.equal(v.calls[0].context_id,selectedContext().id)
+  }finally{v.close()}
 })

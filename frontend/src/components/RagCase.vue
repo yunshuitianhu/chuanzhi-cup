@@ -1,5 +1,6 @@
 <script setup>
-defineProps({item:{type:Object,required:true}})
+import AskContext from './AskContext.vue'
+defineProps({item:{type:Object,required:true},retrievalId:{type:String,default:''}})
 </script>
 
 <template>
@@ -14,6 +15,8 @@ defineProps({item:{type:Object,required:true}})
       <section v-for="snippet in item['证据片段']" :key="snippet['证据ID']">
         <p><strong>{{snippet['章节']}}</strong><br /><code>{{snippet['证据ID']}}</code></p>
         <pre>{{snippet['原文']}}</pre>
+        <AskContext v-if="retrievalId && snippet['证据ID']" :selector="{kind:'rag_excerpt',retrieval_id:retrievalId,evidence_id:snippet['证据ID']}" label="围绕这段资料提问" />
+        <p v-else class="source">该历史返回没有引用令牌，重新检索后可带来源提问。</p>
         <p v-if="snippet['截断']" class="source">该片段仅返回前1000字符，未展示部分不能据此引用。</p>
       </section>
     </details>

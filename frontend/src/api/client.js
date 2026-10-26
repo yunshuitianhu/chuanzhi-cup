@@ -166,6 +166,10 @@ export const api = {
   stopAgentRun: (id) => request(`/agent/runs/${encodeURIComponent(id)}/stop`, { method:'POST', signal:AbortSignal.timeout(10000) }),
   /** @returns {Promise<import('../types/contracts').ChatHistory>} */
   chatHistory: () => request('/agent/history'),
+  /** @param {import('../types/contracts').QuestionContextRequest} body @returns {Promise<import('../types/contracts').QuestionContext>} */
+  createQuestionContext: (body) => request('/agent/context',{method:'POST',body}),
+  /** @param {string} id @returns {Promise<import('../types/contracts').QuestionContext>} */
+  questionContext: (id) => consistentRead('/agent/context/'+encodeURIComponent(id)),
   /** @param {string} id */
   reportEvidence: (id) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}`),
   /** @param {string} id @param {string} fact @param {number} [offset] */

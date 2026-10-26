@@ -11,6 +11,7 @@ import EChart from './EChart.vue'
 import VideoQuality from './VideoQuality.vue'
 import { toastErr, toastOk } from '../composables/useToast'
 
+defineProps({focusFrameId:{type:Number,default:null},focusVideoRevision:{type:String,default:null}})
 const store = useSessionStore()
 const offset = ref(0)
 const windowSec = ref(30)
@@ -115,7 +116,7 @@ watch([() => rawResult.value?.['时间对齐']?.['时间偏移秒'], () => rawRe
   </div>
 
   <template v-else>
-    <VideoQuality @updated="videoUpdated" />
+    <VideoQuality :focus-frame-id="focusFrameId" :focus-video-revision="focusVideoRevision" @updated="videoUpdated" />
     <p v-if="rawResult && !result" class="interp">历史视频结果未按当前区域、质量与同步规则核实，请重新运行；历史比例不作为当前结果。</p>
     <div class="controls">
       <label>

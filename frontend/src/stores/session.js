@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { api, errorMessage } from '../api/client'
+import { isQuestionContext, questionContextMatches, contextQuestion } from '../utils/questionContext'
 
 /**
  * 会话状态 store（Pinia）。
@@ -16,6 +17,7 @@ export const useSessionStore = defineStore('session', {
     loading: false,
     error: '',
     chatMessages: [],
+    chatDraft:'',questionContext:null,questionContextNotice:'',questionContextRequest:0,
     chatRunning: false,
     chatStreaming: false,
     agentRun: null,
@@ -54,6 +56,45 @@ export const useSessionStore = defineStore('session', {
   },
 
   actions: {
+    /** @param {string} [notice] */
+    clearQuestionContext(notice='') {
+      this.questionContextRequest++
+      this.questionContext=null
+      this.questionContextNotice=notice
+    },
+    /** @param {string} id */
+    clearQuestionContextById(id) {
+      if(this.questionContext?.id===id)this.clearQuestionContext()
+    },
+    /** @param {import('../types/contracts').QuestionContextSelector} selector
+     * @returns {Promise<import('../types/contracts').QuestionContext|null>} */
+    async prepareQuestionContext(selector) {
+      if(!this.ready || this.switchingProject || (!this.status.has_data && selector.kind!=='rag_excerpt'))
+        throw new Error('请先载入相应数据，或选择一份实际检索的资料片段。')
+      const workspace=this.workspaceRevision, project=this.projectState.current?.id??null
+      const revision=this.status.analysis_revision, results=this.status.results_revision??0
+      if(typeof revision!=='number')throw new Error('数据版本尚未就绪，请刷新后重试。')
+      return this._run(async()=>{
+        const ticket=++this.questionContextRequest
+        const current=()=>ticket===this.questionContextRequest && workspace===this.workspaceRevision
+          && !this.switchingProject && project===(this.projectState.current?.id??null)
+          && revision===this.status.analysis_revision && results===(this.status.results_revision??0)
+        this.questionContext=null;this.questionContextNotice=''
+        try {
+          const card=await api.createQuestionContext({...selector,project_id:project,
+            analysis_revision:revision,results_revision:results})
+          if(!current())return null
+          if(!isQuestionContext(card)||!questionContextMatches(card,this))throw new Error('选择的来源格式或版本不匹配，请重新选择。')
+          this.questionContext=card
+          if(!this.chatDraft.trim())this.chatDraft=contextQuestion(card.kind)
+          return card
+        } catch(error) {
+          if(!current())return null
+          this.questionContextNotice=errorMessage(error)
+          throw error
+        }
+      })
+    },
     /** @param {string|null} id @param {import('../types/contracts').JsonObject} payload */
     async saveInvestigation(id,payload) {
       return this._run(async()=>{
@@ -150,6 +191,8 @@ export const useSessionStore = defineStore('session', {
       this.switchingProject = true
       try {
         this.projectState = state
+        this.clearQuestionContext()
+        this.chatDraft=''
         this.riverForm = state.river_ui?.form || null
         this.preview = { columns:[], rows:[], total:0 }
         this.blackSpots = this.crossValidation = this.comprehensive = null
@@ -188,6 +231,7 @@ export const useSessionStore = defineStore('session', {
     /** @param {() => Promise<import('../types/contracts').ProjectState>} request */
     async changeProject(request) {
       this.statusRequest++; this.resultsRequest++; this.projectRequest++; this.previewRequest++
+      this.questionContextRequest++
       this.switchingProject = true
       try { await this.adoptProject(await request()) }
       finally { this.switchingProject = false }
@@ -264,6 +308,8 @@ export const useSessionStore = defineStore('session', {
         this.blackSpots = this.crossValidation = this.comprehensive = null
       }
       this.status = status
+      if(this.questionContext && !questionContextMatches(this.questionContext,this))
+        this.clearQuestionContext('数据或分析结果已更新，请重新选择上下文；问题草稿仍保留。')
       this.adoptAgentRun(status.agent_run || null)
       if (status.has_data) await this.refreshResults()
       else {

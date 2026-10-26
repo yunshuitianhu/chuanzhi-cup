@@ -5,7 +5,7 @@ import {parse,compileScript} from '@vue/compiler-sfc'
 import {createRenderer,nextTick,reactive} from 'vue'
 const {descriptor}=parse(await readFile(new URL('../src/components/VideoQuality.vue',import.meta.url),'utf8'))
 const compiled=compileScript(descriptor,{id:'video-review-regressions'})
-const fixture='data:text/javascript,'+encodeURIComponent('export const api=globalThis.__videoApi;export const useSessionStore=()=>globalThis.__videoStore')
+const fixture='data:text/javascript,'+encodeURIComponent('export const api=globalThis.__videoApi;export const useSessionStore=()=>globalThis.__videoStore;export default {render:()=>null}')
 const code=compiled.content.replace(/from ['"]([^'"]+)['"]/g,(_m,source)=>`from ${JSON.stringify(source==='vue'?import.meta.resolve('vue'):fixture)}`)
 const renderer=createRenderer({createElement:tag=>({tag,children:[]}),createText:text=>({text}),createComment:text=>({text}),insert(n,p){p.children.push(n)},remove(){},setText(){},setElementText(){},parentNode:()=>null,nextSibling:()=>null,patchProp(){}})
 const settings={roi:[0,0,1,1],roi_confirmed:false,reviewer:'',roi_note:'',sync_note:'',sync_confirmed:false,time_offset_sec:0,time_window_sec:30}

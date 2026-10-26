@@ -12,13 +12,16 @@ import { sseHeaders, adoptSessionFrom } from '../api/client'
 import { toastErr } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import ChatBubble from '../components/ChatBubble.vue'
+import QuestionContextCard from '../components/QuestionContextCard.vue'
+import {isQuestionContext,questionContextMatches} from '../utils/questionContext'
 import AgentProgress from '../components/AgentProgress.vue'
 import InvestigationBoard from '../components/InvestigationBoard.vue'
 import { consumeAgentStream } from '../utils/agentStream'
 import { createChatScroll } from '../utils/chatScroll'
 
 const store = useSessionStore()
-const input = ref('')
+const input = computed({get:()=>store.chatDraft||'',set:value=>{store.chatDraft=value}})
+const canAsk = computed(()=>store.status.has_data || (isQuestionContext(store.questionContext) && questionContextMatches(store.questionContext,store) && store.questionContext.kind==='rag_excerpt'))
 const { chatRunning: running, chatMessages: messages } = storeToRefs(store)
 const scroller = ref(null)
 const clock=ref(Date.now())
@@ -107,19 +110,33 @@ async function autoAnalyze() {
 
 async function send() {
   const text = input.value.trim()
-  if (!text || running.value || !store.ready || store.loading || !store.status.has_data) return
+  if (!text || running.value || !store.ready || store.loading || !canAsk.value) return
   input.value = ''
   return submit(text,false)
 }
 
+async function retryLast() {
+  if(lastRequest.value?.context_id && lastRequest.value.context_id!==store.questionContext?.id) {
+    if(!input.value.trim())input.value=lastRequest.value.text
+    store.questionContextNotice='上次问题的上下文已移除或变化，请核对选择后重新发送。'
+    return
+  }
+  if(lastRequest.value)return submit(lastRequest.value.text,lastRequest.value.auto)
+}
 async function submit(text,auto) {
-  if(running.value || !store.ready || !store.status.has_data)return
+  if(running.value || !store.ready || store.loading || (!canAsk.value && !auto))return
   const workspace=store.workspaceRevision, project=store.projectState.current?.id
   const current=()=>workspace===store.workspaceRevision && project===store.projectState.current?.id
   const token=crypto.randomUUID()
-  lastRequest.value={text,auto}
+  const questionContext=auto?null:store.questionContext
+  if(questionContext && (!isQuestionContext(questionContext)||!questionContextMatches(questionContext,store))) {
+    store.clearQuestionContext('所选上下文已过期，请重新选择后发送。')
+    if(!input.value.trim())input.value=text
+    return
+  }
+  lastRequest.value={text,auto,context_id:questionContext?.id??null}
   if(!store.beginAgentStream())return
-  messages.value.push({role:'user',content:text,uiRequest:token})
+  messages.value.push({role:'user',content:text,uiRequest:token,...(questionContext?{question_context:questionContext}:{})})
   latest()
   let runId=null, answer=null
   function incomplete() {
@@ -129,10 +146,14 @@ async function submit(text,auto) {
     const res = await fetch('/api/agent/chat', {
       method: 'POST',
       headers: sseHeaders(),
-      body: JSON.stringify({ message:text, auto }),
+      body: JSON.stringify({ message:text, auto, ...(questionContext?{context_id:questionContext.id}:{}) }),
     })
     if (!res.ok || !res.body) {
       const error=await res.json().catch(()=>({}))
+      if(questionContext && [404,409,422].includes(res.status) && current()) {
+        store.clearQuestionContext('所选来源已失效，请重新选择；原问题已保留。')
+        if(!input.value.trim())input.value=text
+      }
       throw new Error(error.detail || `HTTP ${res.status}`)
     }
     adoptSessionFrom(res)
@@ -153,7 +174,7 @@ async function submit(text,auto) {
         answer=null
       } else if(event==='delta') {
         if(!answer) {
-          messages.value.push({role:'assistant',content:'',uiRequest:token})
+          messages.value.push({role:'assistant',content:'',uiRequest:token,...(questionContext?{question_context:questionContext}:{})})
           answer=messages.value[messages.value.length-1]
         }
         answer.content+=payload.text || ''
@@ -201,11 +222,13 @@ async function submit(text,auto) {
       <span>目标 {{ store.config.target_water_class }} 类</span>
       <span v-if="store.status.data_identity?.kind==='synthetic'" class="data-kind">仿真数据</span>
     </div>
-    <p v-if="!store.status.has_data" class="tip">从「项目与数据」打开已保存项目，或上传走航监测表。</p>
+    <QuestionContextCard v-if="store.questionContext" :context="store.questionContext" removable @remove="store.clearQuestionContext()" />
+    <p v-if="store.questionContextNotice" class="tip warning" role="status">{{store.questionContextNotice}}</p>
+    <p v-if="!store.status.has_data" class="tip">从「项目与数据」载入监测表，或选择一段实际检索的资料进行提问。</p>
     <p v-if="store.status.analysis_status === 'stale'" class="tip warning">检测或视频结果已更新，下方为历史对话；重新分析后可生成当前报告。</p>
     <p v-else-if="store.status.detection_outdated" class="tip warning">历史检测使用旧版证据口径，请重新分析。下方文字尚未按当前数据和走航时空限制复核。</p>
     <AgentProgress :run="store.agentRun" :elapsed="elapsed" :connection-error="store.agentConnectionError" @stop="stop" @sync="refreshRun" />
-    <button v-if="lastRequest && !running && store.agentRun?.status!=='succeeded'" class="retry" @click="submit(lastRequest.text,lastRequest.auto)">从当前数据重新执行上一请求</button>
+    <button v-if="lastRequest && !running && store.agentRun?.status!=='succeeded'" class="retry" @click="retryLast">从当前数据重新执行上一请求</button>
     <div class="conversation" :class="{'has-progress':!!store.agentRun?.run_id || !!store.agentConnectionError}">
       <div ref="scroller" class="stream" role="region" aria-label="分析对话与报告" tabindex="0"
         @scroll.passive="scrollController.onScroll" @wheel.passive="readIntent" @keydown="readIntent" @pointerdown="readIntent" @touchstart.passive="readIntent">
@@ -215,14 +238,14 @@ async function submit(text,auto) {
           <p>查看异常、解释指标，或核对下一步需要补充的证据。</p>
           <div class="suggestions"><button v-for="question in suggestedQuestions" :key="question" :disabled="!store.status.has_data || running" @click="input=question">{{ question }}<span aria-hidden="true">↗</span></button></div>
         </div>
-        <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" @rendered="scrollDown" />
+        <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" :question-context="m.question_context" @rendered="scrollDown" />
       </div>
       <div class="reading-controls"><span>{{ scrollState.following ? '跟随最新内容' : '已暂停跟随，可继续阅读' }}</span><button v-if="!scrollState.following" type="button" class="latest" @click="latest">{{ scrollState.hasUnseen ? '有新内容 · 回到最新' : '回到最新' }} <span aria-hidden="true">↓</span></button></div>
     </div>
     <form class="composer" @submit.prevent="send">
-      <textarea aria-label="向水质分析助手提问" v-model="input" rows="2" :disabled="!store.status.has_data || !store.ready || store.loading || running"
+      <textarea aria-label="向水质分析助手提问" v-model="input" rows="2" :disabled="!canAsk || !store.ready || store.loading || running"
         placeholder="描述你想了解的异常、指标或证据…" @keydown="composerKey"></textarea>
-      <div class="composer-actions"><span class="keyboard-hint">Enter 发送 · Shift+Enter 换行</span><button type="submit" :disabled="!input.trim() || running || !store.ready || store.loading || !store.status.has_data">发送 <span aria-hidden="true">↑</span></button></div>
+      <div class="composer-actions"><span class="keyboard-hint">Enter 发送 · Shift+Enter 换行</span><button type="submit" :disabled="!input.trim() || running || !store.ready || store.loading || !canAsk">发送 <span aria-hidden="true">↑</span></button></div>
     </form>
   </Panel>
   <Panel title="排查与复测" subtitle="保存候选假设、核对依据和人工复测记录">

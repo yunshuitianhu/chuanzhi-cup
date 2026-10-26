@@ -1,0 +1,93 @@
+{
+  "date": "2026-10-26",
+  "task": "Q13",
+  "base_commit": "d5cabcc3cbaebd2b691362c9f325268d261a84e9",
+  "backend": {
+    "tests": 489,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "success": true,
+    "legacy_checks": true,
+    "secret_scan": true,
+    "contracts_exported": true,
+    "elapsed_s": 41.07
+  },
+  "frontend": {
+    "tests": 234,
+    "passed": 234,
+    "failed": 0,
+    "typecheck": true,
+    "production_build": true,
+    "updated_context_shape_tests": 14
+  },
+  "manual_browser": {
+    "url": "http://127.0.0.1:5185",
+    "backend": "actual FastAPI routes, context registry, Agent loop and SSE",
+    "substitutes": [
+      "generated 120-row monitoring table",
+      "four generated pattern frames",
+      "retrieved fixture text",
+      "local OpenAI client substitute; no real model request"
+    ],
+    "verified": [
+      "time-range selection preserves draft without sending; inclusive 09:02–09:04 range contains 25 records",
+      "sample #61 selection uses original position 60 and returns to same sample after chat",
+      "video frame #4 sends quality text and returns to frame at T+15s",
+      "registered RAG snippet receives context card, passes citation validation and returns to actual snapshot",
+      "context removal retains editable draft",
+      "source links validate current server scope before focus"
+    ],
+    "viewport_checks": [
+      {
+        "width": 1280,
+        "horizontal_overflow": false
+      },
+      {
+        "width": 768,
+        "scroll_width": 760,
+        "horizontal_overflow": false
+      },
+      {
+        "width": 390,
+        "scroll_width": 382,
+        "horizontal_overflow": false
+      },
+      {
+        "width": 320,
+        "scroll_width": 312,
+        "horizontal_overflow": false
+      }
+    ],
+    "screenshots": [
+      "q13_context_desktop_20261026.jpg",
+      "q13_context_mobile_20261026.jpg"
+    ]
+  },
+  "bounds": {
+    "contexts_per_session": 20,
+    "retrievals_per_session": 8,
+    "range_example_records": 20
+  },
+  "limits": [
+    "No new online LLM quality evaluation or real embedding retrieval evaluation.",
+    "No field accuracy or pollution responsibility validation.",
+    "Video context contains quality/ROI/review/synchronization text, not image input to an LLM.",
+    "Temporary contexts are process/session scoped and are not persisted; saved history cards must be reselected after restore.",
+    "Responsive checks are desktop browser viewport simulations, not physical mobile-device or screen-reader tests.",
+    "Synthetic coordinates do not assert that a real river follows the displayed test track.",
+    "Q14 selected text/side chat, Q15 and Q16 are not implemented by this change."
+  ],
+  "actual_http_readback": {
+    "sent_context_kinds": [
+      "rag_excerpt",
+      "sample",
+      "time_range",
+      "video_frame"
+    ],
+    "user_context_messages": 4,
+    "current_card_get": 200,
+    "wrong_result_revision": 409,
+    "run_status": "succeeded"
+  }
+}

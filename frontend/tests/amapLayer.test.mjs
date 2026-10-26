@@ -151,6 +151,8 @@ test('技术页直接显示恢复的检测结果，包含零预警情形',async(
   store.blackSpots={result:{'黑点总数':0,'提示':'恢复的零预警结果'}}
   store.status.has_detection=true;store.status.detection_outdated=true
   const app=createSSRApp(Tech);app.use(pinia)
+  const router=createRouter({history:createMemoryHistory(),routes:[{path:'/tech',component:{render:()=>null}}]})
+  await router.push('/tech');app.use(router)
   const html=await renderToString(app)
   assert.match(html,/恢复的零预警结果/)
   assert.match(html,/检测结果使用旧算法/)
@@ -325,7 +327,7 @@ test('知识库索引可读不冒充实际检索已通过',async()=>{
   globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
   const {default:Rag}=await server.ssrLoadModule('/src/components/RagSearch.vue')
   async function render(verified){
-    const app=createSSRApp(Rag)
+    const app=createSSRApp(Rag);app.use(createPinia())
     app.mixin({created(){if(this.$options.__file?.endsWith('RagSearch.vue'))this.$.setupState.status={
       available:true,retrieval_verified:verified,chunks:147,source_documents:29,embedding_model:'controlled-model',
       notice:verified?'已完成真实检索':'索引可读，模型待实际检索验证',state:verified?'ready':'index_ready'} }})
@@ -338,7 +340,7 @@ test('知识库索引可读不冒充实际检索已通过',async()=>{
 test('知识库缺依赖时显示诊断并提供重新检查入口',async()=>{
   globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
   const {default:Rag}=await server.ssrLoadModule('/src/components/RagSearch.vue')
-  const app=createSSRApp(Rag)
+  const app=createSSRApp(Rag);app.use(createPinia())
   app.mixin({created(){if(this.$options.__file?.endsWith('RagSearch.vue'))this.$.setupState.status={
     available:false,state:'dependency_missing',notice:'缺少 sentence_transformers，尚未执行检索',error:null} }})
   const html=await renderToString(app)
