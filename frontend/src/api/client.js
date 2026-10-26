@@ -164,6 +164,12 @@ export const api = {
   agentRun: () => request('/agent/run', { signal:AbortSignal.timeout(10000) }),
   /** @param {string} id @returns {Promise<import('../types/contracts').ActiveRun>} */
   stopAgentRun: (id) => request(`/agent/runs/${encodeURIComponent(id)}/stop`, { method:'POST', signal:AbortSignal.timeout(10000) }),
+  /** @returns {Promise<{threads:import('../types/contracts').SideThread[],run:import('../types/contracts').SideRun}>} */
+  sideThreads: () => request('/side/threads'),
+  /** @param {string} context_id @returns {Promise<import('../types/contracts').SideThread>} */
+  createSideThread: context_id => request('/side/threads',{method:'POST',body:{context_id}}),
+  /** @param {string} id @returns {Promise<import('../types/contracts').SideRun>} */
+  stopSideRun: id => request('/side/runs/'+encodeURIComponent(id)+'/stop',{method:'POST'}),
   /** @returns {Promise<import('../types/contracts').ChatHistory>} */
   chatHistory: () => request('/agent/history'),
   /** @param {import('../types/contracts').QuestionContextRequest} body @returns {Promise<import('../types/contracts').QuestionContext>} */

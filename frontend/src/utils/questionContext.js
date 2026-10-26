@@ -4,7 +4,7 @@ export function isQuestionContext(value) {
   if (!value || typeof value !== 'object') return false
   const item=/** @type {Record<string,any>} */(value), scope=item.scope
   return typeof item.id==='string' && /^[a-f0-9]{32}$/.test(item.id)
-    && ['sample','time_range','video_frame','rag_excerpt'].includes(item.kind)
+    && ['sample','time_range','video_frame','rag_excerpt','text_quote'].includes(item.kind)
     && typeof item.title==='string' && item.title.length<=1000
     && typeof item.summary==='string' && item.summary.length<=5000
     && typeof item.notice==='string' && item.notice.length<=5000
@@ -27,12 +27,21 @@ export function questionContextMatches(item,state) {
  * @param {unknown} item */
 export function questionContextLocation(item) {
   if (!isQuestionContext(item)) return null
+  if(item.kind==='text_quote') {
+    const source=item.selection.source
+    if(!source||typeof source!=='object'||Array.isArray(source))return null
+    const src=source
+    const mid=typeof src.message_id==='string'?src.message_id:''
+    const hid=typeof src.help_id==='string'?src.help_id:''
+    const anchor=src.kind==='message'&&/^[a-f0-9]{64}$/.test(mid)?'message-'+mid:src.kind==='help'&&['rag_help','screening_help','model_help'].includes(hid)?hid:'text-source-return'
+    return {path:src.kind==='message'?'/chat':'/tech',query:{text_context:item.id},hash:'#'+anchor}
+  }
   const hashes={sample:'#trace-map',time_range:'#time-series',video_frame:'#video-quality',rag_excerpt:'#rag-search'}
   return {path:item.kind==='rag_excerpt'?'/tech':'/charts',query:{context_id:item.id},hash:hashes[item.kind]}
 }
 /** @param {import('../types/contracts').QuestionContextKind} kind */
 export function contextQuestion(kind) {
-  return {sample:'请分析这个采样点，说明观测依据、缺口和下一步复测建议。',
+  return {text_quote:'请解释所选文字的含义、依据和适用限制。',sample:'请分析这个采样点，说明观测依据、缺口和下一步复测建议。',
     time_range:'请分析所选时段的变化，区分真实观测、缺测和推测。',
     video_frame:'请解释这个视频帧的质量和复核信息，并说明能支持什么判断。',
     rag_excerpt:'请解释所选资料片段的含义、适用条件与证据限制。'}[kind]

@@ -59,6 +59,7 @@ class Session:
 
     # ---- 对话 ----
     messages: list[dict] = field(default_factory=list)
+    side_threads: list[dict] = field(default_factory=list)
     full_messages: list[Any] = field(default_factory=list)
     analysis_done: bool = False
     analysis_status: str = 'idle'

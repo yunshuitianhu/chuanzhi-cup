@@ -16,3 +16,7 @@ fastapi==0.136.1
 uvicorn==0.46.0
 python-multipart==0.0.27
 httpx==0.28.1
+
+# 与前端一致地核对Markdown可见选中文字。
+markdown-it-py==4.0.0
+mdurl==0.1.2

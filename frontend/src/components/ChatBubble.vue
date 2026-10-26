@@ -1,4 +1,5 @@
 <script setup>
+import QuoteText from './QuoteText.vue'
 import ReportEvidence from './ReportEvidence.vue'
 import QuestionContextCard from './QuestionContextCard.vue'
 import SafeMarkdown from './SafeMarkdown.vue'
@@ -8,6 +9,7 @@ defineProps({
   content: { type: String, default: '' },
   incomplete: Boolean,
   evidence: {type:Object,default:null},
+  textSource: {type:Object,default:null},
   questionContext: {type:Object,default:null},
 })
 const LABEL = { user: '我', assistant: '分析助手', tool: '工具调用', error: '错误' }
@@ -21,10 +23,10 @@ const showSource = ref(false)
     <div class="bubble">
       <div class="bubble-head"><div class="who">{{ LABEL[role] || role }}</div><button v-if="role==='assistant'" class="source-toggle" :aria-pressed="showSource" @click="showSource=!showSource">{{ showSource ? '排版阅读' : '查看原文' }}</button></div>
       <div v-if="incomplete" class="who">未完成输出，请以重新分析后的结果为准</div>
-      <template v-if="role==='assistant'">
+      <QuoteText v-if="role==='assistant'" :source="textSource?{...textSource,view:showSource?'raw':'markdown'}:null" title="回答中的文字" :source-id="textSource?.message_id?'message-'+textSource.message_id:''">
         <div v-if="showSource" class="text">{{ content }}</div>
         <SafeMarkdown v-else :content="content" @rendered="emit('rendered')" />
-      </template>
+      </QuoteText>
       <div v-else class="text">{{ content }}</div>
       <QuestionContextCard v-if="questionContext" :context="questionContext" compact />
       <ReportEvidence v-if="role==='assistant' && !incomplete && evidence?.id" :key="evidence.id" :id="evidence.id" />

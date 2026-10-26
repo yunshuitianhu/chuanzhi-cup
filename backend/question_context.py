@@ -18,6 +18,7 @@ from water_quality_mcp.src.water_quality_mcp.analysis import quality_report
 from water_quality_mcp.src.water_quality_mcp.data_quality import observed_mask
 from .map_samples import METRICS, finite
 from .project_codec import _scrubber
+from .text_sources import TextSource, select_text, MAX_QUOTE
 from .report_evidence import _digest, record
 
 MAX_CONTEXTS = 20
@@ -60,7 +61,13 @@ class RagContext(ContextScope):
     evidence_id: str = Field(min_length=1,max_length=1000)
 
 
-ContextRequest = Annotated[Union[SampleContext,TimeContext,VideoContext,RagContext], Field(discriminator='kind')]
+class TextContext(ContextScope):
+    kind: Literal['text_quote']
+    text: str = Field(min_length=1,max_length=MAX_QUOTE)
+    source: TextSource
+
+
+ContextRequest = Annotated[Union[SampleContext,TimeContext,VideoContext,RagContext,TextContext], Field(discriminator='kind')]
 
 
 def _clean(value):
@@ -255,11 +262,11 @@ def _rag(session,payload):
 
 def create_context(session,payload):
     _check_request_scope(session,payload)
-    selected={'sample':_sample,'time_range':_time_range,'video_frame':_video,'rag_excerpt':_rag}[payload.kind](session,payload)
+    selected={'sample':_sample,'time_range':_time_range,'video_frame':_video,'rag_excerpt':_rag,'text_quote':select_text}[payload.kind](session,payload)
     ident=uuid4().hex
     card={'id':ident,'kind':payload.kind,'title':selected['title'],'summary':selected['summary'],
         'notice':selected.get('notice',BASE_NOTICE),'scope':scope(session),'selection':selected['selection'],
-        'source_url':('/tech' if payload.kind=='rag_excerpt' else '/charts')+'?context_id='+ident+'#'+selected['anchor'],
+        'source_url':selected.get('path', '/tech' if payload.kind=='rag_excerpt' else '/charts')+'?context_id='+ident+'#'+selected['anchor'],
         'data_identity':session.data_identity}
     if 'excerpt' in selected: card['excerpt']=selected['excerpt']
     card=_safe(card)

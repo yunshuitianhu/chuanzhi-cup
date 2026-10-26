@@ -1,3 +1,4 @@
+import {textQuestionState,quoteKey,MAX_QUOTE} from '../utils/textQuestions'
 import { defineStore } from 'pinia'
 import { api, errorMessage } from '../api/client'
 import { isQuestionContext, questionContextMatches, contextQuestion } from '../utils/questionContext'
@@ -17,6 +18,7 @@ export const useSessionStore = defineStore('session', {
     loading: false,
     error: '',
     chatMessages: [],
+    sideRunning:false,textQuestions:textQuestionState(),
     chatDraft:'',questionContext:null,questionContextNotice:'',questionContextRequest:0,
     chatRunning: false,
     chatStreaming: false,
@@ -56,6 +58,68 @@ export const useSessionStore = defineStore('session', {
   },
 
   actions: {
+    /** @param {Pick<import('../types/contracts').SelectedText,'text'|'source'|'title'>} selected
+     * @param {'main'|'side'} target @param {import('../types/contracts').QuestionContextScope} [scope] */
+    captureTextQuote(selected,target,scope) {
+      if(!this.ready||this.switchingProject)return
+      if(!selected.text.trim()||selected.text.length>MAX_QUOTE){this.textQuestions.error='引用须为1—3000字，请缩短选区。';return}
+      const quote={...JSON.parse(JSON.stringify(selected)),project_id:scope?scope.project_id:this.projectState.current?.id??null,
+        analysis_revision:scope?.analysis_revision??this.status.analysis_revision??0,
+        results_revision:scope?.results_revision??this.status.results_revision??0}
+      if(target==='main'){
+        if(this.textQuestions.pendingMain&&quoteKey(this.textQuestions.pendingMain)===quoteKey(quote))return
+        this.clearQuestionContext();this.textQuestions.pendingMain=quote
+        this.questionContextNotice='已加入选中文字，发送时会核对来源；已有问题草稿保留。'
+        if(!this.chatDraft.trim())this.chatDraft='请解释所选文字的含义、依据和适用限制。'
+      }else{
+        if(!this.textQuestions.pendingSide||quoteKey(this.textQuestions.pendingSide)!==quoteKey(quote)){
+          this.textQuestions.pendingSide=quote;this.textQuestions.active=''
+        }
+        this.textQuestions.open=true;this.textQuestions.error=''
+      }
+    },
+    async preparePendingQuote() {
+      const quote=this.textQuestions.pendingMain
+      if(!quote)return this.questionContext
+      const workspace=this.workspaceRevision,key=quoteKey(quote)
+      return this._run(async()=>{
+        const card=await api.createQuestionContext({kind:'text_quote',text:quote.text,source:quote.source,
+          project_id:quote.project_id,analysis_revision:quote.analysis_revision,results_revision:quote.results_revision})
+        if(workspace!==this.workspaceRevision||this.switchingProject||!this.textQuestions.pendingMain||quoteKey(this.textQuestions.pendingMain)!==key)return null
+        if(!isQuestionContext(card)||!questionContextMatches(card,this))throw Error('引用版本不匹配，请重新选择。')
+        this.questionContext=card;this.textQuestions.pendingMain=null;this.questionContextNotice=''
+        return card
+      })
+    },
+    async prepareSideThread() {
+      const q=this.textQuestions
+      if(q.active)return q.threads.find(t=>t.id===q.active)||null
+      const quote=q.pendingSide
+      if(!quote)throw Error('请先选择一段文字。')
+      const workspace=this.workspaceRevision,key=quoteKey(quote)
+      return this._run(async()=>{
+        const card=await api.createQuestionContext({kind:'text_quote',text:quote.text,source:quote.source,
+          project_id:quote.project_id,analysis_revision:quote.analysis_revision,results_revision:quote.results_revision})
+        if(workspace!==this.workspaceRevision||this.switchingProject||!q.pendingSide||quoteKey(q.pendingSide)!==key)return null
+        const thread=await api.createSideThread(card.id)
+        if(workspace!==this.workspaceRevision||this.switchingProject||!q.pendingSide||quoteKey(q.pendingSide)!==key)return null
+        if(!q.threads.some(t=>t.id===thread.id))q.threads.push(thread)
+        q.drafts[thread.id]=q.drafts[key]||'';q.active=thread.id
+        return thread
+      })
+    },
+    async loadSideThreads() {
+      const workspace=this.workspaceRevision,project=this.projectState.current?.id,request=++this.textQuestions.request
+      try{
+        const value=await api.sideThreads()
+        if(workspace!==this.workspaceRevision||project!==this.projectState.current?.id||request!==this.textQuestions.request||this.switchingProject)return
+        const q=this.textQuestions
+        q.threads=value.threads;q.run=value.run;q.notice=value.run.save_notice||''
+        this.sideRunning=q.streaming||!!value.run.busy
+        this.chatRunning=this.chatStreaming||this.sideRunning||!!this.agentRun?.busy
+        if(!this.sideRunning&&value.run.run_id)await this.refreshProjects()
+      }catch(e){if(workspace===this.workspaceRevision&&request===this.textQuestions.request)this.textQuestions.error='暂时无法核对侧边任务，请重试状态检查。'}
+    },
     /** @param {string} [notice] */
     clearQuestionContext(notice='') {
       this.questionContextRequest++
@@ -142,7 +206,7 @@ export const useSessionStore = defineStore('session', {
       if(this.chatStreaming && this.agentActiveId && run?.run_id!==this.agentActiveId)return
       this.agentRun=run
       this.agentRunAt=Date.now()
-      this.chatRunning=this.chatStreaming || !!run?.busy
+      this.chatRunning=this.chatStreaming || this.sideRunning || !!run?.busy
     },
     async refreshAgentRun() {
       const request=++this.agentRunRequest, workspace=this.workspaceRevision, project=this.projectState.current?.id
@@ -193,6 +257,7 @@ export const useSessionStore = defineStore('session', {
         this.projectState = state
         this.clearQuestionContext()
         this.chatDraft=''
+        this.textQuestions=textQuestionState();this.sideRunning=false
         this.riverForm = state.river_ui?.form || null
         this.preview = { columns:[], rows:[], total:0 }
         this.blackSpots = this.crossValidation = this.comprehensive = null

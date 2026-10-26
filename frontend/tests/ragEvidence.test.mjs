@@ -1,13 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {createServer} from 'vite'
+import {createPinia} from 'pinia'
 import {createSSRApp} from 'vue'
 import {renderToString} from '@vue/server-renderer'
 const server=await createServer({configLoader:'runner',server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test'})
 test.after(async()=>{await server.close()})
 globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
 const {default:Case}=await server.ssrLoadModule('/src/components/RagCase.vue')
-const render=item=>renderToString(createSSRApp(Case,{item}))
+const render=item=>{const app=createSSRApp(Case,{item});app.use(createPinia());return renderToString(app)}
 
 test('治理资料显示来源、片段ID、原文及明确的截断状态',async()=>{
   const html=await render({'标题':'受控资料','相似度':.85,'来源说明':'本地整理','来源文件':'folder/case.md','出处状态':'未独立核验',

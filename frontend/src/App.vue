@@ -11,6 +11,9 @@ import { routes } from './router'
 import StatusBadge from './components/StatusBadge.vue'
 import DataPanel from './components/DataPanel.vue'
 import ProjectPanel from './components/ProjectPanel.vue'
+import TextSelectionMenu from './components/TextSelectionMenu.vue'
+import SideQuestions from './components/SideQuestions.vue'
+import QuestionContextCard from './components/QuestionContextCard.vue'
 import Toast from './components/Toast.vue'
 
 const store = useSessionStore()
@@ -19,9 +22,17 @@ const navItems = routes.filter((r) => r.meta)
 const narrow = ref(false), mobileOpen = ref(false), desktopCollapsed = ref(false)
 const sidebar = ref(null), sidebarToggle = ref(null)
 const sidebarOpen = computed(() => narrow.value ? mobileOpen.value : !desktopCollapsed.value)
+const sidebarVisible=computed(()=>sidebarOpen.value&&!store.textQuestions.open)
+const quoteModal=computed(()=>store.textQuestions.open&&rightNarrow.value)
+const rightNarrow=ref(false)
+let rightMedia
+onMounted(()=>{rightMedia=matchMedia('(max-width:1279px)');rightNarrow.value=rightMedia.matches;rightMedia.onchange=e=>{rightNarrow.value=e.matches}})
+onBeforeUnmount(()=>{if(rightMedia)rightMedia.onchange=null})
+watch(()=>store.textQuestions.open,open=>{if(open)mobileOpen.value=false})
 let media, previousOverflow = ''
 
 function toggleSidebar() {
+  if(store.textQuestions.open){store.textQuestions.open=false;if(narrow.value)mobileOpen.value=true;else desktopCollapsed.value=false;return}
   if (narrow.value) mobileOpen.value = !mobileOpen.value
   else {
     desktopCollapsed.value = !desktopCollapsed.value
@@ -71,11 +82,11 @@ const keySummary = computed(() => {
 </script>
 
 <template>
-  <div class="shell">
+  <div class="shell" :class="{'has-side-questions':store.textQuestions.open}">
     <a class="skip-link" href="#main-content">跳到主要内容</a>
     <button v-if="narrow && mobileOpen" class="sidebar-backdrop" tabindex="-1" aria-label="关闭项目侧栏" @click="closeSidebar"></button>
     <!-- ─────────── 侧边栏 ─────────── -->
-    <aside v-show="sidebarOpen" id="project-sidebar" ref="sidebar" class="sidebar" :class="{drawer:narrow}" :role="narrow ? 'dialog' : undefined" :aria-modal="narrow ? 'true' : undefined" aria-label="项目与数据" @keydown="sidebarKeys">
+    <aside v-show="sidebarOpen&&!store.textQuestions.open" id="project-sidebar" ref="sidebar" class="sidebar" :class="{drawer:narrow}" :role="narrow ? 'dialog' : undefined" :aria-modal="narrow ? 'true' : undefined" aria-label="项目与数据" @keydown="sidebarKeys">
       <button v-if="narrow" class="drawer-close" @click="closeSidebar">关闭项目侧栏</button>
       <div class="brand">
         <div class="brand-title">水质监测与污染溯源助手</div>
@@ -121,9 +132,9 @@ const keySummary = computed(() => {
     </aside>
 
     <!-- ─────────── 主区 ─────────── -->
-    <main class="main" :inert="narrow && mobileOpen">
+    <main class="main" :inert="(narrow && mobileOpen)||quoteModal">
       <nav class="tabs" aria-label="主要导航">
-        <button ref="sidebarToggle" class="sidebar-toggle" :aria-expanded="sidebarOpen" aria-controls="project-sidebar" :aria-label="sidebarOpen ? '收起项目侧栏' : '展开项目侧栏'" :title="sidebarOpen ? '收起项目侧栏' : '展开项目侧栏'" @click="toggleSidebar">☰<span class="toggle-label">项目与数据</span></button>
+        <button ref="sidebarToggle" class="sidebar-toggle" :aria-expanded="sidebarVisible" aria-controls="project-sidebar" :aria-label="sidebarVisible ? '收起项目侧栏' : '展开项目侧栏'" :title="sidebarVisible ? '收起项目侧栏' : '展开项目侧栏'" @click="toggleSidebar">☰<span class="toggle-label">项目与数据</span></button>
         <div class="tab-links">
         <RouterLink
           v-for="item in navItems"
@@ -137,6 +148,7 @@ const keySummary = computed(() => {
         </RouterLink>
         </div>
 
+        <SideQuestions />
         <div class="tabs-right">
           <template v-if="store.status.has_data">
             <span class="pill">数据 {{ store.status.rows }} 条</span>
@@ -165,15 +177,19 @@ const keySummary = computed(() => {
         <div v-if="store.error" class="error-bar">
           <strong>出错了：</strong>{{ store.error }}
         </div>
+        <div v-if="store.textQuestions.sourceCard" id="text-source-return"><QuestionContextCard :context="store.textQuestions.sourceCard" /></div>
+        <p v-if="store.textQuestions.sourceError" class="error-bar" role="alert">{{store.textQuestions.sourceError}}</p>
         <RouterView v-if="store.ready && !store.switchingProject" :key="store.workspaceRevision" />
       </div>
     </main>
 
+    <TextSelectionMenu />
     <Toast />
   </div>
 </template>
 
 <style scoped>
+@media(min-width:1280px){.has-side-questions .main{margin-right:400px}}
 .shell { display: flex; min-height: 100vh; }
 
 /* ── 侧边栏 ── */

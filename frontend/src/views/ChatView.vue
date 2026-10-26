@@ -12,6 +12,7 @@ import { sseHeaders, adoptSessionFrom } from '../api/client'
 import { toastErr } from '../composables/useToast'
 import Panel from '../components/Panel.vue'
 import ChatBubble from '../components/ChatBubble.vue'
+import TextQuoteCard from '../components/TextQuoteCard.vue'
 import QuestionContextCard from '../components/QuestionContextCard.vue'
 import {isQuestionContext,questionContextMatches} from '../utils/questionContext'
 import AgentProgress from '../components/AgentProgress.vue'
@@ -21,7 +22,7 @@ import { createChatScroll } from '../utils/chatScroll'
 
 const store = useSessionStore()
 const input = computed({get:()=>store.chatDraft||'',set:value=>{store.chatDraft=value}})
-const canAsk = computed(()=>store.status.has_data || (isQuestionContext(store.questionContext) && questionContextMatches(store.questionContext,store) && store.questionContext.kind==='rag_excerpt'))
+const canAsk = computed(()=>!!store.textQuestions?.pendingMain || store.status.has_data || (isQuestionContext(store.questionContext) && questionContextMatches(store.questionContext,store) && ['rag_excerpt','text_quote'].includes(store.questionContext.kind)))
 const { chatRunning: running, chatMessages: messages } = storeToRefs(store)
 const scroller = ref(null)
 const clock=ref(Date.now())
@@ -111,6 +112,9 @@ async function autoAnalyze() {
 async function send() {
   const text = input.value.trim()
   if (!text || running.value || !store.ready || store.loading || !canAsk.value) return
+  if(store.textQuestions?.pendingMain){
+    try{if(!await store.preparePendingQuote())return}catch(e){toastErr(e.message);return}
+  }
   input.value = ''
   return submit(text,false)
 }
@@ -174,7 +178,7 @@ async function submit(text,auto) {
         answer=null
       } else if(event==='delta') {
         if(!answer) {
-          messages.value.push({role:'assistant',content:'',uiRequest:token,...(questionContext?{question_context:questionContext}:{})})
+          messages.value.push({role:'assistant',content:'',run_id:runId,uiRequest:token,...(questionContext?{question_context:questionContext}:{})})
           answer=messages.value[messages.value.length-1]
         }
         answer.content+=payload.text || ''
@@ -213,7 +217,7 @@ async function submit(text,auto) {
     <template #actions>
       <button class="primary" :disabled="!store.canAnalyze || !store.ready || store.loading || running" :aria-busy="running" @click="autoAnalyze">
         <svg aria-hidden="true" viewBox="0 0 20 20"><path d="m10 2 1.8 5.7L18 10l-6.2 2.3L10 18l-1.8-5.7L2 10l6.2-2.3Z" /></svg>
-        {{ running ? '分析中…' : '开始自动分析' }}
+        {{ store.sideRunning ? '侧边问答进行中…' : running ? '分析中…' : '开始自动分析' }}
       </button>
     </template>
     <div class="context-strip" aria-label="当前分析上下文">
@@ -222,6 +226,7 @@ async function submit(text,auto) {
       <span>目标 {{ store.config.target_water_class }} 类</span>
       <span v-if="store.status.data_identity?.kind==='synthetic'" class="data-kind">仿真数据</span>
     </div>
+    <TextQuoteCard v-if="store.textQuestions?.pendingMain" :quote="store.textQuestions.pendingMain" removable @remove="store.textQuestions.pendingMain=null;store.questionContextNotice=''" />
     <QuestionContextCard v-if="store.questionContext" :context="store.questionContext" removable @remove="store.clearQuestionContext()" />
     <p v-if="store.questionContextNotice" class="tip warning" role="status">{{store.questionContextNotice}}</p>
     <p v-if="!store.status.has_data" class="tip">从「项目与数据」载入监测表，或选择一段实际检索的资料进行提问。</p>
@@ -238,7 +243,7 @@ async function submit(text,auto) {
           <p>查看异常、解释指标，或核对下一步需要补充的证据。</p>
           <div class="suggestions"><button v-for="question in suggestedQuestions" :key="question" :disabled="!store.status.has_data || running" @click="input=question">{{ question }}<span aria-hidden="true">↗</span></button></div>
         </div>
-        <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" :question-context="m.question_context" @rendered="scrollDown" />
+        <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" :question-context="m.question_context" :text-source="m.role==='assistant'?(m.text_source_id?{kind:'message',message_id:m.text_source_id}:m.run_id?{kind:'message',run_id:m.run_id}:null):null" @rendered="scrollDown" />
       </div>
       <div class="reading-controls"><span>{{ scrollState.following ? '跟随最新内容' : '已暂停跟随，可继续阅读' }}</span><button v-if="!scrollState.following" type="button" class="latest" @click="latest">{{ scrollState.hasUnseen ? '有新内容 · 回到最新' : '回到最新' }} <span aria-hidden="true">↓</span></button></div>
     </div>

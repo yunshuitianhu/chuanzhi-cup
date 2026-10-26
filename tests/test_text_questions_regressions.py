@@ -1,0 +1,207 @@
+"""Quoted text and independent threads: controlled model client, real HTTP routes."""
+from copy import deepcopy
+from io import BytesIO
+import json
+from types import SimpleNamespace as NS
+import unittest
+from unittest.mock import patch
+from uuid import uuid4
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import zipfile
+from hashlib import sha256
+
+from fastapi.testclient import TestClient
+from backend.main import app
+from backend.session import STORE
+from backend.text_sources import HELP, visible_markdown
+from backend.project_codec import dump_project, load_project, ProjectError
+from backend.projects import apply_snapshot
+from backend.side_chat import validate_threads
+
+
+def chunk(text, end='stop'):
+    return NS(choices=[NS(delta=NS(content=text, tool_calls=None), finish_reason=end)])
+
+
+class TextQuestionTests(unittest.TestCase):
+    def setUp(self):
+        self.client=TestClient(app)
+        self.sid=self.client.get('/api/session').json()['session_id']
+        self.h={'X-Session-Id':self.sid};self.s=STORE.get(self.sid)
+        self.s.messages=[{'role':'assistant','content':'## 原始观测\n\nDO为**0 mg/L**，不等于缺测。\n\n另一段不能默认上传。'}]
+        self.source=self.client.get('/api/agent/history',headers=self.h).json()['messages'][0]['text_source_id']
+
+    def tearDown(self):
+        self.client.close();STORE.drop(self.sid)
+
+    def select(self,text='0 mg/L，不等于缺测。',source=None,**extra):
+        return self.client.post('/api/agent/context',headers=self.h,json={
+            'kind':'text_quote','text':text,'source':source or {'kind':'message','message_id':self.source,'view':'markdown'},
+            'project_id':self.s.project_id or None,'analysis_revision':self.s.analysis_revision,
+            'results_revision':self.s.results_revision,**extra})
+
+    def thread(self):
+        quote=self.select();self.assertEqual(quote.status_code,200,quote.text)
+        res=self.client.post('/api/side/threads',headers=self.h,json={'context_id':quote.json()['id']})
+        self.assertEqual(res.status_code,200,res.text)
+        return res.json()
+
+    def ask(self,thread,answer='这是引用文字的解释，不是新的实测。',request_id=None):
+        calls=[]
+        def create(**kwargs):
+            calls.append(deepcopy(kwargs));return iter([chunk(answer)])
+        with patch('backend.side_chat.resolve_api_key',return_value='controlled-client'),patch('backend.side_chat.OpenAI') as client:
+            client.return_value.chat.completions.create.side_effect=create
+            res=self.client.post('/api/side/threads/'+thread['id']+'/chat',headers=self.h,
+                json={'message':'这是什么意思？','request_id':request_id or str(uuid4())})
+        return res,calls
+
+    def test_markdown_visible_text_and_only_selected_excerpt_in_payload(self):
+        from backend.question_context import resolve_context
+        res=self.select();self.assertEqual(res.status_code,200,res.text)
+        card=res.json();entry=resolve_context(self.s,card['id'])
+        self.assertEqual(card['excerpt'],'0 mg/L，不等于缺测。')
+        self.assertNotIn('另一段',json.dumps(entry,ensure_ascii=False))
+        self.assertIn('不代表',card['summary'])
+
+    def test_cross_paragraph_inline_table_code_and_literal_html(self):
+        raw='## 标题\n\n**中文**与`DO=0`\n\n|指标|值|\n|---|---|\n|DO|0|\n\n<script>bad()</script>'
+        text=visible_markdown(raw)
+        self.assertIn('中文与DO=0',text);self.assertIn('DO\n0',text);self.assertIn('<script>bad()</script>',text)
+        self.s.messages[0]['content']=raw
+        self.source=self.client.get('/api/agent/history',headers=self.h).json()['messages'][0]['text_source_id']
+        self.assertEqual(self.select('中文与DO=0\n\n指标\t值').status_code,200)
+
+    def test_forged_missing_oversized_empty_and_wrong_message_sources_rejected(self):
+        for text in ('从未出现的污染责任结论',' ', 'a'*3001):
+            self.assertEqual(self.select(text).status_code,422)
+        self.assertEqual(self.select(source={'kind':'message','message_id':'a'*64}).status_code,404)
+        self.assertEqual(self.select(source={'kind':'help','help_id':'rag_help','message_id':self.source}).status_code,422)
+
+    def test_same_words_are_bound_to_actual_message_identity(self):
+        self.s.messages.append({'role':'assistant','content':self.s.messages[0]['content']})
+        messages=self.client.get('/api/agent/history',headers=self.h).json()['messages']
+        self.assertNotEqual(messages[0]['text_source_id'],messages[1]['text_source_id'])
+        self.s.messages[0]['content']='被修改'
+        self.assertEqual(self.select().status_code,404)
+
+    def test_help_is_server_owned_and_has_no_monitoring_data_requirement(self):
+        res=self.select(HELP['rag_help'][:20],{'kind':'help','help_id':'rag_help'})
+        self.assertEqual(res.status_code,200,res.text)
+        self.assertEqual(res.json()['kind'],'text_quote')
+        self.assertEqual(self.select('虚构说明',{'kind':'help','help_id':'rag_help'}).status_code,422)
+
+    def test_main_agent_can_use_text_context_but_auto_mix_rejected(self):
+        quote=self.select().json()
+        with patch('backend.routers.agent.run_agent') as model:
+            res=self.client.post('/api/agent/chat',headers=self.h,json={'message':'解释','auto':True,'context_id':quote['id']})
+        self.assertEqual(res.status_code,422);model.assert_not_called()
+
+    def test_side_thread_no_tools_and_no_main_history_or_report_mutation(self):
+        thread=self.thread();before=deepcopy(self.s.messages)
+        self.s.analysis_done=True;self.s.analysis_status='succeeded';self.s.comprehensive_summary='主报告保留'
+        res,calls=self.ask(thread)
+        self.assertEqual(res.status_code,200,res.text);self.assertIn('"status": "succeeded"',res.text)
+        self.assertNotIn('tools',calls[0]);self.assertNotIn('另一段',json.dumps(calls[0],ensure_ascii=False))
+        self.assertEqual(self.s.messages,before);self.assertTrue(self.s.analysis_done)
+        self.assertEqual(self.s.analysis_status,'succeeded');self.assertEqual(self.s.comprehensive_summary,'主报告保留')
+        self.assertEqual(len(self.s.side_threads[0]['messages']),2)
+
+    def test_reopen_same_selection_and_duplicate_request_do_not_duplicate_messages(self):
+        a=self.thread();b=self.thread();self.assertEqual(a['id'],b['id'])
+        request_id=str(uuid4());self.ask(a,request_id=request_id)
+        res,calls=self.ask(a,request_id=request_id)
+        self.assertEqual(res.status_code,409);self.assertEqual(calls,[])
+        self.assertEqual(len(self.s.side_threads[0]['messages']),2)
+
+    def test_followup_uses_only_its_own_thread_completed_history(self):
+        a=self.thread();self.ask(a,answer='第一条独立解释')
+        res,calls=self.ask(a)
+        self.assertEqual(res.status_code,200)
+        self.assertIn('第一条独立解释',json.dumps(calls[0],ensure_ascii=False))
+        self.assertNotIn('另一段不能默认上传',json.dumps(calls[0],ensure_ascii=False))
+
+    def test_busy_and_stale_side_send_do_not_append_or_call_model(self):
+        t=self.thread();self.s.operation_lock.acquire()
+        try:
+            res,calls=self.ask(t);self.assertEqual(res.status_code,409);self.assertEqual(calls,[])
+        finally:self.s.operation_lock.release()
+        self.s.results_revision+=1
+        res,calls=self.ask(t);self.assertEqual(res.status_code,409);self.assertEqual(calls,[])
+        self.assertEqual(self.s.side_threads[0]['messages'],[])
+
+    def test_fake_citation_fails_without_changing_main_analysis(self):
+        t=self.thread();res,_=self.ask(t,answer='伪引文[证据ID:不存在.md_2]')
+        self.assertIn('event: error',res.text);self.assertEqual(self.s.analysis_status,'idle')
+        self.assertTrue(any(m.get('incomplete') for m in self.s.side_threads[0]['messages']))
+
+    def test_save_restore_keeps_threads_but_old_quote_must_be_reselected(self):
+        t=self.thread();self.ask(t)
+        snapshot=load_project(dump_project(self.s,'Q14受控项目'))
+        self.assertEqual(len(snapshot.state['side_threads'][0]['messages']),2)
+        apply_snapshot(self.s,{'id':'c'*32,'revision':1},snapshot)
+        res,calls=self.ask(t);self.assertEqual(res.status_code,409);self.assertEqual(calls,[])
+        self.assertEqual(len(self.s.side_threads[0]['messages']),2)
+
+    def test_schema_one_and_two_migrate_without_threads(self):
+        raw=dump_project(self.s,'旧项目')
+        for version in (1,2):
+            with zipfile.ZipFile(BytesIO(raw)) as z:entries={name:z.read(name) for name in z.namelist()}
+            state=json.loads(entries['state.json']);state['items']=[item for item in state['items']
+                if item[0]!='side_threads' and not(version==1 and item[0]=='investigations')]
+            entries['state.json']=json.dumps(state,ensure_ascii=False).encode()
+            manifest=json.loads(entries['manifest.json']);manifest['schema_version']=version
+            manifest['contents']['state.json']={'bytes':len(entries['state.json']),'sha256':sha256(entries['state.json']).hexdigest()}
+            entries['manifest.json']=json.dumps(manifest).encode();out=BytesIO()
+            with zipfile.ZipFile(out,'w') as z:
+                for name,value in entries.items():z.writestr(name,value)
+            self.assertEqual(load_project(out.getvalue()).state['side_threads'],[])
+
+    def test_imported_thread_structure_is_checked(self):
+        t=self.thread();self.ask(t);validate_threads(self.s.side_threads)
+        bad=deepcopy(self.s.side_threads);bad[0]['messages'][0]['role']='system'
+        with self.assertRaises(ValueError):validate_threads(bad)
+        for field in ('excerpt','id','scope'):
+            bad=deepcopy(self.s.side_threads);bad[0]['quote'].pop(field)
+            with self.subTest(field=field),self.assertRaises(ValueError):validate_threads(bad)
+
+    def test_stop_retains_lock_until_model_stream_unwinds_and_keeps_partial_separate(self):
+        t=self.thread();entered=threading.Event();release=threading.Event()
+        def stream():
+            yield chunk('受控部分文字',None)
+            entered.set();release.wait(3)
+            yield chunk('不应提交的尾部')
+        with patch('backend.side_chat.resolve_api_key',return_value='controlled-client'),patch('backend.side_chat.OpenAI') as client:
+            client.return_value.chat.completions.create.side_effect=lambda **kw:stream()
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future=pool.submit(self.client.post,'/api/side/threads/'+t['id']+'/chat',headers=self.h,
+                    json={'message':'停止检查','request_id':str(uuid4())})
+                self.assertTrue(entered.wait(3))
+                run=self.client.get('/api/side/run',headers=self.h).json()
+                self.client.post('/api/side/runs/'+run['run_id']+'/stop',headers=self.h)
+                self.assertFalse(self.s.operation_lock.acquire(blocking=False))
+                release.set();res=future.result(timeout=5)
+        self.assertIn('"status": "cancelled"',res.text)
+        self.assertTrue(self.s.side_threads[0]['messages'][-1]['incomplete'])
+        self.assertEqual(len(self.s.messages),1)
+        self.assertTrue(self.s.operation_lock.acquire(blocking=False));self.s.operation_lock.release()
+
+    def test_save_failure_retains_thread_but_does_not_claim_persisted(self):
+        self.s.project_id='b'*32;t=self.thread()
+        with patch('backend.projects.repository') as repo:
+            repo.return_value.write.side_effect=OSError('controlled full disk')
+            res,_=self.ask(t)
+        self.assertEqual(res.status_code,200)
+        status=self.client.get('/api/side/run',headers=self.h).json()
+        self.assertIn('保存失败',status['save_notice'])
+        self.assertEqual(len(self.s.side_threads[0]['messages']),2)
+
+    def test_other_session_cannot_read_or_use_thread(self):
+        t=self.thread();sid=self.client.get('/api/session').json()['session_id']
+        try:
+            res=self.client.post('/api/side/threads/'+t['id']+'/chat',headers={'X-Session-Id':sid},
+                json={'message':'解释','request_id':str(uuid4())})
+            self.assertEqual(res.status_code,404)
+            self.assertEqual(self.client.get('/api/side/threads',headers={'X-Session-Id':sid}).json()['threads'],[])
+        finally:STORE.drop(sid)

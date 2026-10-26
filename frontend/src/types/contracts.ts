@@ -34,11 +34,17 @@ export type AgentEventArgs =
   | [event: 'done', payload: EventContext & { status: TerminalStatus; turns?: number; tool_errors?: number; message?: string }]
   | [event: 'error', payload: EventContext & { message: string; status?: TerminalStatus }]
 
-export type QuestionContextKind = 'sample' | 'time_range' | 'video_frame' | 'rag_excerpt'
+export type QuestionContextKind = 'sample' | 'time_range' | 'video_frame' | 'rag_excerpt' | 'text_quote'
 export interface QuestionContextScope {
   project_id:string|null; analysis_revision:number; results_revision:number; data_version:string
 }
+export interface TextSource {kind:'message'|'rag'|'help';message_id?:string;run_id?:string;view?:'markdown'|'raw';retrieval_id?:string;evidence_id?:string;help_id?:string}
+export interface SelectedText {text:string;source:TextSource;title:string;project_id:string|null;analysis_revision:number;results_revision:number}
+export interface SideRun {run_id:string|null;status:string;busy:boolean;thread_id?:string|null;save_notice?:string;[key:string]:unknown}
+export interface SideThread {id:string;quote:QuestionContext;messages:ChatMessage[];requests:string[];updated_at:string;historical?:boolean}
+export interface TextQuestionState {pendingMain:SelectedText|null;pendingSide:SelectedText|null;open:boolean;threads:SideThread[];active:string;drafts:Record<string,string>;run:SideRun|null;streaming:boolean;notice:string;error:string;request:number;sourceCard:QuestionContext|null;sourceError:string}
 export type QuestionContextSelector =
+  | {kind:'text_quote';text:string;source:TextSource}
   | {kind:'sample';sample_id:number}
   | {kind:'time_range';start:string;end:string;indicator:string}
   | {kind:'video_frame';frame_id:number;video_revision:string}
@@ -54,6 +60,8 @@ export interface QuestionContext {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool' | 'error' | 'system'
   content: string
+  text_source_id?:string
+  run_id?:string
   uiRequest?: string
   incomplete?: boolean
   evidence?: { id: string }
@@ -156,6 +164,7 @@ export interface InvestigationResult { task_id: string; board: JsonObject; refre
 export interface SessionState {
   ready: boolean; connecting: boolean; bootstrapStage: string; loading: boolean; error: string
   chatMessages: ChatMessage[]; chatRunning: boolean; chatStreaming: boolean
+  sideRunning:boolean; textQuestions:TextQuestionState
   chatDraft:string; questionContext:QuestionContext|null; questionContextNotice:string; questionContextRequest:number
   agentRun: AgentRun | null; agentRunAt: number; agentRunRequest: number; agentActiveId: string | null
   agentConnectionError: string; workspaceRevision: number; switchingProject: boolean

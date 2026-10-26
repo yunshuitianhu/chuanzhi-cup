@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-26",
+  "task": "Q14",
+  "base_commit": "ba9f92c716b396af1a97ad525226ca030bf6ee80",
+  "backend": {
+    "tests": 506,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "success": true,
+    "legacy_checks": true,
+    "secret_scan": true,
+    "contracts_exported": true,
+    "elapsed_s": 44.17
+  },
+  "frontend": {
+    "tests": 243,
+    "passed": 243,
+    "failed": 0,
+    "typecheck": true,
+    "production_build": true
+  },
+  "new_regressions": {
+    "python": 17,
+    "frontend": 9
+  },
+  "actual_browser": {
+    "url": "http://127.0.0.1:5186",
+    "server": "Actual FastAPI, context validation, independent thread worker and SSE",
+    "model_and_retrieval": "Explicit local test substitutes; no new online model or embedding retrieval evaluation",
+    "verified": [
+      "Native double-click text selection -> add to main conversation -> preserve draft -> explicit send",
+      "Alt+Q opens the selection toolbar on a focused opt-in text region",
+      "Native selected text -> side explanation -> close/reopen draft retention -> explicit send",
+      "Side follow-up and cooperative stop preserve partial response and restore question",
+      "Help text and registered RAG original text equivalent quote buttons -> independent explanation",
+      "Source link returns to verified selected original snapshot",
+      "320/390/768 modal drawer: no page horizontal overflow; keyboard focus wraps; Escape restores focus to side-question launcher",
+      "Closing and reopening the mobile drawer preserves its unsent draft",
+      "New blank project clears pending quote, threads and drafts; reopening saved project restores historical threads and blocks direct stale send"
+    ],
+    "widths": [
+      1280,
+      768,
+      390,
+      320
+    ],
+    "fresh_process_restore": {
+      "threads": 3,
+      "side_message_counts": [
+        4,
+        2,
+        2
+      ],
+      "main_messages": 3,
+      "main_analysis_status": "idle"
+    },
+    "screenshots": [
+      "q14_side_desktop_20261026.jpg",
+      "q14_side_mobile_20261026.jpg"
+    ]
+  },
+  "limits": {
+    "quote_characters": 3000,
+    "threads_per_project": 20,
+    "messages_per_thread": 60,
+    "model_history_messages_max": 20,
+    "model_history_characters_max": 20000
+  },
+  "preserved_boundaries": [
+    "Only opt-in visible text regions are captured, never entire page DOM or inputs.",
+    "Only explicit send calls the model; pending drafts are not persisted as sent messages.",
+    "Independent side threads do not expose tools or mutate main report, task board, main AgentRun or analysis completion flags.",
+    "Saved public quote cards are historical material, not authorization for a new current-data request.",
+    "Schema 3 writes; schemas 1 and 2 migrate with empty side threads. Older application versions cannot read schema 3.",
+    "No field accuracy, responsibility attribution, real-device, screen-reader or Safari acceptance is claimed.",
+    "Screenshots received self-review; no independent design reviewer was used in this task."
+  ]
+}

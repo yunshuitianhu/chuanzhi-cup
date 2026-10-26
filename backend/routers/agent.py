@@ -15,6 +15,7 @@ from ..agent.loop import run_agent
 from ..agent.progress import AgentRun
 from ..deps import get_session, get_exclusive_session
 from ..session import Session
+from ..text_sources import public_message
 from ..question_context import ContextRequest, create_context, public_context, resolve_context
 from ..report_evidence import find_bundle, public_bundle, bundle_status, fact_records, record, covered_record
 
@@ -177,8 +178,8 @@ def stop(run_id: str, session: Session=Depends(get_session)):
 @router.get('/history')
 def history(session: Session = Depends(get_session)) -> dict:
     # 历史列表仅带入口信息；工具快照展开时按当前会话读取。
-    messages = [{**m, **({'evidence': {'id': m['evidence']['id']}}
-        if isinstance(m.get('evidence'), dict) and 'id' in m['evidence'] else {})} for m in session.messages]
+    messages = [{**public_message(m, i), **({'evidence': {'id': m['evidence']['id']}}
+        if isinstance(m.get('evidence'), dict) and 'id' in m['evidence'] else {})} for i, m in enumerate(session.messages)]
     return {'messages': messages, 'analysis_revision': session.analysis_revision}
 
 

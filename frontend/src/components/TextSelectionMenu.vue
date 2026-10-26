@@ -1,0 +1,64 @@
+<script setup>
+import {onMounted,onBeforeUnmount,ref,nextTick,watch} from 'vue'
+import {useRouter,useRoute} from 'vue-router'
+import {useSessionStore} from '../stores/session'
+import {selectedPassage,MAX_QUOTE} from '../utils/textQuestions'
+import {api} from '../api/client'
+import {questionContextMatches} from '../utils/questionContext'
+const store=useSessionStore(),router=useRouter(),route=useRoute()
+const selected=ref(null),position=ref({}),menu=ref(null),error=ref('')
+let disposed=false,request=0,raf=0
+function hide(){selected.value=null;error.value=''}
+function inspect(){
+  const selection=window.getSelection()
+  try{selected.value=selectedPassage(selection)}catch{selected.value=null}
+  error.value=''
+  if(!selected.value)return
+  if(selected.value.text.length>MAX_QUOTE){error.value='选中文字超过3000字，请缩短选区；不会自动截断。'}
+  const box=selection.getRangeAt(0).getBoundingClientRect()
+  position.value={left:Math.max(8,Math.min(window.innerWidth-310,box.left))+'px',top:Math.max(8,Math.min(window.innerHeight-110,box.bottom+8))+'px'}
+}
+function changed(){cancelAnimationFrame(raf);raf=requestAnimationFrame(inspect)}
+async function use(target){
+  if(!selected.value||error.value)return
+  store.captureTextQuote(selected.value,target);hide()
+  if(target==='main')await router.push('/chat')
+}
+function key(event){
+  if(event.key==='Escape'){hide();return}
+  if(event.altKey&&event.key.toLowerCase()==='q'){
+    event.preventDefault();inspect();nextTick(()=>menu.value?.querySelector('button')?.focus())
+  }
+}
+function outside(event){if(menu.value?.contains(event.target))return;if(!window.getSelection()?.toString())hide()}
+onMounted(()=>{document.addEventListener('selectionchange',changed);document.addEventListener('keydown',key);document.addEventListener('pointerdown',outside);window.addEventListener('scroll',hide,true);window.addEventListener('resize',hide)})
+onBeforeUnmount(()=>{disposed=true;request++;cancelAnimationFrame(raf);document.removeEventListener('selectionchange',changed);document.removeEventListener('keydown',key);document.removeEventListener('pointerdown',outside);window.removeEventListener('scroll',hide,true);window.removeEventListener('resize',hide)})
+watch(()=>[store.workspaceRevision,store.switchingProject,route.path],hide)
+async function source(){
+  const ticket=++request,id=route.query.text_context,workspace=store.workspaceRevision
+  store.textQuestions.sourceCard=null;store.textQuestions.sourceError=''
+  if(!id||!store.ready||store.switchingProject)return
+  if(typeof id!=='string'||!/^[a-f0-9]{32}$/.test(id)){store.textQuestions.sourceError='文字引用标识无效。';return}
+  try{
+    const card=await api.questionContext(id)
+    if(disposed||ticket!==request||workspace!==store.workspaceRevision)return
+    if(card.kind!=='text_quote'||!questionContextMatches(card,store))throw Error('引用已过期，请重新选择文字。')
+    store.textQuestions.sourceCard=card
+    await nextTick()
+    if(ticket!==request||disposed)return
+    const src=card.selection.source
+    const element=document.getElementById(src.kind==='message'?'message-'+src.message_id:src.help_id||'text-source-return')
+    element?.scrollIntoView({block:'center'});element?.focus({preventScroll:true})
+  }catch(e){if(!disposed&&ticket===request)store.textQuestions.sourceError=e.message}
+}
+watch(()=>[route.query.text_context,store.ready,store.workspaceRevision,store.status.analysis_revision,store.status.results_revision,store.switchingProject],source,{immediate:true})
+</script>
+<template>
+  <Teleport to="body"><div v-if="selected" ref="menu" class="selection-menu" :style="position" role="toolbar" aria-label="文字引用操作" @pointerdown.prevent>
+    <template v-if="!error"><button type="button" @click="use('main')">添加到对话</button><button type="button" @click="use('side')">在侧边聊天中提问</button></template>
+    <p v-else role="status">{{error}}</p><button type="button" aria-label="关闭引用菜单" @click="hide">×</button>
+  </div></Teleport>
+</template>
+<style scoped>
+.selection-menu{position:fixed;z-index:1000;max-width:calc(100vw - 16px);display:flex;gap:2px;flex-wrap:wrap;padding:5px;background:#243844;border:1px solid #486473;border-radius:8px;box-shadow:0 7px 25px #0006}.selection-menu button{font:inherit;font-size:12px;border:0;border-radius:5px;background:transparent;color:#edf5fa;padding:8px;min-height:36px}.selection-menu button:hover,.selection-menu button:focus-visible{background:#365566}.selection-menu p{font-size:12px;margin:5px;max-width:240px;color:#ffd19c}
+</style>
