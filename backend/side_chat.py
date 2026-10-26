@@ -54,7 +54,11 @@ def validate_threads(threads):
             raise ValueError('侧边问答消息数量无效')
         for message in thread['messages']:
             if (not isinstance(message, dict) or message.get('role') not in ('user', 'assistant', 'error')
-                    or not isinstance(message.get('content'), str) or len(message['content']) > 20000):
+                    or not isinstance(message.get('content'), str) or len(message['content']) > 20000
+                    or set(message)-{'role','content','run_id','incomplete'}
+                    or not isinstance(message.get('run_id'),str)
+                    or not re.fullmatch('[0-9a-f]{32}',message['run_id'])
+                    or ('incomplete' in message and type(message['incomplete']) is not bool)):
                 raise ValueError('侧边问答消息无效')
         requests = thread['requests']
         if not isinstance(requests, list) or len(requests) > MAX_MESSAGES or any(not isinstance(r, str)

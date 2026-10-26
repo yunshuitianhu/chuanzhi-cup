@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-26",
+  "task": "Q13/Q14 code review before Q15",
+  "base_commit": "88f48b1f922b3185ab26e9c3cfda7dee22a7d649",
+  "fixed_defect_groups": 7,
+  "new_regressions": {"python": 4, "frontend": 10},
+  "backend": {
+    "tests": 510, "failures": 0, "errors": 0, "skipped": 0,
+    "success": true, "legacy_checks": true, "secret_scan": true,
+    "contracts_exported": true
+  },
+  "frontend": {
+    "tests": 253, "passed": 253, "failed": 0,
+    "typecheck": true, "production_build": true
+  },
+  "actual_browser": {
+    "url": "http://127.0.0.1:5187/chat",
+    "server": "Actual FastAPI, context validation, independent worker, SSE and production Vue build",
+    "dataset": "120 generated monitoring records and 4 generated pattern frames",
+    "model_and_retrieval": "Explicit local test substitutes; no new online model or vector retrieval evaluation",
+    "verified": [
+      "Native selected mg creates A; equivalent whole-report quote creates B, each with independent answers",
+      "Reselecting B after history A activates B and preserves B unsent draft",
+      "Switching A/B immediately renders the selected thread answer without previous-thread Markdown residue",
+      "A streaming while B is selected does not display A partial as B answer",
+      "Background completion notice identifies the previous explanation thread",
+      "Stopping background A preserves B draft and labels the error as another thread",
+      "Stopped original question remains inspectable without overwriting later drafts",
+      "Main seeded report remains unchanged; no page horizontal overflow; no captured console errors"
+    ],
+    "screenshot": "q14_review_side_threads_20261026.jpg"
+  },
+  "boundaries": [
+    "Review covers recent Q13/Q14 paths, not a guarantee that every project feature is bug-free",
+    "Full tests use configured local dependencies and isolated storage; no new clean-machine install or remote CI claim",
+    "No new mobile real-device, Safari, screen-reader or independent design review",
+    "Unsent drafts remain client session state; no new persistence across refresh",
+    "No field accuracy or pollution responsibility claim",
+    "Formal project storage, original samples, local configuration and preexisting runtime changes are excluded from the commit",
+    "Q15 remains not started"
+  ]
+}

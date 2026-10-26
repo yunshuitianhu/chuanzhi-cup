@@ -275,3 +275,13 @@ test('没有监测表时仍可明确询问已选资料片段',async()=>{
     assert.equal(v.calls.length,1);assert.equal(v.calls[0].context_id,selectedContext().id)
   }finally{v.close()}
 })
+
+test('会话忙碌409保留仍有效的引用和问题，不冒充来源已过期',async()=>{
+  const v=await mount()
+  try{v.store.questionContext=selectedContext();v.state.input='等待任务结束后询问'
+    globalThis.fetch=async()=>({ok:false,status:409,headers:{get:key=>key==='X-Session-Conflict'?'busy':null},json:async()=>({detail:'当前会话正在处理任务，请稍后重试'})})
+    await v.state.send()
+    assert.equal(v.store.questionContext?.id,selectedContext().id)
+    assert.equal(v.state.input,'等待任务结束后询问')
+  }finally{v.close()}
+})

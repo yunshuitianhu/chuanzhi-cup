@@ -1,4 +1,4 @@
-import {textQuestionState,quoteKey,MAX_QUOTE} from '../utils/textQuestions'
+import {textQuestionState,quoteKey,matchesTextQuote,MAX_QUOTE} from '../utils/textQuestions'
 import { defineStore } from 'pinia'
 import { api, errorMessage } from '../api/client'
 import { isQuestionContext, questionContextMatches, contextQuestion } from '../utils/questionContext'
@@ -72,9 +72,10 @@ export const useSessionStore = defineStore('session', {
         this.questionContextNotice='已加入选中文字，发送时会核对来源；已有问题草稿保留。'
         if(!this.chatDraft.trim())this.chatDraft='请解释所选文字的含义、依据和适用限制。'
       }else{
-        if(!this.textQuestions.pendingSide||quoteKey(this.textQuestions.pendingSide)!==quoteKey(quote)){
-          this.textQuestions.pendingSide=quote;this.textQuestions.active=''
-        }
+        this.textQuestions.pendingSide=quote
+        const thread=this.textQuestions.threads.find(t=>!t.historical&&matchesTextQuote(quote,t.quote))
+        this.textQuestions.active=thread?.id||''
+        this.textQuestions.notice=''
         this.textQuestions.open=true;this.textQuestions.error=''
       }
     },
@@ -93,18 +94,25 @@ export const useSessionStore = defineStore('session', {
     },
     async prepareSideThread() {
       const q=this.textQuestions
-      if(q.active)return q.threads.find(t=>t.id===q.active)||null
+      if(q.active){
+        const thread=q.threads.find(t=>t.id===q.active)
+        if(!thread)throw Error('所选线程已不存在，请重新选择当前来源。')
+        return thread
+      }
       const quote=q.pendingSide
       if(!quote)throw Error('请先选择一段文字。')
       const workspace=this.workspaceRevision,key=quoteKey(quote)
+      const current=()=>workspace===this.workspaceRevision&&!this.switchingProject&&this.textQuestions===q
+        &&!q.active&&!!q.pendingSide&&quoteKey(q.pendingSide)===key
       return this._run(async()=>{
         const card=await api.createQuestionContext({kind:'text_quote',text:quote.text,source:quote.source,
           project_id:quote.project_id,analysis_revision:quote.analysis_revision,results_revision:quote.results_revision})
-        if(workspace!==this.workspaceRevision||this.switchingProject||!q.pendingSide||quoteKey(q.pendingSide)!==key)return null
+        if(!current())return null
         const thread=await api.createSideThread(card.id)
-        if(workspace!==this.workspaceRevision||this.switchingProject||!q.pendingSide||quoteKey(q.pendingSide)!==key)return null
+        if(!current())return null
         if(!q.threads.some(t=>t.id===thread.id))q.threads.push(thread)
-        q.drafts[thread.id]=q.drafts[key]||'';q.active=thread.id
+        if(!q.drafts[thread.id])q.drafts[thread.id]=q.drafts[key]||''
+        q.active=thread.id
         return thread
       })
     },

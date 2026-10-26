@@ -20,5 +20,21 @@ export function selectedPassage(selection) {
   if(!source)return null
   return {text,source,title:start.dataset.quoteTitle||'所选文字'}
 }
+/** @param {unknown} value */
+function sourceIdentity(value) {
+  if(!value||typeof value!=='object'||Array.isArray(value))return null
+  const source=/** @type {Record<string,unknown>} */(value)
+  if(source.kind==='message')return ['message',source.message_id||null,source.message_id?null:source.run_id||null,source.view||'raw']
+  if(source.kind==='rag')return ['rag',source.retrieval_id,source.evidence_id]
+  if(source.kind==='help')return ['help',source.help_id]
+  return null
+}
 /** @param {SelectedText} quote */
-export function quoteKey(quote) { return JSON.stringify([quote.project_id,quote.analysis_revision,quote.results_revision,quote.source,quote.text]) }
+export function quoteKey(quote) { return JSON.stringify([quote.project_id,quote.analysis_revision,quote.results_revision,sourceIdentity(quote.source),quote.text]) }
+/** @param {SelectedText} selected @param {import('../types/contracts').QuestionContext} card */
+export function matchesTextQuote(selected,card) {
+  return card.kind==='text_quote'&&selected.text===card.selection.text
+    &&selected.project_id===card.scope.project_id&&selected.analysis_revision===card.scope.analysis_revision
+    &&selected.results_revision===card.scope.results_revision
+    &&JSON.stringify(sourceIdentity(selected.source))===JSON.stringify(sourceIdentity(card.selection.source))
+}

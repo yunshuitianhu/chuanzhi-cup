@@ -205,3 +205,44 @@ class TextQuestionTests(unittest.TestCase):
             self.assertEqual(res.status_code,404)
             self.assertEqual(self.client.get('/api/side/threads',headers={'X-Session-Id':sid}).json()['threads'],[])
         finally:STORE.drop(sid)
+
+    def test_import_rejects_unhashable_run_ids_and_non_boolean_completion_flags(self):
+        t=self.thread();self.ask(t)
+        for field,value in [('run_id',[]),('run_id',None),('incomplete','false')]:
+            bad=deepcopy(self.s.side_threads);bad[0]['messages'][-1][field]=value
+            with self.subTest(field=field,value=value),self.assertRaises((ValueError,ProjectError)):
+                validate_threads(bad)
+            original=self.s.side_threads;self.s.side_threads=bad
+            try:
+                with self.assertRaises(ProjectError):load_project(dump_project(self.s,'异常侧边线程'))
+            finally:self.s.side_threads=original
+
+    def test_missing_key_does_not_claim_the_unsent_draft_was_saved(self):
+        self.s.project_id='b'*32;t=self.thread()
+        with patch('backend.side_chat.resolve_api_key',return_value=''),patch('backend.projects.repository') as repo:
+            response=self.client.post('/api/side/threads/'+t['id']+'/chat',headers=self.h,
+                json={'message':'未发送成功的问题','request_id':str(uuid4())})
+            self.assertIn('event: error',response.text)
+            repo.return_value.write.assert_not_called()
+        status=self.client.get('/api/side/run',headers=self.h).json()
+        self.assertNotIn('已随项目保存',status['save_notice'])
+
+    def test_worker_initialization_failure_sends_error_and_releases_lock(self):
+        t=self.thread()
+        with patch('backend.side_chat.explain',side_effect=RuntimeError('controlled initialization failure')):
+            response=self.client.post('/api/side/threads/'+t['id']+'/chat',headers=self.h,
+                json={'message':'检查初始化失败','request_id':str(uuid4())})
+        self.assertIn('event: error',response.text)
+        self.assertEqual(self.client.get('/api/side/run',headers=self.h).json()['status'],'failed')
+        self.assertTrue(self.s.operation_lock.acquire(blocking=False));self.s.operation_lock.release()
+
+    def test_busy_conflicts_have_machine_readable_reason(self):
+        card=self.select().json();t=self.thread();self.s.operation_lock.acquire()
+        try:
+            for response in [self.client.get('/api/agent/context/'+card['id'],headers=self.h),
+                self.client.post('/api/agent/chat',headers=self.h,json={'message':'等待','context_id':card['id']}),
+                self.client.post('/api/side/threads/'+t['id']+'/chat',headers=self.h,
+                    json={'message':'等待','request_id':str(uuid4())})]:
+                self.assertEqual(response.status_code,409)
+                self.assertEqual(response.headers.get('X-Session-Conflict'),'busy')
+        finally:self.s.operation_lock.release()

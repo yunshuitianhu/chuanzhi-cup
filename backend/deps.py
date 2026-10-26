@@ -27,7 +27,7 @@ def get_session(request: Request) -> Session:
 def get_exclusive_session(session: Session = Depends(get_session)):
     """同一会话的分析与数据替换互斥，流式响应结束后释放。"""
     if not session.operation_lock.acquire(blocking=False):
-        raise HTTPException(409, "当前会话正在处理任务，请完成后再重试")
+        raise HTTPException(409, "当前会话正在处理任务，请完成后再重试",headers={'X-Session-Conflict':'busy'})
     try:
         yield session
     finally:

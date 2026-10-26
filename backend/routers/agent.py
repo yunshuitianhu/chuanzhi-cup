@@ -36,7 +36,7 @@ class AgentStreamResponse(StreamingResponse):
 
 def start_run(session, message, auto, context_id=None):
     if not session.operation_lock.acquire(blocking=False):
-        raise HTTPException(409,'当前会话正在处理任务，请等待当前调用收尾后重试')
+        raise HTTPException(409,'当前会话正在处理任务，请等待当前调用收尾后重试',headers={'X-Session-Conflict':'busy'})
     try:
         selected = resolve_context(session,context_id) if context_id is not None else None
         run = AgentRun(session.analysis_revision, auto, managed=True)

@@ -86,7 +86,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Session-Id"],
+    expose_headers=["X-Session-Id", "X-Session-Conflict"],
 )
 
 app.include_router(system.router, prefix="/api")

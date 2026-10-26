@@ -65,3 +65,32 @@ test('历史null项目身份转入主对话时原样保留，不能偷换为当�
   const s=state();s.captureTextQuote(selection,'main',{...scope,project_id:null})
   assert.equal(s.textQuestions.pendingMain.project_id,null)
 })
+
+const thread=(id,text=selection.text)=>({id,quote:{...card,excerpt:text,selection:{text,source:selection.source}},messages:[],requests:[],updated_at:'now'})
+test('重新选择B引用时，不能仍激活后来手动打开的A线程',()=>{
+  const s=state(),b=thread('b'.repeat(32)),a=thread('a'.repeat(32),'另一段')
+  s.textQuestions.threads=[a,b];s.captureTextQuote(selection,'side')
+  s.textQuestions.active=a.id
+  s.captureTextQuote(selection,'side')
+  assert.equal(s.textQuestions.active,b.id)
+})
+test('服务器复用已有线程时，准备引用不能覆盖该线程尚未发送的草稿',async()=>{
+  const s=state(),b=thread('b'.repeat(32));s.textQuestions.threads=[b]
+  s.captureTextQuote(selection,'side');s.textQuestions.active=''
+  s.textQuestions.drafts[b.id]='已有但未发送的问题'
+  globalThis.fetch=async url=>reply(url.endsWith('/context')?card:b)
+  await s.prepareSideThread()
+  assert.equal(s.textQuestions.drafts[b.id],'已有但未发送的问题')
+})
+test('引用准备期间切换历史线程，迟到响应不抢回用户当前的选择',async()=>{
+  const s=state(),a=thread('a'.repeat(32),'另一段'),b=thread('b'.repeat(32)),d=deferred()
+  s.textQuestions.threads=[a];s.captureTextQuote(selection,'side')
+  globalThis.fetch=()=>d.promise
+  const pending=s.prepareSideThread();s.textQuestions.active=a.id
+  d.resolve(reply(card));assert.equal(await pending,null)
+  assert.equal(s.textQuestions.active,a.id)
+})
+test('当前选中的线程丢失时明确报错，不能点击发送后无反馈',async()=>{
+  const s=state();s.captureTextQuote(selection,'side');s.textQuestions.active='missing'
+  await assert.rejects(s.prepareSideThread(),/线程.*不存在|重新选择/)
+})

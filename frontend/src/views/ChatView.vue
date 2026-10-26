@@ -155,7 +155,9 @@ async function submit(text,auto) {
     if (!res.ok || !res.body) {
       const error=await res.json().catch(()=>({}))
       if(questionContext && [404,409,422].includes(res.status) && current()) {
-        store.clearQuestionContext('所选来源已失效，请重新选择；原问题已保留。')
+        if(res.status===409&&res.headers?.get('X-Session-Conflict')==='busy')
+          store.questionContextNotice='当前任务忙碌，引用和原问题已保留；任务结束后可重新发送。'
+        else store.clearQuestionContext('所选来源已失效，请重新选择；原问题已保留。')
         if(!input.value.trim())input.value=text
       }
       throw new Error(error.detail || `HTTP ${res.status}`)

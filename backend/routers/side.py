@@ -80,7 +80,7 @@ def chat(thread_id: str, payload: Ask, request: Request, session=Depends(get_ses
     if not payload.message.strip():
         raise HTTPException(422, '请输入问题。')
     if not session.operation_lock.acquire(blocking=False):
-        raise HTTPException(409, '当前项目任务尚未收尾，请稍后发送；引用和草稿可以保留。')
+        raise HTTPException(409, '当前项目任务尚未收尾，请稍后发送；引用和草稿可以保留。',headers={'X-Session-Conflict':'busy'})
     try:
         thread = core.find_thread(session, thread_id)
         core.check_quote(session, thread['quote'])
@@ -98,8 +98,9 @@ def chat(thread_id: str, payload: Ask, request: Request, session=Depends(get_ses
     events = Queue(maxsize=256)
 
     def worker():
-        frames = core.explain(session, thread, payload.message, payload.request_id, run)
+        frames = None
         try:
+            frames = core.explain(session, thread, payload.message, payload.request_id, run)
             for frame in frames:
                 while not run.transport_closed.is_set():
                     try:
@@ -111,12 +112,27 @@ def chat(thread_id: str, payload: Ask, request: Request, session=Depends(get_ses
                     break
         except Exception:
             run.end('failed')
+            from ..agent.loop import _sse
+            try:
+                events.put_nowait(_sse('error', {'run_id':run.id,'thread_id':thread_id,
+                    'status':'failed','message':'解释初始化或执行失败，请核对当前任务状态；问题草稿仍可保留。',
+                    'progress':run.snapshot()}))
+            except Full:
+                pass
         finally:
             try:
-                frames.close()
+                if frames is not None and callable(getattr(frames,'close',None)):
+                    try:
+                        frames.close()
+                    except Exception:
+                        if run.ended is None:
+                            run.end('failed')
                 if run.ended is None:
                     run.end('cancelled')
-                if session.project_id:
+                recorded=any(message.get('run_id')==run.id for message in thread['messages'])
+                if not recorded:
+                    session._side_save_notice='本轮没有新增问答记录；问题草稿未写入项目。'
+                elif session.project_id:
                     try:
                         from ..projects import repository
                         repository().write(session)
