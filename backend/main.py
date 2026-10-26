@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 from . import PROJECT_ROOT  # noqa: F401  —— 导入即完成 sys.path 与 .env 初始化
 from .routers import agent, analysis, charts, data, rag, river, stations, system, trace, projects, maps, investigations, video
 from .session import STORE
-from .routers import side
+from .routers import side, analysis_cards
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -94,6 +94,7 @@ app.include_router(data.router, prefix="/api")
 app.include_router(analysis.router, prefix="/api")
 app.include_router(charts.router, prefix="/api")
 app.include_router(agent.router, prefix="/api")
+app.include_router(analysis_cards.router, prefix="/api")
 app.include_router(stations.router, prefix="/api")
 app.include_router(trace.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")

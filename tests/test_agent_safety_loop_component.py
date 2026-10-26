@@ -38,12 +38,16 @@ def load_loop():
     tools = ModuleType(prefix+'.agent.tools')
     tools.SYSTEM_PROMPT_AUTO = tools.SYSTEM_PROMPT_CHAT = '受控组件测试'
     tools.TOOLS = []
+    tools.ANALYSIS_CARD_TOOLS = {'get_analysis_card_catalog','submit_analysis_cards'}
     tools.execute_tool = MagicMock()
     tools.truncate = lambda name, text: compact_tool_result(text) if name=='search_treatment_cases' else text
     evidence = ModuleType(prefix+'.report_evidence')
     evidence.utc_now = lambda:'controlled-time'
     evidence.capture_tool = lambda name,args,raw,started: {'name':name,'arguments':args,'output':raw}
     evidence.build_bundle = lambda session,traces,run_id: {'tools':traces}
+    cards = ModuleType(prefix+'.analysis_cards')
+    cards.CARD_VERSION = 'analysis-cards-v1'
+    cards.attach_cards = lambda session,bundle: bundle  # Q15 actual integration has its own regressions.
     codec = ModuleType(prefix+'.project_codec')
     codec._scrubber = lambda: (lambda text:text)
     sdk = ModuleType('openai')
@@ -52,7 +56,7 @@ def load_loop():
     http.Timeout = MagicMock()
     quality = ModuleType('water_quality_mcp.src.water_quality_mcp.data_quality')
     quality.measurement_error = lambda df: None
-    modules = {**packages, tools.__name__:tools, evidence.__name__:evidence,codec.__name__:codec,
+    modules = {**packages, tools.__name__:tools, evidence.__name__:evidence,codec.__name__:codec,cards.__name__:cards,
         'openai':sdk,'httpx':http,quality.__name__:quality}
     with patch.dict(sys.modules,modules):
         spec = importlib.util.spec_from_file_location(prefix+'.agent.loop',ROOT/'backend/agent/loop.py')
@@ -101,7 +105,7 @@ class LoopCompletionComponentTests(unittest.TestCase):
         self.assertEqual(len(self.session.full_messages),1)
 
     def test_failed_interface_cannot_be_a_complete_chat(self):
-        def dispatch(*args):
+        def dispatch(*args,**kwargs):
             return outcome(ok=False),True
         frames = self.run_sequence([[chunk(name='search_treatment_cases')],
             [chunk(text='接口超时，未取得证据，请稍后重试。')]],dispatch=dispatch)
@@ -113,14 +117,14 @@ class LoopCompletionComponentTests(unittest.TestCase):
         previous=[{'role':'user','content':'上一轮已完成的问题'},{'role':'assistant','content':'上一轮完整回答'}]
         self.session.full_messages=list(previous)
         self.run_sequence([[chunk(name='get_data_summary')],[chunk(text='未完整核验的受控回答')]],
-            dispatch=lambda *a:(outcome(ok=False),True))
+            dispatch=lambda *a,**kw:(outcome(ok=False),True))
         self.assertEqual(self.session.agent_run.status,'partial')
         self.assertTrue(self.session.messages[-1]['incomplete'])
         self.assertEqual(self.session.full_messages,previous)
 
     def test_failed_auto_answer_cannot_reappear_as_verified_assistant_history(self):
         self.run_sequence([[chunk(name='get_data_summary')],[chunk(text='受控失败正文')]],
-            dispatch=lambda *a:(outcome(ok=False),True),auto=True)
+            dispatch=lambda *a,**kw:(outcome(ok=False),True),auto=True)
         self.assertEqual(self.session.agent_run.status,'failed')
         self.assertTrue(self.session.messages[-1]['incomplete'])
         self.assertEqual(self.session.full_messages,[])
@@ -131,14 +135,14 @@ class LoopCompletionComponentTests(unittest.TestCase):
         self.assertFalse(any(m.get('content')=='受控失败正文' for m in context))
 
     def test_failed_interface_does_not_allow_data_inside_failed_wrapper(self):
-        def dispatch(*args):
+        def dispatch(*args,**kwargs):
             return outcome().replace('"ok": true','"ok": false'),True
         frames = self.run_sequence([[chunk(name='search_treatment_cases')],
             [chunk(text='引用[证据ID:Q07_受控.md_0]')]],dispatch=dispatch)
         self.assertIn('event: error',frames[-1])
 
     def test_internal_report_references_join_actual_bundle(self):
-        def dispatch(*args):
+        def dispatch(*args,**kwargs):
             self.session.tool_evidence['report_treatment_cases'] = json.dumps(json.loads(outcome())['data'])
             return json.dumps({'ok':True,'data':'历史资料[证据ID:Q07_受控.md_0]'}),False
         frames = self.run_sequence([[chunk(name='generate_final_report')],

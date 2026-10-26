@@ -1,0 +1,337 @@
+{
+  "date": "2026-10-26",
+  "task": "Q15 结构化分析卡片与AI建议操作",
+  "status": "software_acceptance_complete",
+  "scope": "Web Agent Function Calling + evidence-bound cards + explicit investigation draft confirmation; not a new pollution accuracy model",
+  "root_review_required": true,
+  "development_workers": [
+    {
+      "task": "backend",
+      "role": "整体后端初稿（截断，未采用）",
+      "model": "deepseek-flash",
+      "effort": "max",
+      "receiver_status": "failed",
+      "api_finish_reason": null,
+      "usage": null,
+      "elapsed_s": 389.94,
+      "automatic_apply": false
+    },
+    {
+      "task": "frontend",
+      "role": "整体前端初稿（截断，未采用）",
+      "model": "deepseek-flash",
+      "effort": "max",
+      "receiver_status": "failed",
+      "api_finish_reason": null,
+      "usage": null,
+      "elapsed_s": 337.12,
+      "automatic_apply": false
+    },
+    {
+      "task": "tests",
+      "role": "整体测试初稿（截断，未采用）",
+      "model": "deepseek-flash",
+      "effort": "max",
+      "receiver_status": "failed",
+      "api_finish_reason": null,
+      "usage": null,
+      "elapsed_s": 396.89,
+      "automatic_apply": false
+    },
+    {
+      "task": "backend_core",
+      "role": "证据目录与卡片校验草稿",
+      "model": "deepseek-flash",
+      "effort": "high",
+      "receiver_status": "candidate_ready",
+      "api_finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 9291,
+        "completion_tokens": 36678,
+        "total_tokens": 45969,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 29335
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 9291
+      },
+      "elapsed_s": 188.8,
+      "automatic_apply": false
+    },
+    {
+      "task": "backend_workflow",
+      "role": "预览、确认、幂等和路由草稿",
+      "model": "deepseek-flash",
+      "effort": "high",
+      "receiver_status": "candidate_ready",
+      "api_finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 9397,
+        "completion_tokens": 53390,
+        "total_tokens": 62787,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 44928
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 9397
+      },
+      "elapsed_s": 253.25,
+      "automatic_apply": false
+    },
+    {
+      "task": "frontend_component",
+      "role": "前端组件大稿（截断，未采用）",
+      "model": "deepseek-flash",
+      "effort": "max",
+      "receiver_status": "failed",
+      "api_finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 2459,
+        "completion_tokens": 131072,
+        "total_tokens": 133531,
+        "prompt_tokens_details": {
+          "cached_tokens": 1408
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 113587
+        },
+        "prompt_cache_hit_tokens": 1408,
+        "prompt_cache_miss_tokens": 1051
+      },
+      "elapsed_s": 633.36,
+      "automatic_apply": false
+    },
+    {
+      "task": "frontend_compact",
+      "role": "前端组件与类型草稿（路径人工对齐）",
+      "model": "deepseek-flash",
+      "effort": "high",
+      "receiver_status": "failed",
+      "api_finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 2718,
+        "completion_tokens": 60612,
+        "total_tokens": 63330,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 48184
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 2718
+      },
+      "elapsed_s": 232.52,
+      "automatic_apply": false
+    },
+    {
+      "task": "backend_tests",
+      "role": "后端回归测试草稿",
+      "model": "deepseek-flash",
+      "effort": "high",
+      "receiver_status": "candidate_ready",
+      "api_finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 20299,
+        "completion_tokens": 47185,
+        "total_tokens": 67484,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 39752
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 20299
+      },
+      "elapsed_s": 205.75,
+      "automatic_apply": false
+    },
+    {
+      "task": "frontend_tests",
+      "role": "前端行为与Store测试草稿（第二文件人工审查接收）",
+      "model": "deepseek-flash",
+      "effort": "high",
+      "receiver_status": "failed",
+      "api_finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 14962,
+        "completion_tokens": 32739,
+        "total_tokens": 47701,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 25973
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 14962
+      },
+      "elapsed_s": 159.92,
+      "automatic_apply": false
+    },
+    {
+      "task": "pro_backend_review",
+      "role": "独立后端交叉审查",
+      "model": "deepseek-v4-pro",
+      "effort": "max",
+      "receiver_status": "candidate_ready",
+      "api_finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 29170,
+        "completion_tokens": 50764,
+        "total_tokens": 79934,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 49459
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 29170
+      },
+      "elapsed_s": 730.55,
+      "automatic_apply": false
+    }
+  ],
+  "known_development_tokens": 500736,
+  "unknown_usage_tasks": [
+    "backend",
+    "frontend",
+    "tests"
+  ],
+  "credentials": "Loaded only in local process; never included in prompts, returned files, documentation, or Git. HTTPS fixed official DeepSeek host with verified TLS; redirects disabled.",
+  "worker_inputs": "Public project source code and fixed implementation contract; no original Excel/video, user project data, precise real-world positions or secrets.",
+  "models": {
+    "development": [
+      "deepseek-flash",
+      "deepseek-v4-pro"
+    ],
+    "production": "deepseek-flash",
+    "production_thinking": "disabled to preserve existing tool protocol"
+  },
+  "review": {
+    "accepted": [
+      "导入时拒绝重复 card/request/preview 确认来源",
+      "已有来源损坏时拒绝再次确认",
+      "拒绝有界目录以外的记录或帧引用"
+    ],
+    "rejected": [
+      {
+        "issue": "目录工具导致令牌必然变化",
+        "reason": "capture_tool只捕获TOOL白名单，目录/提交工具返回None，_trace_list过滤None；实际SDK+工具调用和真实循环回归均通过。"
+      },
+      {
+        "issue": "忽略所有外部工具失败仍标记完成",
+        "reason": "Q15仅允许卡片辅助工具失败不打断原报告；Q07原有外部接口失败必须标记partial的验收边界继续保留。"
+      }
+    ],
+    "root_additional_fixes": [
+      "视频帧使用实际整数id和SHA256版本",
+      "视频追问请求使用video_revision并绑定项目/分析/结果版本",
+      "首次内联证据对象通过Vue reactive代理更新，消除返回后仍加载的渲染缺陷",
+      "保存后刷新恢复确认标记",
+      "同项目版本更新保留编辑内容并禁止旧草稿保存",
+      "TypeScript SFC脚本增加严格类型检查",
+      "多点引用不任意选第一个点作为复测坐标；无唯一关联记录则留空。"
+    ]
+  },
+  "verification": {
+    "python_full": {
+      "tests": 534,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "elapsed_s": 57.13
+    },
+    "latest_targeted_integration": 45,
+    "frontend_tests": 280,
+    "frontend_failures": 0,
+    "strict_typescript_sfc_scripts": 1,
+    "real_http_type_assignments": 19,
+    "production_build": true,
+    "legacy_checks": true,
+    "secret_checks": 9,
+    "actual_deepseek_agent_runs": 2,
+    "actual_agent_cards_per_run": [
+      2,
+      2
+    ],
+    "actual_agent_scope": "12 labelled synthetic rows, no GPS or original video, summary/catalog/submit only",
+    "browser": {
+      "api": "real isolated FastAPI + production Vue assets",
+      "project_store": "dedicated temporary acceptance directory",
+      "preview_cancel_preserves_board": true,
+      "edited_confirm_tasks_created": 1,
+      "state": "open",
+      "review_and_actual_retest_blank": true,
+      "service_restart_restored_project_version": 2,
+      "restored_task_count": 1,
+      "restored_confirm_marker": true,
+      "first_inline_evidence_after_fix": {
+        "record_number": 7,
+        "ammonia_mg_l": 6.0,
+        "do_mg_l": 0.8
+      },
+      "record_link": {
+        "record_number": 1,
+        "ammonia_mg_l": 0.4,
+        "do_mg_l": 7.0,
+        "no_gps_notice_visible": true
+      },
+      "widths": [
+        {
+          "requested": 320,
+          "cardWidth": 215.33334350585935,
+          "overflows": 0,
+          "previewWidth": 168.6666717529297,
+          "scroll": 313,
+          "width": 313
+        },
+        {
+          "requested": 390,
+          "cardWidth": 285.3333435058594,
+          "overflows": 0,
+          "previewWidth": 238.6666717529297,
+          "scroll": 383,
+          "width": 383
+        },
+        {
+          "requested": 768,
+          "cardWidth": 611.3333740234375,
+          "overflows": 0,
+          "previewWidth": 556.6666870117188,
+          "scroll": 761,
+          "width": 761
+        },
+        {
+          "requested": 1280,
+          "cardWidth": 819.3333740234375,
+          "overflows": 0,
+          "previewWidth": 764.6666870117188,
+          "scroll": 1273,
+          "width": 1273
+        }
+      ],
+      "screenshots": [
+        "q15_cards_desktop_20261026.jpg",
+        "q15_preview_mobile_20261026.jpg"
+      ],
+      "visual_review": "primary agent self-review, not independent visual rating"
+    },
+    "multiple_record_coordinate_selection": "null unless exactly one unique cited record with observed coordinates"
+  },
+  "limits": [
+    "引用存在不保证发现、反证或行动内容的语义正确；仍须人工核对。",
+    "本轮仅验收软件行为；没有现场标签、校准或准确率评估。",
+    "未重测在线RAG效果、真实站点/企业数据质量、Safari、读屏器或真实移动设备。",
+    "原用户正式服务、项目和原始样本未改写；浏览器验收使用独立仿真副本。",
+    "Q16协同工作台与Q17完整性能画像仍待后续。"
+  ]
+}

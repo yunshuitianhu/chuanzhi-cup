@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json && node scripts/checkSfcTypes.mjs",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {

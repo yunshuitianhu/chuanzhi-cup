@@ -186,10 +186,12 @@ def public_board(session):
             reference_status = bundle_status(session, bundle)[0] if bundle else 'missing'
         items.append({**item, 'basis_status': 'stale' if stale else 'current',
             'effective_status': 'needs_recheck' if stale and item['draft']['status'] in ('reviewed', 'closed') else item['draft']['status'],
-            'reference_status': reference_status})
+            'reference_status': reference_status,
+            'ai_assisted': bool(item['origin'].get('analysis_card')),
+            'origin_label': 'AI 辅助建议，经用户确认加入' if item['origin'].get('analysis_card') else '人工录入'})
     return {'revision': session.investigations['revision'], 'scope_id': scope, 'items': items,
         'persisted_project': bool(session.project_id), 'project_revision': session.project_revision,
-        'notice': '假设、笔记及复测结果为人工录入，未独立核验；排查结束不代表确认污染源或法律责任。'}
+        'notice': '假设与笔记包含人工录入或经用户确认的 AI 建议，复测及复核须人工记录，均未独立核验；排查结束不代表确认污染源或法律责任。'}
 
 
 def validate_board(board):
@@ -199,6 +201,7 @@ def validate_board(board):
     if not isinstance(board['items'], list) or len(board['items']) > 50:
         raise ValueError('排查任务数量无效')
     ids = set()
+    card_sources, card_requests, card_previews = set(), set(), set()
     def check_fp(fp):
         if not isinstance(fp, dict) or set(fp) != {'data', 'context'} or any(not isinstance(v, str) or len(v) != 64 for v in fp.values()):
             raise ValueError('排查任务数据依据无效')
@@ -209,9 +212,19 @@ def validate_board(board):
             raise ValueError('排查任务标识无效')
         ids.add(item['id']); Draft.model_validate(item['draft'])
         origin = item['origin']
-        if not isinstance(origin, dict) or set(origin) != {'fingerprints','filename','identity'} or not isinstance(origin['filename'], str) or not isinstance(origin['identity'], dict):
+        if not isinstance(origin, dict) or set(origin) not in ({'fingerprints','filename','identity'}, {'fingerprints','filename','identity','analysis_card'}) or not isinstance(origin['filename'], str) or not isinstance(origin['identity'], dict):
             raise ValueError('排查任务来源无效')
         check_fp(origin['fingerprints'])
+        if 'analysis_card' in origin:
+            from .analysis_cards_workflow import provenance_validate
+            if origin['analysis_card'] is None:
+                raise ValueError('研判卡片来源标记无效')
+            provenance = provenance_validate(origin['analysis_card'])
+            source = (provenance['bundle_id'], provenance['card_id'])
+            if (source in card_sources or provenance['request_id'] in card_requests
+                    or provenance['preview_id'] in card_previews):
+                raise ValueError('研判卡片确认来源重复，无法安全恢复')
+            card_sources.add(source); card_requests.add(provenance['request_id']); card_previews.add(provenance['preview_id'])
         if item['review_context'] is not None:
             check_fp(item['review_context'])
         for stamp in ('created_at','updated_at'):

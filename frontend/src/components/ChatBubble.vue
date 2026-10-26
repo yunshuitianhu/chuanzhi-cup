@@ -1,6 +1,7 @@
 <script setup>
 import QuoteText from './QuoteText.vue'
 import ReportEvidence from './ReportEvidence.vue'
+import AnalysisCards from './AnalysisCards.vue'
 import QuestionContextCard from './QuestionContextCard.vue'
 import SafeMarkdown from './SafeMarkdown.vue'
 import { ref } from 'vue'
@@ -29,6 +30,7 @@ const showSource = ref(false)
       </QuoteText>
       <div v-else class="text">{{ content }}</div>
       <QuestionContextCard v-if="questionContext" :context="questionContext" compact />
+      <AnalysisCards v-if="role==='assistant' && !incomplete && evidence?.id" :key="'cards-'+evidence.id" :bundle-id="evidence.id" />
       <ReportEvidence v-if="role==='assistant' && !incomplete && evidence?.id" :key="evidence.id" :id="evidence.id" />
     </div>
   </div>

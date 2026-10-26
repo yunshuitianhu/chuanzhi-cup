@@ -201,6 +201,26 @@ export const useSessionStore = defineStore('session', {
         return result
       })
     },
+    /** @param {string} bundle @param {string} card @param {import('../types/analysisCards').AnalysisCardConfirmRequest} payload */
+    async confirmAnalysisCard(bundle,card,payload) {
+      const workspace=this.workspaceRevision, project=this.projectState.current?.id??null
+      const revision=this.status.analysis_revision, results=this.status.results_revision??0
+      const current=()=>workspace===this.workspaceRevision && project===(this.projectState.current?.id??null)
+        && revision===this.status.analysis_revision && results===(this.status.results_revision??0) && !this.switchingProject
+      return this._run(async()=>{
+        try {
+          const result=await api.confirmAnalysisCard(bundle,card,payload)
+          if(!current())return null
+          this.selectedInvestigationId=result.task_id
+          this.investigationRevision++
+          if(project) {
+            try {await this.refreshProjects()}
+            catch(error) {if(current())result.refresh_warning='记录已保存，但项目列表刷新失败，请刷新后核对项目版本。'}
+          }
+          return current()?result:null
+        } catch(error) {if(!current())return null;throw error}
+      })
+    },
     beginAgentStream() {
       if(this.chatRunning || this.loading || !this.ready)return false
       this.agentRunRequest++; this.statusRequest++; this.resultsRequest++

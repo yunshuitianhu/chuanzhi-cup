@@ -34,15 +34,16 @@ from water_quality_mcp.src.water_quality_mcp.agent_safety import (
 
 from .tools import (
     SYSTEM_PROMPT_AUTO, SYSTEM_PROMPT_CHAT, TOOLS,
-    execute_tool, truncate,
+    execute_tool, truncate, ANALYSIS_CARD_TOOLS,
 )
 from .progress import AgentRun, AgentStopped
 from ..report_evidence import capture_tool, build_bundle, utc_now
+from ..analysis_cards import attach_cards, CARD_VERSION
 from ..project_codec import _scrubber
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = "deepseek-chat"
+MODEL_NAME = "deepseek-flash"
 BASE_URL = "https://api.deepseek.com/v1"
 MAX_TURNS = 15
 TIMEOUT = httpx.Timeout(120.0, connect=10.0)
@@ -58,6 +59,8 @@ def run_agent(session, user_text: str, auto: bool = False, run: AgentRun | None 
     """即使客户端只读取第一帧就关闭，也保证任务状态收尾。"""
     run = run or AgentRun(session.analysis_revision,auto)
     session.agent_run=run
+    session._analysis_card_proposal = None
+    session._analysis_card_error = None
     frames=_run_agent(session,user_text,auto,run)
     try:
         yield from frames
@@ -69,6 +72,9 @@ def run_agent(session, user_text: str, auto: bool = False, run: AgentRun | None 
         raise
     finally:
         frames.close()
+        if session.agent_run is run:
+            session._analysis_card_proposal = None
+            session._analysis_card_error = None
         if run.ended is None:
             run.end('cancelled')
             if session.agent_run is run and session.analysis_revision==run.revision:
@@ -171,7 +177,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
             yield emit("turn", {"turn": turn})
 
             stream = client.chat.completions.create(
-                model=MODEL_NAME, messages=msgs, tools=TOOLS,
+                model=MODEL_NAME, extra_body={"thinking":{"type":"disabled"}}, messages=msgs, tools=TOOLS,
                 tool_choice="auto", temperature=0.1, stream=True,
             )
 
@@ -245,7 +251,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
 
                 check()
                 tool_started_at = utc_now()
-                result, is_err = execute_tool(name, args, session, api_key)
+                result, is_err = execute_tool(name, args, session, api_key, evidence_traces=evidence_traces)
                 check()
                 evidence_traces.append(capture_tool(name, args, result, tool_started_at))
                 model_result = truncate(name, result)
@@ -261,11 +267,11 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                         evidence_traces.append(capture_tool('search_treatment_cases',
                             {'via':'generate_final_report'}, reference_result, tool_started_at))
                         merge_catalog(citation_sources, result_catalog(reference_result))
-                tool_errors += int(is_err)
+                tool_errors += int(is_err and name not in ANALYSIS_CARD_TOOLS)
                 outcome = json.loads(result)
                 step_status = 'failed' if is_err else 'skipped' if outcome.get('skipped') else 'succeeded'
                 run.finish_tool(step_id,step_status)
-                if auto:
+                if auto and name not in ANALYSIS_CARD_TOOLS:
                     session.analysis_steps[name] = step_status
                 yield emit("tool_done", {"name": name, "ok": not is_err, 'step_id':step_id,
                                          'status':step_status, "chars": len(result)})
@@ -284,7 +290,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
             msgs.append({"role": "user",
                          "content": "已达到最大分析轮次。请基于已完成的分析给出最终结论，禁止再调用工具。"})
             resp = client.chat.completions.create(
-                model=MODEL_NAME, messages=msgs, temperature=0.1, stream=True)
+                model=MODEL_NAME, extra_body={"thinking":{"type":"disabled"}}, messages=msgs, temperature=0.1, stream=True)
             finish_reason = None
             stream = resp
             for chunk in resp:
@@ -315,6 +321,11 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
 
         # 先构建完整证据，失败/停止时不把最终正文写入后续模型上下文。
         evidence = build_bundle(session, evidence_traces, run.id) if status == 'succeeded' else None
+        if evidence:
+            attach_cards(session, evidence)
+            if getattr(session, '_analysis_card_error', None) and 'analysis_cards' not in evidence:
+                evidence['analysis_cards'] = {'version': CARD_VERSION, 'status': 'invalid',
+                    'notice': session._analysis_card_error}
         check()
         def commit():
             # 界面保留失败/部分回答供复核，后续模型只继承完整成功的对话。

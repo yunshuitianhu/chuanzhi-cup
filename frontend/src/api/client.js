@@ -184,6 +184,12 @@ export const api = {
   evidenceRecord: (id, position) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/records/${position}`),
   /** @param {string} id @param {string} tool */
   evidenceTool: (id, tool) => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/tools/${encodeURIComponent(tool)}`),
+  /** @param {string} id @returns {Promise<import('../types/analysisCards').AnalysisCardsResponse>} */
+  analysisCards: id => consistentRead(`/agent/evidence/${encodeURIComponent(id)}/cards`),
+  /** @param {string} id @param {string} card @returns {Promise<import('../types/analysisCards').AnalysisCardPreviewResponse>} */
+  previewAnalysisCard: (id,card) => request(`/agent/evidence/${encodeURIComponent(id)}/cards/${encodeURIComponent(card)}/preview`,{method:'POST'}),
+  /** @param {string} id @param {string} card @param {import('../types/analysisCards').AnalysisCardConfirmRequest} body @returns {Promise<import('../types/analysisCards').AnalysisCardConfirmResponse>} */
+  confirmAnalysisCard: (id,card,body) => request(`/agent/evidence/${encodeURIComponent(id)}/cards/${encodeURIComponent(card)}/confirm`,{method:'POST',body}),
   /** @returns {Promise<{scope_id:string,revision:number,items:import('../types/contracts').JsonObject[]}>} */
   investigations: () => consistentRead('/investigations'),
   /** @param {JsonObject} body @returns {Promise<import('../types/contracts').InvestigationResult>} */

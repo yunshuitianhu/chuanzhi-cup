@@ -45,7 +45,7 @@ class AgentProgressTests(unittest.TestCase):
     def test_stop_during_tool_holds_data_lock_until_worker_exits(self):
         started=threading.Event(); release=threading.Event()
         self.addCleanup(release.set)
-        def execute(*args):
+        def execute(*args,**kwargs):
             started.set()
             if not release.wait(3):raise RuntimeError('test wait timed out')
             return json.dumps({'ok':True,'data':{},'skipped':False}),False

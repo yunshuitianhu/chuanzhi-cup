@@ -118,7 +118,7 @@ def explain(session, thread, question, request_id, run):
         run.update('解释所选文字', 1)
         yield emit('run', {})
         client = OpenAI(base_url=BASE_URL, api_key=key, timeout=TIMEOUT, max_retries=0)
-        stream = client.chat.completions.create(model=MODEL_NAME, messages=messages,
+        stream = client.chat.completions.create(model=MODEL_NAME, extra_body={"thinking":{"type":"disabled"}}, messages=messages,
             temperature=.1, stream=True)  # Deliberately no tool surface.
         finish = None
         for chunk in stream:

@@ -5,7 +5,7 @@ from openai import OpenAI
 from .evidence import EVIDENCE_RULES
 from .agent_safety import context_cases, citation_catalog, validate_citations
 
-MODEL_NAME = "deepseek-chat"
+MODEL_NAME = "deepseek-flash"
 BASE_URL = "https://api.deepseek.com/v1"
 
 logger = logging.getLogger(__name__)
@@ -115,6 +115,7 @@ def generate_report(api_key, summary, *, reference_sink=None):
     with OpenAI(base_url=BASE_URL, api_key=api_key, timeout=120.0, max_retries=0) as client:
         resp = client.chat.completions.create(
             model=MODEL_NAME,
+            extra_body={"thinking":{"type":"disabled"}},
             messages=[{'role': 'system', 'content': '你是水质辅助分析报告撰写助手。' + EVIDENCE_RULES},
                       {"role": "user", "content": prompt}],
             temperature=0.1,

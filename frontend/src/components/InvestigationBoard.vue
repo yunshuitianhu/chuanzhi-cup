@@ -79,6 +79,7 @@ onBeforeUnmount(()=>{version++})
     <div class="task-list">
       <button v-for="item in board?.items||[]" :key="item.id" :class="{selected:selected===item.id}" :disabled="saving || store.chatRunning" @click="selectItem(item.id)">
         <strong>{{item.draft.title}}</strong><span>{{labels[item.effective_status]}}</span>
+        <small>{{item.origin_label || '人工录入'}}</small>
         <small>{{item.origin.filename||'尚未加载监测表'}} · {{item.basis_status==='stale'?'原依据已变化':'依据版本匹配'}}</small>
       </button>
     </div>
@@ -87,8 +88,8 @@ onBeforeUnmount(()=>{version++})
         <label>排查标题<input v-model="draft.title" maxlength="120" required /></label>
         <label>候选假设<textarea v-model="draft.hypothesis" maxlength="2000" rows="2" required /></label>
         <div class="two">
-          <label>支持依据（人工记录）<textarea v-model="draft.supporting_notes" maxlength="4000" rows="3" /></label>
-          <label>反对或矛盾依据（人工记录）<textarea v-model="draft.opposing_notes" maxlength="4000" rows="3" /></label>
+          <label>支持依据（请核对来源）<textarea v-model="draft.supporting_notes" maxlength="4000" rows="3" /></label>
+          <label>反对或矛盾依据（请核对来源）<textarea v-model="draft.opposing_notes" maxlength="4000" rows="3" /></label>
         </div>
         <details v-if="selected && board?.items.find(item=>item.id===selected)?.reference">
           <summary>创建时关联的报告采样记录</summary>
@@ -96,6 +97,11 @@ onBeforeUnmount(()=>{version++})
             <p>{{item.reference_status==='current'?'当前报告关联可核对':'历史记录快照；报告已变化或不在当前会话，不关联当前地图。'}}</p>
             <pre>{{item.reference.excerpt}}</pre>
           </template>
+        </details>
+        <details v-if="selected && board?.items.find(item=>item.id===selected)?.origin.analysis_card">
+          <summary>AI 建议与确认来源</summary>
+          <p>建议经用户确认后加入；来源标记不表示事实已核验，后续修改可在历史中查看。</p>
+          <pre>{{JSON.stringify(board.items.find(item=>item.id===selected).origin.analysis_card,null,2)}}</pre>
         </details>
         <h3>复测计划与实际记录</h3>
         <label>复测位置说明<input v-model="draft.retest.location" maxlength="300" placeholder="候选位置和上下游对照位置" /></label>
