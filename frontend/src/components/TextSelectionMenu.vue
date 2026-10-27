@@ -8,10 +8,10 @@ import {questionContextMatches} from '../utils/questionContext'
 const store=useSessionStore(),router=useRouter(),route=useRoute()
 const selected=ref(null),position=ref({}),menu=ref(null),error=ref('')
 let disposed=false,request=0,raf=0
-function hide(){selected.value=null;error.value=''}
+function hide(){cancelAnimationFrame(raf);raf=0;selected.value=null;error.value=''}
 function inspect(){
   const selection=window.getSelection()
-  try{selected.value=selectedPassage(selection)}catch{selected.value=null}
+  try{selected.value=selectedPassage(selection,{path:route.path,title:route.meta.title})}catch{selected.value=null}
   error.value=''
   if(!selected.value)return
   if(selected.value.text.length>MAX_QUOTE){error.value='选中文字超过3000字，请缩短选区；不会自动截断。'}
@@ -47,7 +47,7 @@ async function source(){
     await nextTick()
     if(ticket!==request||disposed)return
     const src=card.selection.source
-    const element=document.getElementById(src.kind==='message'?'message-'+src.message_id:src.help_id||'text-source-return')
+    const element=document.getElementById(src.kind==='message'?'message-'+src.message_id:src.kind==='page'?src.anchor||'main-content':src.help_id||'text-source-return')
     element?.scrollIntoView({block:'center'});element?.focus({preventScroll:true})
   }catch(e){if(!disposed&&ticket===request)store.textQuestions.sourceError=e.message}
 }

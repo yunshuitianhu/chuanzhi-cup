@@ -31,9 +31,14 @@ export function questionContextLocation(item) {
     const source=item.selection.source
     if(!source||typeof source!=='object'||Array.isArray(source))return null
     const src=source
+    if(src.kind==='page') {
+      if(typeof src.path!=='string'||!['/chat','/charts','/river','/tech'].includes(src.path))return null
+      const anchor=typeof src.anchor==='string'&&/^[A-Za-z][A-Za-z0-9_:-]{0,99}$/.test(src.anchor)?src.anchor:'main-content'
+      return {path:src.path,query:{text_context:item.id},hash:'#'+anchor}
+    }
     const mid=typeof src.message_id==='string'?src.message_id:''
     const hid=typeof src.help_id==='string'?src.help_id:''
-    const anchor=src.kind==='message'&&/^[a-f0-9]{64}$/.test(mid)?'message-'+mid:src.kind==='help'&&['rag_help','screening_help','model_help'].includes(hid)?hid:'text-source-return'
+    const anchor=src.kind==='message'&&/^[a-f0-9]{64}$/.test(mid)?'message-'+mid:src.kind==='help'&&['rag_help','screening_help','model_help','grid_help'].includes(hid)?hid:'text-source-return'
     return {path:src.kind==='message'?'/chat':'/tech',query:{text_context:item.id},hash:'#'+anchor}
   }
   const hashes={sample:'#trace-map',time_range:'#time-series',video_frame:'#video-quality',rag_excerpt:'#rag-search'}

@@ -1,0 +1,77 @@
+{
+  "date": "2026-10-27",
+  "scope": "Visible, natively selectable application text across chat/charts/river/tech; not OCR of canvas, images or video",
+  "implementation": {
+    "global_page_fallback": true,
+    "registered_sources_keep_strict_checks": true,
+    "page_text_server_verified": false,
+    "page_scope_checked": true,
+    "page_quote_promoted_to_monitoring_evidence": false,
+    "only_selected_text_sent": true,
+    "max_chars": 3000,
+    "editable_and_inert_excluded": true,
+    "external_source_navigation_blocked": true
+  },
+  "validation": {
+    "python": {
+      "tests": 546,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "success": true,
+      "legacy_checks": true,
+      "secret_scan": true,
+      "contracts_exported": true,
+      "elapsed_s": 98.77
+    },
+    "frontend": {
+      "tests": 324,
+      "passed": 324,
+      "typecheck": true,
+      "production_build": true
+    },
+    "browser": {
+      "pages": [
+        {
+          "page": "tech",
+          "menu": true
+        },
+        {
+          "page": "chat",
+          "menu": true
+        },
+        {
+          "page": "charts",
+          "menu": true
+        },
+        {
+          "page": "river",
+          "menu": true
+        }
+      ],
+      "mainQuotePrepared": true,
+      "mainDraftPreserved": true,
+      "sideDraftInitiallyEmpty": true,
+      "liveSideAnswer": true,
+      "editingSelectionMenu": false,
+      "sourceReturn": true,
+      "rows": 1805,
+      "frames": 147
+    },
+    "backup": "111 v6 saved and exported before restart"
+  },
+  "review": {
+    "actual_api_model": "deepseek-v4-pro",
+    "thinking_enabled": false,
+    "applied_automatically": false,
+    "adopted": "Reject detached endpoints and cancel pending selection inspection when hiding menu",
+    "not_adopted": {
+      "server_DOM_verification": "Page quote deliberately browser-provided with explicit non-verification notice; strict original sources unchanged. A browser-supplied hash would not authenticate DOM text.",
+      "shadow_DOM_bypass": "No shadow DOM used; global fallback requires closest app region in the same DOM tree, so isolated shadow content does not pass. No unbounded shadow traversal added."
+    }
+  },
+  "screenshots": [
+    "global_quote_benchmark_selection_20261027.jpg",
+    "global_quote_side_page_answer_20261027.jpg"
+  ]
+}

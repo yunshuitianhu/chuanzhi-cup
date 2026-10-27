@@ -38,7 +38,7 @@ export type QuestionContextKind = 'sample' | 'time_range' | 'video_frame' | 'rag
 export interface QuestionContextScope {
   project_id:string|null; analysis_revision:number; results_revision:number; data_version:string
 }
-export interface TextSource {kind:'message'|'rag'|'help';message_id?:string;run_id?:string;view?:'markdown'|'raw';retrieval_id?:string;evidence_id?:string;help_id?:string}
+export interface TextSource {kind:'message'|'rag'|'help'|'page';path?:'/chat'|'/charts'|'/river'|'/tech';anchor?:string;message_id?:string;run_id?:string;view?:'markdown'|'raw';retrieval_id?:string;evidence_id?:string;help_id?:string}
 export interface SelectedText {text:string;source:TextSource;title:string;project_id:string|null;analysis_revision:number;results_revision:number}
 export interface SideRun {run_id:string|null;status:string;busy:boolean;thread_id?:string|null;save_notice?:string;[key:string]:unknown}
 export interface SideThread {id:string;quote:QuestionContext;messages:ChatMessage[];requests:string[];updated_at:string;historical?:boolean}

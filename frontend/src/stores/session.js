@@ -69,7 +69,7 @@ export const useSessionStore = defineStore('session', {
       if(target==='main'){
         if(this.textQuestions.pendingMain&&quoteKey(this.textQuestions.pendingMain)===quoteKey(quote))return
         this.clearQuestionContext();this.textQuestions.pendingMain=quote
-        this.questionContextNotice='已加入选中文字，发送时会核对来源；已有问题草稿保留。'
+        this.questionContextNotice=selected.source?.kind==='page'?'已加入页面选文，作为待解释材料；已有问题草稿保留。':'已加入选中文字，发送时会核对来源；已有问题草稿保留。'
         if(!this.chatDraft.trim())this.chatDraft='请解释所选文字的含义、依据和适用限制。'
       }else{
         this.textQuestions.pendingSide=quote

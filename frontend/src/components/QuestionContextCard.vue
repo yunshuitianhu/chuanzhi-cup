@@ -16,7 +16,7 @@ const names={text_quote:'文字引用',sample:'采样点',time_range:'时间范�
     <template v-if="valid">
       <div class="head"><span>{{names[context.kind]}} · {{context.title}}</span><button v-if="removable" type="button" aria-label="移除问题上下文" @click="$emit('remove')">移除</button></div>
       <p v-if="!compact">{{context.summary}}</p>
-      <div class="meta"><span>{{current?'版本匹配，发送时仍会由服务端核对':'历史来源，不能直接作为当前数据'}}</span><RouterLink v-if="location" :to="location">核对来源</RouterLink></div>
+      <div class="meta"><span>{{current?(context.selection.source?.kind==='page'?'版本匹配 · 页面选文未经原文核验':'版本匹配，发送时仍会由服务端核对'):'历史来源，不能直接作为当前数据'}}</span><RouterLink v-if="location" :to="location">核对来源</RouterLink></div>
       <blockquote v-if="context.kind==='text_quote' && context.excerpt && !compact" class="selected-quote">{{context.excerpt}}</blockquote>
       <details v-if="context.kind!=='text_quote' && context.excerpt && !compact"><summary>所选原文片段</summary><pre>{{context.excerpt}}</pre></details>
       <details v-if="!compact && context.notice" class="context-notice"><summary>使用边界</summary><p class="notice">{{context.notice}}</p></details>

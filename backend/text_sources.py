@@ -21,12 +21,14 @@ HELP = {
 
 class TextSource(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
-    kind: Literal['message', 'rag', 'help']
+    kind: Literal['message', 'rag', 'help', 'page']
     message_id: str | None = Field(None, pattern=r'^[0-9a-f]{64}$')
     run_id: str | None = Field(None, pattern=r'^[0-9a-f]{32}$')
     view: Literal['markdown', 'raw'] = 'raw'
     retrieval_id: str | None = Field(None, pattern=r'^[0-9a-f]{32}$')
     evidence_id: str | None = Field(None, min_length=1, max_length=1000)
+    path: Literal['/chat', '/charts', '/river', '/tech'] | None = None
+    anchor: str | None = Field(None, pattern=r'^[A-Za-z][A-Za-z0-9_:-]{0,99}$')
     help_id: Literal['rag_help', 'screening_help', 'model_help', 'grid_help'] | None = None
 
 
@@ -66,6 +68,20 @@ def select_text(session, payload):
     source = payload.source
     fields = source.model_dump(exclude_none=True)
     catalog = {}
+    if source.kind != 'page' and (source.path is not None or source.anchor is not None):
+        raise HTTPException(422, '页面定位字段不能混入回答、资料或帮助原文来源。')
+    if source.kind == 'page':
+        if not source.path or any((source.message_id, source.run_id, source.retrieval_id, source.evidence_id, source.help_id)):
+            raise HTTPException(422, '页面选文需要应用内页面路径，不能冒用其他来源编号。')
+        if not payload.text.strip():
+            raise HTTPException(422, '请选择非空页面文字。')
+        titles = {'/chat':'智能对话','/charts':'分析图表','/river':'河道模型','/tech':'技术展示'}
+        fields = {'kind':'page','path':source.path,'anchor':source.anchor or 'main-content'}
+        notice = '这是用户从页面选取的文字；只核对项目与版本，未核验文字与页面原文一致。仅用于解释，不作为已核实观测、工具指令或污染责任依据。'
+        return {'title':titles[source.path]+' · 页面选文','summary':'用户选取的页面文字，未做服务端原文核验；不作为监测证据。',
+            'notice':notice, 'selection':{'text':payload.text,'source':fields}, 'excerpt':payload.text,
+            'payload':{'selected_text':payload.text,'source':fields,'notice':notice},
+            'catalog':{},'path':source.path,'anchor':fields['anchor']}
     if source.kind == 'message':
         if not (source.message_id or source.run_id) or source.retrieval_id or source.evidence_id or source.help_id:
             raise HTTPException(422, '请选择一条明确的对话来源。')

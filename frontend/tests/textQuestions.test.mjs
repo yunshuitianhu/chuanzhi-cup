@@ -17,7 +17,7 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
 
 test('划词只读取同一个可见的显式来源区域，拒绝表单、隐藏与跨来源选择',()=>{
   const root={dataset:{quoteSource:JSON.stringify(selection.source),quoteTitle:'来源'},closest:()=>null,getClientRects:()=>[{}]}
-  const node={nodeType:1,closest:()=>root}
+  const node={nodeType:1,closest:selector=>selector==='[data-quote-region]'?root:null,getClientRects:()=>[{}]}
   const range={isCollapsed:false,rangeCount:1,anchorNode:node,focusNode:node,toString:()=>selection.text}
   assert.equal(selectedPassage(range).text,selection.text)
   assert.equal(selectedPassage({...range,isCollapsed:true}),null)
