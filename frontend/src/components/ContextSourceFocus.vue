@@ -27,7 +27,7 @@ async function load(){
     card.value=value;emit('focus',value)
     await nextTick()
     if(ticket!==request||!current())return
-    const anchor={sample:'trace-map',time_range:'time-series',video_frame:'video-quality',rag_excerpt:'rag-search'}[value.kind]
+    const anchor={sample:'trace-map',time_range:'time-series',video_frame:'video-quality',rag_excerpt:'rag-search',image_asset:'image-asset'}[value.kind]
     if(anchor)document.getElementById(anchor)?.scrollIntoView({block:'start'})
   }catch(e){if(ticket===request&&current())error.value=e.message||'无法核对引用，旧来源不会套用到当前数据。'}
   finally{if(ticket===request)busy.value=false}

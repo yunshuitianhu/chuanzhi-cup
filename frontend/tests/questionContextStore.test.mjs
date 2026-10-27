@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {createServer} from 'vite'
 import {createPinia} from 'pinia'
-import {isQuestionContext,questionContextLocation} from '../src/utils/questionContext.js'
+import {isQuestionContext,questionContextLocation,questionContextMatches} from '../src/utils/questionContext.js'
 const memory=new Map()
 globalThis.localStorage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)}
 const server=await createServer({configLoader:'runner',server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test'})
@@ -21,6 +21,9 @@ test('来源卡路由由枚举和ID重建，导入的URL不能执行',()=>{
   assert.deepEqual(questionContextLocation(c),{path:'/charts',query:{context_id:c.id},hash:'#trace-map'})
   assert.equal(questionContextLocation(card({id:'../private'})),null)
   assert.equal(isQuestionContext(card({kind:'unknown'})),false)
+  const picture=card({kind:'image_asset',selection:{asset_id:'a'.repeat(32),asset_revision:'b'.repeat(64)},source_url:'/chat?context_id='+card().id+'#image-asset'})
+  assert.equal(isQuestionContext(picture),true)
+  assert.deepEqual(questionContextLocation(picture),{path:'/chat',query:{context_id:picture.id},hash:'#image-asset'})
   assert.equal(isQuestionContext(card({scope:{...c.scope,analysis_revision:-1}})),false)
 })
 
@@ -103,4 +106,55 @@ test('全局任务忙碌时不创建第二个上下文请求',async()=>{
   const v=state();v.loading=true;let calls=0;globalThis.fetch=async()=>{calls++;return reply(card())}
   await assert.rejects(v.prepareQuestionContext({kind:'sample',sample_id:2}),/当前任务/)
   assert.equal(calls,0)
+})
+
+
+test('没有监测表时仍可上传截图并建立图片上下文，侧边图片可转回主对话',async()=>{
+  const v=state();v.status.has_data=false;v.chatDraft=''
+  const asset={asset_id:'a'.repeat(32),sha256:'b'.repeat(64),media_type:'image/png',width:100,height:80,bytes:1200,source:'upload',source_name:'截图.png',created_at:'2026-10-27T00:00:00Z',preview_url:'/api/media/'+'a'.repeat(32)}
+  const picture={...card(),kind:'image_asset',title:'图片附件',summary:'100×80',selection:{asset_id:asset.asset_id,asset_revision:asset.sha256},source_url:'/chat?context_id='+card().id+'#image-asset'}
+  const calls=[]
+  globalThis.fetch=async(url,options)=>{
+    calls.push({url,body:typeof options.body==='string'?JSON.parse(options.body):options.body})
+    return reply(url==='/api/media'?asset:picture)
+  }
+  const file={type:'image/png',name:'截图.png'}
+  const selected=await v.attachMedia(file)
+  assert.equal(selected.kind,'image_asset')
+  assert.equal(v.questionContext.kind,'image_asset')
+  assert.match(v.chatDraft,/图片/)
+  assert.deepEqual(calls.map(c=>c.url),['/api/media','/api/agent/context'])
+  assert.equal(calls[1].body.kind,'image_asset')
+  assert.equal(calls[1].body.asset_revision,asset.sha256)
+  const quote={...picture,id:'c'.repeat(32)}
+  const transferred=await v.transferQuoteToMain(quote)
+  assert.equal(transferred.kind,'image_asset')
+  assert.equal(v.questionContext.selection.asset_id,asset.asset_id)
+})
+
+
+test('侧边可直接上传截图并创建图片线程，不改变主对话当前选择',async()=>{
+  const v=state();v.status.has_data=false
+  const main={...card(),id:'a'.repeat(32)}
+  v.questionContext=main
+  const asset={asset_id:'a'.repeat(32),sha256:'b'.repeat(64),media_type:'image/png',width:100,height:80,bytes:1200,source:'upload',source_name:'侧边截图.png',created_at:'2026-10-27T00:00:00Z',preview_url:'/api/media/'+'a'.repeat(32)}
+  const picture={...card(),id:'c'.repeat(32),kind:'image_asset',title:'侧边截图.png',summary:'100×80',notice:'图片材料',selection:{asset_id:asset.asset_id,asset_revision:asset.sha256},source_url:'/chat?context_id='+'c'.repeat(32)+'#image-asset'}
+  const thread={id:'e'.repeat(32),quote:picture,messages:[],requests:[],updated_at:'2026-10-27T00:00:00Z'}
+  const calls=[]
+  globalThis.fetch=async(url,options)=>{
+    calls.push({url,body:typeof options.body==='string'?JSON.parse(options.body):options.body})
+    if(url==='/api/media')return reply(asset)
+    if(url==='/api/agent/context')return reply(picture)
+    if(url==='/api/side/threads')return reply(thread)
+    throw Error('unexpected '+url)
+  }
+  assert.equal(questionContextMatches(picture,v),true)
+  assert.equal(isQuestionContext(picture),true)
+  const created=await v.attachSideMedia({type:'image/png',name:'侧边截图.png'})
+  assert.equal(created.id,thread.id)
+  assert.equal(v.questionContext.id,main.id)
+  assert.equal(v.textQuestions.active,thread.id)
+  assert.match(v.textQuestions.drafts[thread.id],/图片/)
+  assert.deepEqual(calls.map(c=>c.url),['/api/media','/api/agent/context','/api/side/threads'])
+  assert.equal(calls[2].body.context_id,picture.id)
 })

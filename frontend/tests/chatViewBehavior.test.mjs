@@ -35,6 +35,7 @@ async function mount() {
     beginAgentStream(){if(store.chatRunning||store.loading||!store.ready)return false;store.chatRunning=true;return true},
     adoptAgentRun(){},
     clearQuestionContext(notice=''){store.questionContext=null;store.questionContextNotice=notice},
+    attachMedia:async file=>{store.attached=file;return {id:'attached'}},
   })
   const saved={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch,
     request:globalThis.requestAnimationFrame,cancel:globalThis.cancelAnimationFrame}
@@ -102,7 +103,7 @@ test('Shift+Enter preserves the native newline and ordinary Enter sends the trim
   }finally{v.close()}
 })
 
-for(const condition of ['chatRunning','loading','notReady','noData']){
+for(const condition of ['chatRunning','loading','notReady']){
   test('send guard preserves the draft when '+condition,async()=>{
     const v=await mount()
     try {
@@ -283,5 +284,64 @@ test('会话忙碌409保留仍有效的引用和问题，不冒充来源已过�
     await v.state.send()
     assert.equal(v.store.questionContext?.id,selectedContext().id)
     assert.equal(v.state.input,'等待任务结束后询问')
+  }finally{v.close()}
+})
+
+
+test('对话顶部默认收起分析信息，展开/收起不丢草稿和引用',async()=>{
+  const v=await mount()
+  try{
+    assert.equal(v.state.analysisExpanded,false)
+    v.state.input='保留的问题草稿'
+    v.store.questionContext=selectedContext('image_asset')
+    await v.state.toggleAnalysis()
+    assert.equal(v.state.analysisExpanded,true)
+    assert.equal(v.state.input,'保留的问题草稿')
+    assert.equal(v.store.questionContext.id,selectedContext('image_asset').id)
+    await v.state.toggleAnalysis()
+    assert.equal(v.state.analysisExpanded,false)
+    assert.equal(v.state.input,'保留的问题草稿')
+  }finally{v.close()}
+})
+
+test('粘贴图片会阻止默认粘贴并走真实上传，普通文字粘贴不受影响',async()=>{
+  const v=await mount()
+  try{
+    const file={type:'image/png',name:'截图.png'}
+    const imageEvent={prevented:0,preventDefault(){this.prevented++},clipboardData:{items:[{kind:'file',type:'image/png',getAsFile:()=>file}]}}
+    await v.state.onPaste(imageEvent)
+    assert.equal(imageEvent.prevented,1)
+    assert.deepEqual(v.store.attached,file)
+    const textEvent={prevented:0,preventDefault(){this.prevented++},clipboardData:{items:[{kind:'string',type:'text/plain',getAsFile:()=>null}]}}
+    await v.state.onPaste(textEvent)
+    assert.equal(textEvent.prevented,0)
+  }finally{v.close()}
+})
+
+
+test('空会话没有监测表和引用时仍可直接发送普通概念问题',async()=>{
+  const v=await mount()
+  try{
+    v.store.status.has_data=false
+    v.store.questionContext=null
+    v.state.input='什么是溶解氧？'
+    await v.state.send()
+    assert.equal(v.calls.length,1)
+    assert.deepEqual(v.calls[0],{message:'什么是溶解氧？',auto:false})
+    assert.equal(v.store.chatMessages[0].content,'什么是溶解氧？')
+  }finally{v.close()}
+})
+
+
+test('未配置模型Key时保留问题并提示离线能力，不发送请求',async()=>{
+  const v=await mount()
+  try{
+    v.store.config={target_water_class:'V',keys:{deepseek:false}}
+    v.state.input='解释一下溶解氧'
+    await v.state.send()
+    assert.equal(v.calls.length,0)
+    assert.equal(v.state.input,'解释一下溶解氧')
+    assert.match(v.state.aiNotice,/未配置 DeepSeek Key/)
+    assert.match(v.state.aiNotice,/示例|基础筛查/)
   }finally{v.close()}
 })

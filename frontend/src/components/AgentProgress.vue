@@ -23,7 +23,10 @@ const labels={
   compare_scenarios:'比较情景',
   export_river_model_data:'导出模型数据',
   get_analysis_card_catalog:'读取分析卡片目录',
-  submit_analysis_cards:'提交分析卡片'
+  submit_analysis_cards:'提交分析卡片',
+  get_project_data_catalog:'读取数据目录',
+  read_project_data:'读取业务数据',
+  inspect_visual_asset:'读取画面'
 }
 const statusLabels={running:'进行中',stopping:'等待停止',succeeded:'已完成',partial:'部分完成',failed:'失败',cancelled:'已停止',skipped:'已跳过'}
 const MAX_NOTICE=96

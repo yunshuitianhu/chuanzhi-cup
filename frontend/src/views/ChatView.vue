@@ -14,6 +14,7 @@ import Panel from '../components/Panel.vue'
 import ChatBubble from '../components/ChatBubble.vue'
 import TextQuoteCard from '../components/TextQuoteCard.vue'
 import QuestionContextCard from '../components/QuestionContextCard.vue'
+import ContextSourceFocus from '../components/ContextSourceFocus.vue'
 import {isQuestionContext,questionContextMatches} from '../utils/questionContext'
 import AgentProgress from '../components/AgentProgress.vue'
 import InvestigationBoard from '../components/InvestigationBoard.vue'
@@ -22,8 +23,38 @@ import { createChatScroll } from '../utils/chatScroll'
 
 const store = useSessionStore()
 const input = computed({get:()=>store.chatDraft||'',set:value=>{store.chatDraft=value}})
-const canAsk = computed(()=>!!store.textQuestions?.pendingMain || store.status.has_data || (isQuestionContext(store.questionContext) && questionContextMatches(store.questionContext,store) && ['rag_excerpt','text_quote'].includes(store.questionContext.kind)))
+const canAsk = computed(()=>store.ready && !store.loading && !store.switchingProject)
 const { chatRunning: running, chatMessages: messages } = storeToRefs(store)
+const analysisExpanded = ref(false)
+const visionStatus = ref('')
+const aiNotice = ref('')
+const attachmentBusy = ref(false)
+const attachmentError = ref('')
+const failedAttachment = ref(null)
+const fileInput = ref(null)
+const composerEl = ref(null)
+const canAttach = computed(()=>!running.value && !store.loading && store.ready && !store.switchingProject)
+const selectedKind = computed(()=>store.questionContext?.kind || (store.textQuestions?.pendingMain ? 'text_quote' : ''))
+const aiConfigured = computed(()=>!store.config?.keys || store.config.keys.deepseek!==false)
+function ensureAi(){
+  if(aiConfigured.value){aiNotice.value='';return true}
+  aiNotice.value='未配置 DeepSeek Key：可先载入内置示例、查看图表和运行基础筛查；AI 问答与报告需在服务端配置 Key 后重试。'
+  return false
+}
+async function recheckConfig(){
+  try{await store.refreshConfig();if(aiConfigured.value)aiNotice.value=''}
+  catch(e){toastErr(`配置检查失败：${e.message}`)}
+}
+const contextLabels={image_asset:'图片',video_frame:'视频帧',text_quote:'文字',sample:'采样点',time_range:'时间范围',rag_excerpt:'资料片段'}
+const collapsedContext = computed(()=>{
+  if(store.questionContext)return {kind:store.questionContext.kind,title:store.questionContext.title,label:contextLabels[store.questionContext.kind]||'来源'}
+  const pending=store.textQuestions?.pendingMain
+  return pending?{kind:'text_quote',title:pending.title||'所选文字',label:'文字'}:null
+})
+function removeCollapsed(){
+  if(store.questionContext){store.clearQuestionContext();return}
+  if(store.textQuestions?.pendingMain){store.textQuestions.pendingMain=null;store.questionContextNotice=''}
+}
 const scroller = ref(null)
 const clock=ref(Date.now())
 const lastRequest=ref(null)
@@ -105,19 +136,83 @@ async function scrollDown() {
   scrollController.schedule()
 }
 
+async function toggleAnalysis(){
+  const top=scroller.value?.scrollTop||0
+  analysisExpanded.value=!analysisExpanded.value
+  await nextTick()
+  if(scroller.value)scroller.value.scrollTop=top
+}
+
 async function autoAnalyze() {
+  if(!ensureAi())return
   return submit('请开始自动分析。',true)
 }
 
 async function send() {
   const text = input.value.trim()
   if (!text || running.value || !store.ready || store.loading || !canAsk.value) return
+  if(!ensureAi())return
   if(store.textQuestions?.pendingMain){
     try{if(!await store.preparePendingQuote())return}catch(e){toastErr(e.message);return}
   }
   input.value = ''
+  visionStatus.value = ['image_asset','video_frame'].includes(selectedKind.value) ? '准备图片' : ''
   return submit(text,false)
 }
+
+function autosize(){
+  const el=composerEl.value
+  if(!el)return
+  el.style.height='auto'
+  el.style.height=Math.min(140,Math.max(52,el.scrollHeight))+'px'
+}
+function pickImage(){
+  if(!canAttach.value){attachmentError.value='当前任务尚未结束，结束后再添加图片。';return}
+  fileInput.value?.click()
+}
+async function onFileChange(event){
+  const file=event.target?.files?.[0]
+  if(event.target)event.target.value=''
+  if(file)await attachFile(file)
+}
+async function onPaste(event){
+  const items=[...(event.clipboardData?.items||[])]
+  const file=items.find(item=>item.kind==='file'&&String(item.type).startsWith('image/'))?.getAsFile()
+  if(!file)return
+  event.preventDefault()
+  await attachFile(file)
+}
+async function attachFile(file){
+  if(!file)return
+  if(!String(file.type||'').startsWith('image/')&&!/\.(png|jpe?g|webp|bmp)$/i.test(file.name||'')){
+    attachmentError.value='请选择PNG或JPEG等常见图片。';failedAttachment.value=null;return
+  }
+  if(!canAttach.value){attachmentError.value='当前任务尚未结束，结束后再添加图片。';return}
+  attachmentBusy.value=true;attachmentError.value='';failedAttachment.value=null
+  visionStatus.value=''
+  try{
+    await store.attachMedia(file)
+    await scrollDown()
+  }catch(e){
+    attachmentError.value=e.message;failedAttachment.value=file
+  }finally{attachmentBusy.value=false}
+}
+async function retryAttachment(){
+  if(failedAttachment.value)await attachFile(failedAttachment.value)
+}
+async function openSide(){
+  if(!store.questionContext)return
+  try{await store.openSideThreadForContext(store.questionContext)}
+  catch(e){toastErr(e.message)}
+}
+watch(()=>store.workspaceRevision,()=>{
+  analysisExpanded.value=false
+  visionStatus.value=''
+  attachmentError.value=''
+  failedAttachment.value=null
+})
+watch(input,()=>nextTick(autosize))
+watch(()=>store.questionContext?.id,id=>{if(!id&&!running.value)visionStatus.value=''})
 
 async function retryLast() {
   if(lastRequest.value?.context_id && lastRequest.value.context_id!==store.questionContext?.id) {
@@ -129,6 +224,7 @@ async function retryLast() {
 }
 async function submit(text,auto) {
   if(running.value || !store.ready || store.loading || (!canAsk.value && !auto))return
+  if(!ensureAi())return
   const workspace=store.workspaceRevision, project=store.projectState.current?.id
   const current=()=>workspace===store.workspaceRevision && project===store.projectState.current?.id
   const token=crypto.randomUUID()
@@ -178,6 +274,19 @@ async function submit(text,auto) {
         messages.value.push({role:payload.ok?'tool':'error',uiRequest:token,
           content:`${payload.name}：${payload.status==='skipped'?'已跳过':payload.ok?'完成':'失败，等待后续处理'}`})
         answer=null
+      } else if(event==='vision') {
+        const images=Array.isArray(payload.images)?payload.images:[]
+        if(payload.status==='sent'){
+          visionStatus.value=images.length>1?`已发送 ${images.length} 张图片`:'已发送图片'
+          messages.value.push({role:'tool',uiRequest:token,
+            content:`图片已发送给模型查看：${images.map(image=>image.label||'图片').join('、')||'本轮图片'}`})
+        }else{
+          visionStatus.value='图片未读取成功'
+          const reason=(Array.isArray(payload.errors)?payload.errors:[payload.error]).filter(Boolean).join('；')
+          messages.value.push({role:'error',uiRequest:token,
+            content:`图片没有读取成功：${reason||'未知原因'}。可以重试读取图片。`})
+        }
+        answer=null
       } else if(event==='delta') {
         if(!answer) {
           messages.value.push({role:'assistant',content:'',run_id:runId,uiRequest:token,...(questionContext?{question_context:questionContext}:{})})
@@ -190,6 +299,7 @@ async function submit(text,auto) {
           ? '本轮已停止。已完成的部分分析可保留；重新分析会从当前数据重新取证。'
           : '本轮未完整完成，请查看失败或缺失步骤后重新分析。'})
       } else if(event==='error') {
+        if(visionStatus.value==='准备图片')visionStatus.value='图片发送状态未知'
         incomplete()
         messages.value.push({role:'error',content:payload.message || '本轮执行失败',uiRequest:token})
       }
@@ -215,25 +325,45 @@ async function submit(text,auto) {
 </script>
 
 <template>
-  <Panel class="chat-workspace" title="智能对话" subtitle="围绕监测数据提问，核对证据，形成复测计划">
+  <Panel class="chat-workspace" title="智能对话" dense>
     <template #actions>
       <button class="primary" :disabled="!store.canAnalyze || !store.ready || store.loading || running" :aria-busy="running" @click="autoAnalyze">
         <svg aria-hidden="true" viewBox="0 0 20 20"><path d="m10 2 1.8 5.7L18 10l-6.2 2.3L10 18l-1.8-5.7L2 10l6.2-2.3Z" /></svg>
         {{ store.sideRunning ? '侧边问答进行中…' : running ? '分析中…' : '开始自动分析' }}
       </button>
     </template>
-    <div class="context-strip" aria-label="当前分析上下文">
+    <ContextSourceFocus :kinds="['image_asset']" />
+    <div id="image-asset" class="chat-summary" aria-label="当前对话摘要">
       <span class="project-tag">{{ store.projectState.current?.name || '临时巡航会话' }}</span>
-      <span>{{ store.status.has_data ? store.status.rows + ' 条监测记录' : '等待载入监测数据' }}</span>
-      <span>目标 {{ store.config.target_water_class }} 类</span>
-      <span v-if="store.status.data_identity?.kind==='synthetic'" class="data-kind">仿真数据</span>
+      <span class="summary-meta">{{ store.status.has_data ? store.status.rows + ' 条记录' : '等待数据' }} · 目标 {{ store.config.target_water_class }} 类
+        <span v-if="store.status.data_identity?.kind==='synthetic'" class="data-kind">仿真</span></span>
+      <span v-if="visionStatus" class="vision-chip" role="status">{{ visionStatus }}</span>
+      <span v-if="store.config.keys && !store.config.keys.deepseek" class="vision-chip" title="未配置 DeepSeek Key：仍可载入示例、查看图表和基础筛查；AI 问答与报告不可用">AI 未配置</span>
+      <button v-if="store.questionContext && ['video_frame','image_asset','text_quote'].includes(store.questionContext.kind)" type="button" class="info-toggle side-ask" :disabled="running || store.loading" @click="openSide">侧边追问</button>
+      <button type="button" class="info-toggle" :aria-expanded="analysisExpanded" aria-controls="chat-analysis-info" @click="toggleAnalysis">{{ analysisExpanded ? '收起分析信息' : '展开分析信息' }}</button>
     </div>
-    <TextQuoteCard v-if="store.textQuestions?.pendingMain" :quote="store.textQuestions.pendingMain" removable @remove="store.textQuestions.pendingMain=null;store.questionContextNotice=''" />
-    <QuestionContextCard v-if="store.questionContext" :context="store.questionContext" removable @remove="store.clearQuestionContext()" />
+    <div v-if="!analysisExpanded && collapsedContext" class="context-line" aria-label="当前选择">
+      <span class="context-kind">{{ collapsedContext.label }}</span>
+      <span class="context-name" :title="collapsedContext.title">{{ collapsedContext.title }}</span>
+      <button type="button" class="context-remove" aria-label="移除当前选择" @click="removeCollapsed">移除</button>
+    </div>
     <p v-if="store.questionContextNotice" class="tip warning" role="status">{{store.questionContextNotice}}</p>
-    <p v-if="!store.status.has_data" class="tip">从「项目与数据」载入监测表，或选择一段实际检索的资料进行提问。</p>
-    <p v-if="store.status.analysis_status === 'stale'" class="tip warning">检测或视频结果已更新，下方为历史对话；重新分析后可生成当前报告。</p>
-    <p v-else-if="store.status.detection_outdated" class="tip warning">历史检测使用旧版证据口径，请重新分析。下方文字尚未按当前数据和走航时空限制复核。</p>
+    <div id="chat-analysis-info"><div v-if="analysisExpanded" class="analysis-info">
+      <div class="context-strip" aria-label="详细分析上下文">
+        <span class="project-tag">{{ store.projectState.current?.name || '临时巡航会话' }}</span>
+        <span>{{ store.status.has_data ? store.status.rows + ' 条记录' : '未载入监测表' }}<template v-if="store.status.data_filename"> · {{ store.status.data_filename }}</template></span>
+        <span v-if="store.status.video_frames">{{ store.status.video_frames }} 帧<template v-if="store.status.video_filename"> · {{ store.status.video_filename }}</template></span>
+        <span v-else>未载入视频</span>
+        <span>目标 {{ store.config.target_water_class }} 类</span>
+        <span>分析版本 {{ store.status.analysis_revision ?? 0 }} · 结果版本 {{ store.status.results_revision ?? 0 }}</span>
+        <span v-if="store.status.data_identity?.kind==='synthetic'" class="data-kind">仿真数据</span>
+      </div>
+      <TextQuoteCard v-if="store.textQuestions?.pendingMain" :quote="store.textQuestions.pendingMain" removable @remove="store.textQuestions.pendingMain=null;store.questionContextNotice=''" />
+      <QuestionContextCard v-if="store.questionContext" :context="store.questionContext" removable @remove="store.clearQuestionContext()" />
+      <p v-if="!store.status.has_data && !store.questionContext" class="tip">从「项目与数据」载入监测表，或选择一段实际检索的资料、粘贴一张截图进行提问。</p>
+      <p v-if="store.status.analysis_status === 'stale'" class="tip warning">检测或视频结果已更新，下方为历史对话；重新分析后可生成当前报告。</p>
+      <p v-else-if="store.status.detection_outdated" class="tip warning">历史检测使用旧版证据口径，请重新分析。下方文字尚未按当前数据和走航时空限制复核。</p>
+    </div></div>
     <AgentProgress :run="store.agentRun" :elapsed="elapsed" :connection-error="store.agentConnectionError" @stop="stop" @sync="refreshRun" />
     <button v-if="lastRequest && !running && store.agentRun?.status!=='succeeded'" class="retry" @click="retryLast">从当前数据重新执行上一请求</button>
     <div class="conversation">
@@ -242,17 +372,28 @@ async function submit(text,auto) {
         <div v-if="!messages.length" class="placeholder">
           <span class="eyebrow">河道研判工作台</span>
           <h3>从一个具体问题开始</h3>
-          <p>查看异常、解释指标，或核对下一步需要补充的证据。</p>
-          <div class="suggestions"><button v-for="question in suggestedQuestions" :key="question" :disabled="!store.status.has_data || running" @click="input=question">{{ question }}<span aria-hidden="true">↗</span></button></div>
+          <p>查看异常、解释指标，或粘贴一张截图询问画面内容。</p>
+          <div class="suggestions"><button v-for="question in suggestedQuestions" :key="question" :disabled="!canAsk || running" @click="input=question">{{ question }}<span aria-hidden="true">↗</span></button></div>
         </div>
-        <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" :question-context="m.question_context" :text-source="m.role==='assistant'?(m.text_source_id?{kind:'message',message_id:m.text_source_id}:m.run_id?{kind:'message',run_id:m.run_id}:null):null" @rendered="scrollDown" />
+        <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" :vision="m.vision" :question-context="m.question_context" :text-source="m.role==='assistant'?(m.text_source_id?{kind:'message',message_id:m.text_source_id}:m.run_id?{kind:'message',run_id:m.run_id}:null):null" @rendered="scrollDown" />
       </div>
       <div class="reading-controls"><span>{{ scrollState.following ? '跟随最新内容' : '已暂停跟随，可继续阅读' }}</span><button v-if="!scrollState.following" type="button" class="latest" @click="latest">{{ scrollState.hasUnseen ? '有新内容 · 回到最新' : '回到最新' }} <span aria-hidden="true">↓</span></button></div>
     </div>
+    <p v-if="aiNotice" class="tip warning" role="alert">{{aiNotice}} <button type="button" class="retry" @click="recheckConfig">重新检查配置</button></p>
     <form class="composer" @submit.prevent="send">
-      <textarea aria-label="向水质分析助手提问" v-model="input" rows="2" :disabled="!canAsk || !store.ready || store.loading || running"
-        placeholder="描述你想了解的异常、指标或证据…" @keydown="composerKey"></textarea>
-      <div class="composer-actions"><span class="keyboard-hint">Enter 发送 · Shift+Enter 换行</span><button type="submit" :disabled="!input.trim() || running || !store.ready || store.loading || !canAsk">发送 <span aria-hidden="true">↑</span></button></div>
+      <textarea ref="composerEl" aria-label="向水质分析助手提问" v-model="input" rows="2" :disabled="!canAsk || !store.ready || store.loading || running"
+        :placeholder="selectedKind==='image_asset' ? '说说你想从这张图片了解什么…' : '描述你想了解的异常、指标或证据…'" @keydown="composerKey" @input="autosize" @paste="onPaste"></textarea>
+      <div class="composer-actions">
+        <div class="composer-tools">
+          <button type="button" class="attach" :disabled="!canAttach" :title="canAttach ? '添加或粘贴一张截图' : '当前任务结束后可添加图片'" @click="pickImage">图片</button>
+          <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" hidden @change="onFileChange">
+          <button v-if="attachmentBusy" type="button" class="attach" disabled>正在读取图片…</button>
+          <button v-else-if="failedAttachment" type="button" class="attach retry-attach" @click="retryAttachment">重试读取图片</button>
+          <span class="keyboard-hint">Enter 发送 · Shift+Enter 换行 · 可粘贴截图</span>
+        </div>
+        <span v-if="attachmentError" class="attach-error" role="alert">{{attachmentError}}</span>
+        <button type="submit" :disabled="!input.trim() || running || !store.ready || store.loading || !canAsk">发送 <span aria-hidden="true">↑</span></button>
+      </div>
     </form>
   </Panel>
   <Panel class="followup-workspace" title="排查与复测" subtitle="保存候选假设、核对依据和人工复测记录">
@@ -262,22 +403,36 @@ async function submit(text,auto) {
 <style scoped>
 .primary{display:inline-flex;align-items:center;gap:8px;background:var(--c-accent);color:#07222f;border:1px solid transparent;padding:10px 16px;border-radius:var(--radius-sm);font-weight:650;font-size:13px;min-height:42px}.primary svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.4}.primary:disabled{opacity:.45;cursor:not-allowed}
 .context-strip{flex-shrink:0;border-bottom:1px solid var(--c-border-soft);margin-bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;color:var(--c-sub);font-size:13px;padding-bottom:6px}.project-tag{color:var(--c-ink);font-weight:600;max-width:100%;overflow-wrap:anywhere}.data-kind{color:#73d5be;border:1px solid #2d635a;border-radius:5px;padding:1px 6px}
-.tip{margin:0 0 16px;padding:12px 14px;background:var(--c-surface-2);border-radius:var(--radius-sm);color:var(--c-sub);font-size:13px}.warning{border-left:3px solid var(--sev-mild)}
-.conversation{position:relative;display:flex;flex-direction:column;flex:1;min-height:160px}.stream{flex:1;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:6px 12px 20px 2px;display:flex;flex-direction:column;gap:28px;overflow-anchor:none}
-.reading-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:34px;padding:4px 2px;color:var(--c-sub);font-size:12px}.latest{white-space:nowrap;border:1px solid var(--c-border);border-radius:20px;background:var(--c-surface-2);color:var(--c-ink);padding:5px 12px;font-size:12px;min-height:30px}
-.placeholder{padding:38px 12px;max-width:620px;width:100%;margin:auto;color:var(--c-sub)}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--c-accent)}.placeholder h3{font-size:25px;font-weight:600;color:var(--c-ink);margin:8px 0}.placeholder p{font-size:14px;margin:0 0 24px;line-height:1.8}
-.suggestions{display:grid;gap:8px}.suggestions button{text-align:left;padding:12px 14px;border:1px solid var(--c-border);border-radius:var(--radius-sm);background:transparent;color:var(--c-ink);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;line-height:1.6}.suggestions button:hover:not(:disabled){border-color:var(--c-accent);background:var(--c-surface-2)}.suggestions button:disabled{opacity:.45}
-.composer{margin-top:6px;border:1px solid var(--c-border);border-radius:var(--radius-md);background:var(--c-surface-2);padding:8px 10px;transition:border-color var(--duration-fast)}.composer:focus-within{border-color:var(--c-accent);box-shadow:0 0 0 2px #7cd4eb12}.composer textarea{display:block;resize:vertical;width:100%;min-height:52px;max-height:180px;background:transparent;border:0;outline:0;color:var(--c-ink);padding:4px;font:inherit;font-size:14px;line-height:1.65}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.keyboard-hint{font-size:11px;color:var(--c-sub)}
-.composer button{display:flex;align-items:center;gap:12px;background:var(--c-accent);color:#07222f;border:0;padding:8px 15px;border-radius:var(--radius-sm);font-weight:650;min-height:36px}.composer button:disabled{opacity:.4;cursor:not-allowed}
+.chat-summary{flex-shrink:0;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;min-height:28px;padding:1px 0 2px;color:var(--c-sub);font-size:12px;overflow-wrap:anywhere}
+.chat-summary .project-tag{max-width:min(42ch,60%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.summary-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.vision-chip{color:var(--c-accent);border:1px solid var(--c-border);border-radius:12px;padding:1px 8px;font-size:11px;white-space:nowrap}
+.info-toggle{margin-left:auto;flex-shrink:0;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-ink);border-radius:20px;padding:3px 10px;font:inherit;font-size:11px;min-height:26px;white-space:nowrap}
+.info-toggle+.info-toggle{margin-left:0}
+.info-toggle:disabled{opacity:.5}
+.info-toggle[aria-expanded=true]{border-color:var(--c-accent);color:var(--c-accent)}
+.context-line{flex-shrink:0;display:flex;align-items:center;gap:8px;min-height:28px;padding:2px 0;font-size:12px;color:var(--c-sub);min-width:0}
+.context-kind{flex-shrink:0;color:var(--c-accent);border:1px solid var(--c-border);border-radius:10px;padding:0 7px;font-size:10px;line-height:20px}
+.context-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-ink)}
+.context-remove{margin-left:auto;flex-shrink:0;border:0;background:transparent;color:var(--c-sub);font:inherit;font-size:11px;padding:3px 4px;min-height:24px}
+.analysis-info{flex-shrink:0;max-height:40vh;overflow:auto;overscroll-behavior:contain;border-bottom:1px solid var(--c-border-soft);margin-bottom:6px;padding-bottom:8px;min-height:0}
+.tip{margin:0 0 16px;padding:12px 14px;background:var(--c-surface-2);border-radius:var(--radius-sm);color:var(--c-sub);font-size:14px}.warning{border-left:3px solid var(--sev-mild)}
+.conversation{position:relative;display:flex;flex-direction:column;flex:1;min-height:0}.stream{flex:1;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:6px 12px 20px 2px;display:flex;flex-direction:column;gap:28px;overflow-anchor:none}
+.reading-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:30px;padding:2px;color:var(--c-sub);font-size:12px}.latest{white-space:nowrap;border:1px solid var(--c-border);border-radius:20px;background:var(--c-surface-2);color:var(--c-ink);padding:5px 12px;font-size:12px;min-height:30px}
+.placeholder{padding:38px 12px;max-width:620px;width:100%;margin:auto;color:var(--c-sub)}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--c-accent)}.placeholder h3{font-size:25px;font-weight:600;color:var(--c-ink);margin:8px 0}.placeholder p{font-size:15px;margin:0 0 24px;line-height:1.8}
+.suggestions{display:grid;gap:8px}.suggestions button{text-align:left;padding:12px 14px;border:1px solid var(--c-border);border-radius:var(--radius-sm);background:transparent;color:var(--c-ink);font-size:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;line-height:1.6}.suggestions button:hover:not(:disabled){border-color:var(--c-accent);background:var(--c-surface-2)}.suggestions button:disabled{opacity:.45}
+.composer{margin-top:6px;border:1px solid var(--c-border);border-radius:var(--radius-md);background:var(--c-surface-2);padding:5px 10px;transition:border-color var(--duration-fast)}.composer:focus-within{border-color:var(--c-accent);box-shadow:0 0 0 2px #7cd4eb12}.composer textarea{display:block;resize:none;width:100%;min-height:52px;max-height:140px;overflow-y:auto;background:transparent;border:0;outline:0;color:var(--c-ink);padding:4px;font:inherit;font-size:15px;line-height:1.65}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.composer-tools{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}.keyboard-hint{font-size:12px;color:var(--c-sub)}.attach{background:transparent;color:var(--c-sub);border:1px solid var(--c-border);border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;min-height:30px}.attach:hover:not(:disabled){border-color:var(--c-accent);color:var(--c-ink)}.attach:disabled{opacity:.5}.attach-error{color:#ffb7a7;font-size:11px;flex-basis:100%;order:3;margin:0}
+.composer button{display:flex;align-items:center;gap:12px;background:var(--c-accent);color:#07222f;border:0;padding:6px 15px;border-radius:var(--radius-sm);font-weight:650;min-height:32px}.composer button:disabled{opacity:.4;cursor:not-allowed}
 .investigation-details>summary{cursor:pointer;color:var(--c-ink);font-size:13px;padding:2px 0}.investigation-details[open]>summary{margin-bottom:18px}.retry{margin-bottom:12px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-ink);border-radius:var(--radius-sm);padding:8px 12px}
 @media(max-width:600px){.stream{gap:16px;padding-right:2px}.context-strip{gap:6px 12px}.primary{min-height:40px;padding:8px 12px}.placeholder{padding:24px 4px}.placeholder h3{font-size:22px}.keyboard-hint{font-size:10px}.reading-controls{font-size:11px}.latest{font-size:11px}}
 
-/* 固定工作区高度，正文占据剩余空间；进度条与输入区保持紧凑，不再用多组高度常量互相覆盖。 */
-.chat-workspace{display:flex;flex-direction:column;height:calc(100dvh - 122px);min-height:580px}
+/* 工作区高度跟随视口；正文 flex:1 且 min-height:0，不再用 580px 固定高度撑坏矮屏。 */
+.chat-workspace{display:flex;flex-direction:column;height:calc(100dvh - 122px);min-height:0}
 .chat-workspace > :deep(.head){flex-shrink:0;padding:10px 20px}
-.chat-workspace > :deep(.body){display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto;padding:10px 20px}
+.chat-workspace > :deep(.body){display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:8px 20px 10px}
 .chat-workspace :deep(.progress){flex-shrink:0}
 .retry,.reading-controls,.composer{flex-shrink:0}
 @media(max-width:1023px){.chat-workspace{height:calc(100dvh - 104px)}}
-@media(max-width:600px){.chat-workspace{height:calc(100dvh - 96px)}.chat-workspace > :deep(.head),.chat-workspace > :deep(.body){padding:10px 14px}.conversation{min-height:120px}}
+@media(max-width:600px){.chat-workspace{height:calc(100dvh - 96px)}.chat-workspace > :deep(.head),.chat-workspace > :deep(.body){padding:8px 14px}.conversation{min-height:0}.summary-meta{display:none}.keyboard-hint{display:none}.info-toggle{padding:5px 10px}}
+@media(max-height:520px){.chat-workspace{height:calc(100dvh - 88px)}.chat-workspace > :deep(.head){padding:4px 14px}.chat-workspace > :deep(.body){padding:4px 14px;position:relative}.chat-summary{min-height:26px;padding:1px 0 2px;position:relative;z-index:7;background:var(--c-surface)}.info-toggle{min-height:26px;padding:3px 10px}.conversation{min-height:0}.placeholder{display:none}.reading-controls{min-height:26px;padding:2px}.composer{padding:5px 8px}.composer textarea{min-height:40px;max-height:96px}.analysis-info{position:absolute;left:0;right:0;top:36px;bottom:0;max-height:none;margin:0;padding:10px 14px;background:var(--c-surface);border-top:1px solid var(--c-border);z-index:6}}
 </style>

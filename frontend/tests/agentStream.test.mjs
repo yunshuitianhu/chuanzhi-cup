@@ -49,3 +49,13 @@ test('未知扩展事件可忽略，但不能代替明确终态',async()=>{
   assert.equal(events[0][1].status,'partial')
   await assert.rejects(consumeAgentStream(body('event: future\ndata: {}\n\n'),()=>{}),/连接已中断/)
 })
+
+
+test('图片状态事件单独解码，非法状态拒绝，未知事件仍不能充当终态',async()=>{
+  assert.deepEqual(decodeAgentEvent('vision',{status:'sent',images:[{sha256:'a'.repeat(64)}],errors:[]}),
+    ['vision',{status:'sent',images:[{sha256:'a'.repeat(64)}],errors:[]}])
+  assert.deepEqual(decodeAgentEvent('vision',{status:'failed',errors:['图片无法解码']}),
+    ['vision',{status:'failed',errors:['图片无法解码']}])
+  assert.throws(()=>decodeAgentEvent('vision',{status:'unknown'}))
+  assert.throws(()=>decodeAgentEvent('vision',{status:'sent',images:'bad'}))
+})

@@ -34,6 +34,12 @@ export function decodeAgentEvent(event, value) {
     case 'tool_done': valid = typeof value.name === 'string' && typeof value.ok === 'boolean'
       && typeof value.status === 'string' && ['succeeded','failed','skipped'].includes(value.status)
       && value.ok === (value.status !== 'failed'); break
+    case 'vision':
+      valid = typeof value.status === 'string' && ['sent','failed'].includes(value.status)
+        && (value.images === undefined || (Array.isArray(value.images)
+          && value.images.every(image => record(image) && (image.sha256 === undefined || typeof image.sha256 === 'string'))))
+        && (value.errors === undefined || (Array.isArray(value.errors) && value.errors.every(text => typeof text === 'string')))
+        && (value.error === undefined || typeof value.error === 'string'); break
     case 'done':
       if (typeof value.status !== 'string' || !TERMINAL.includes(value.status)) throw new Error('分析缺少有效结束状态')
       break

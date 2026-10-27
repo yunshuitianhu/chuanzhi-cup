@@ -10,10 +10,12 @@ import TextQuoteCard from './TextQuoteCard.vue'
 import QuestionContextCard from './QuestionContextCard.vue'
 const store=useSessionStore(),router=useRouter(),panel=ref(null),scroller=ref(null)
 const q=computed(()=>store.textQuestions)
+const canAttachSide=computed(()=>store.ready&&!store.loading&&!store.chatRunning&&!store.switchingProject&&!sending.value)
 const active=computed(()=>q.value.threads.find(t=>t.id===q.value.active))
 const draftKey=computed(()=>q.value.active||(q.value.pendingSide?quoteKey(q.value.pendingSide):'new'))
 const draft=computed({get:()=>q.value.drafts[draftKey.value]||'',set:value=>{q.value.drafts[draftKey.value]=value}})
-const modal=ref(false),partial=ref(''),partialThreadId=ref(''),sending=ref(false),failedQuestion=ref(null)
+const modal=ref(false),partial=ref(''),partialThreadId=ref(''),sending=ref(false),failedQuestion=ref(null),visionNote=ref('')
+const sideFileInput=ref(null),sideUploading=ref(false),sideUploadError=ref(''),failedSideFile=ref(null)
 const visiblePartial=computed(()=>{
   if(!q.value.streaming||q.value.active!==partialThreadId.value)return ''
   const recorded=active.value?.messages?.some(m=>m.role==='assistant'&&m.run_id&&m.run_id===q.value.run?.run_id)
@@ -33,14 +35,56 @@ watch(()=>q.value.open,async open=>{
   else{document.body.style.overflow=overflow;await nextTick();if(previousFocus?.isConnected)previousFocus.focus();else document.querySelector('.sidebar-toggle')?.focus()}
 })
 watch(()=>[store.ready,store.workspaceRevision],()=>{if(store.ready)store.loadSideThreads()},{immediate:true})
-watch(()=>store.workspaceRevision,()=>{partial.value='';partialThreadId.value='';failedQuestion.value=null})
+watch(()=>store.workspaceRevision,()=>{partial.value='';partialThreadId.value='';failedQuestion.value=null;visionNote.value='';sideUploadError.value='';failedSideFile.value=null})
+watch(()=>q.value.active,()=>{visionNote.value='';sideUploadError.value='';failedSideFile.value=null})
 onMounted(()=>{media=matchMedia('(max-width:1279px)');modal.value=media.matches;media.onchange=e=>{modal.value=e.matches;if(q.value.open)document.body.style.overflow=e.matches?'hidden':overflow};timer=setInterval(async()=>{if(polling||!store.ready||(!store.sideRunning&&!q.value.streaming))return;polling=true;try{await store.loadSideThreads()}finally{polling=false}},2000)})
 onBeforeUnmount(()=>{clearInterval(timer);if(media)media.onchange=null;if(q.value.open)document.body.style.overflow=overflow})
 async function transfer(){
   const quote=active.value?.quote
   if(!quote)return
-  store.captureTextQuote({text:quote.excerpt,source:quote.selection.source,title:quote.title},'main',quote.scope)
-  q.value.open=false;await router.push('/chat')
+  try{
+    if(quote.kind==='text_quote'){
+      store.captureTextQuote({text:quote.excerpt,source:quote.selection.source,title:quote.title},'main',quote.scope)
+    }else{
+      await store.transferQuoteToMain(quote)
+    }
+    q.value.open=false;await router.push('/chat')
+  }catch(e){q.value.error=e.message}
+}
+function pickSideImage(){
+  if(!canAttachSide.value){sideUploadError.value='当前任务尚未结束，结束后再添加图片。';return}
+  sideFileInput.value?.click()
+}
+async function onSideFileChange(event){
+  const file=event.target?.files?.[0]
+  if(event.target)event.target.value=''
+  if(file)await attachSideFile(file)
+}
+async function onSidePaste(event){
+  const items=[...(event.clipboardData?.items||[])]
+  const file=items.find(item=>item.kind==='file'&&String(item.type).startsWith('image/'))?.getAsFile()
+  if(!file)return
+  event.preventDefault()
+  await attachSideFile(file)
+}
+async function attachSideFile(file){
+  if(!file)return
+  if(!String(file.type||'').startsWith('image/')&&!/\.(png|jpe?g|webp|bmp)$/i.test(file.name||'')){
+    sideUploadError.value='请选择PNG或JPEG等常见图片。';failedSideFile.value=null;return
+  }
+  if(!canAttachSide.value){sideUploadError.value='当前任务尚未结束，结束后再添加图片。';return}
+  sideUploading.value=true;sideUploadError.value='';failedSideFile.value=null;q.value.error=''
+  try{
+    const thread=await store.attachSideMedia(file)
+    if(!thread)throw new Error('准备期间项目或版本已变化，请重新添加图片。')
+    await nextTick()
+    panel.value?.querySelector('textarea')?.focus()
+  }catch(e){
+    sideUploadError.value=e.message;failedSideFile.value=file
+  }finally{sideUploading.value=false}
+}
+async function retrySideAttachment(){
+  if(failedSideFile.value)await attachSideFile(failedSideFile.value)
 }
 async function stop(){try{await api.stopSideRun(q.value.run.run_id);await store.loadSideThreads()}catch(e){q.value.error=e.message}}
 async function send(){
@@ -51,7 +95,7 @@ async function send(){
   const originKey=draftKey.value
   let key=originKey,failed=false,title=active.value?.quote.title||q.value.pendingSide?.title||'所选引用'
   const showError=message=>{q.value.error=q.value.active===key?message:'另一解释线程（'+title+'）：'+message}
-  sending.value=true;q.value.error='';q.value.notice='';partial.value=''
+  sending.value=true;q.value.error='';q.value.notice='';partial.value='';visionNote.value=''
   try{
     const thread=await store.prepareSideThread()
     if(!current())return
@@ -74,6 +118,12 @@ async function send(){
       if(payload.thread_id!==thread.id)throw Error('收到其他线程的事件，已停止显示')
       if(runId&&payload.run_id&&payload.run_id!==runId)throw Error('收到其他任务的事件，已停止显示')
       if(payload.progress)q.value.run={...payload.progress,thread_id:thread.id}
+      if(event==='vision'){
+        const images=Array.isArray(payload.images)?payload.images:[]
+        visionNote.value=payload.status==='sent'
+          ? `已向模型发送${images.length>1?` ${images.length} 张`:' 1 张'}图片`
+          : `图片未读取成功：${(Array.isArray(payload.errors)?payload.errors:[payload.error]).filter(Boolean).join('；')||'未知原因'}`
+      }
       if(event==='delta')partial.value+=payload.text||''
       if(event==='error'){failed=true;showError(payload.message||'本轮解释未完成')}
       if(event==='done'&&payload.status!=='succeeded'){failed=true;showError('本轮解释已停止；可保留问题后显式重试。')}
@@ -99,24 +149,36 @@ function composerKey(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCo
   <Teleport to="body">
     <button v-if="q.open&&modal" class="side-shade" aria-label="关闭侧边问答" tabindex="-1" @click="close"></button>
     <aside v-show="q.open" ref="panel" class="side-questions" :role="modal?'dialog':'complementary'" :aria-modal="modal?'true':undefined" aria-label="文字解释侧边问答" @keydown="keys">
-      <header><div><h2>围绕这段文字提问</h2><p>独立解释线程 · 不改写主报告</p></div><button type="button" @click="close">收起</button></header>
+      <header><div><h2>围绕文字或图片提问</h2><p>独立解释线程 · 不改写主报告</p></div><button type="button" @click="close">收起</button></header>
       <label class="threads">历史解释线程<select v-model="q.active" :disabled="sending"><option value="">当前新引用</option><option v-for="t in q.threads" :key="t.id" :value="t.id">{{t.quote.title}} · {{t.messages.length}}条{{t.historical?' · 历史版本':''}}</option></select></label>
       <div ref="scroller" class="side-history" tabindex="0" aria-label="侧边解释消息">
         <QuestionContextCard v-if="active" :context="active.quote" />
         <TextQuoteCard v-else-if="q.pendingSide" :quote="q.pendingSide" removable @remove="q.pendingSide=null" />
-        <p v-else class="tip">从报告、资料原文或页面说明选择文字，或点击“引用此段”。</p>
+        <p v-else class="tip">从报告、资料原文或页面说明选择文字，或点击“引用此段”；也可以直接粘贴一张截图。</p>
         <p v-if="active?.historical" class="tip">该引用属于历史版本，仅供阅读；重新选择当前来源后才能继续提问。</p>
         <article v-for="(m,i) in active?.messages||[]" :key="active.id+':'+i" :class="['side-message',m.role]">
-          <strong>{{m.role==='user'?'我':m.role==='assistant'?'解释助手':'未完成提示'}}</strong><span v-if="m.incomplete"> · 未完整完成</span>
+          <strong>{{m.role==='user'?'我':m.role==='assistant'?'解释助手':'未完成提示'}}</strong><span v-if="m.incomplete"> · 未完整完成</span><span v-if="m.vision"> · {{m.vision.sent?'已发送图片':'图片未读取'}}</span>
           <SafeMarkdown v-if="m.role==='assistant'" :content="m.content" /><p v-else>{{m.content}}</p>
         </article>
         <article v-if="visiblePartial" class="side-message assistant"><strong>正在解释…</strong><SafeMarkdown :content="visiblePartial" /></article>
       </div>
-      <p v-if="q.error" class="failure" role="alert">{{q.error}}</p><p v-if="visibleNotice" class="tip" role="status">{{visibleNotice}}</p>
+      <p v-if="q.error" class="failure" role="alert">{{q.error}}</p><p v-if="visionNote" class="tip" role="status">{{visionNote}}</p><p v-if="visibleNotice" class="tip" role="status">{{visibleNotice}}</p>
       <details v-if="failedQuestion" class="tip"><summary>查看未完成问题（{{failedQuestion.title}}）</summary><p style="white-space:pre-wrap;max-height:120px;overflow:auto">{{failedQuestion.text}}</p></details>
+      <p v-if="sideUploadError" class="failure" role="alert">{{sideUploadError}}</p>
       <p v-if="store.chatRunning&&!q.streaming&&!store.sideRunning" class="tip">主任务执行中，可以整理引用和问题；结束后再发送。</p>
       <div class="side-actions"><button v-if="active" type="button" :disabled="sending" @click="transfer">将引用添加到主对话</button><button v-if="store.sideRunning" type="button" :disabled="!q.run?.run_id||!q.run?.busy" @click="stop">停止解释</button><button type="button" @click="store.loadSideThreads()">核对状态</button></div>
-      <form @submit.prevent="send"><textarea v-model="draft" aria-label="围绕引用文字提问" rows="3" maxlength="10000" placeholder="这句话具体是什么意思？依据或适用条件是什么？" :disabled="!store.ready||store.switchingProject" @keydown="composerKey"></textarea><div class="send-row"><span>Enter发送 · Shift+Enter换行</span><button type="submit" :disabled="!draft.trim()||sending||store.chatRunning||store.loading||(!active&&!q.pendingSide)||active?.historical">{{sending?'解释中…':'发送问题'}}</button></div></form>
+      <form @submit.prevent="send"><textarea v-model="draft" aria-label="围绕引用文字或图片提问" rows="3" maxlength="10000" placeholder="这句话或这张图具体是什么意思？依据或适用条件是什么？" :disabled="!store.ready||store.switchingProject" @keydown="composerKey" @paste="onSidePaste"></textarea>
+        <div class="send-row">
+          <div class="side-tools">
+            <button type="button" class="side-attach" :disabled="!canAttachSide" :title="canAttachSide?'添加或粘贴一张截图':'当前任务结束后可添加图片'" @click="pickSideImage">图片</button>
+            <input ref="sideFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" hidden @change="onSideFileChange">
+            <button v-if="sideUploading" type="button" class="side-attach" disabled>正在读取图片…</button>
+            <button v-else-if="failedSideFile" type="button" class="side-attach" @click="retrySideAttachment">重试读取图片</button>
+            <span>Enter发送 · Shift+Enter换行</span>
+          </div>
+          <button type="submit" :disabled="!draft.trim()||sending||store.chatRunning||store.loading||(!active&&!q.pendingSide)||active?.historical">{{sending?'解释中…':'发送问题'}}</button>
+        </div>
+      </form>
     </aside>
   </Teleport>
 </template>
@@ -145,7 +207,10 @@ select { width:100%; min-height:39px; max-width:100%; background:var(--c-bg); }
 .failure { font-size:12px; color:#ffb7a7; margin:0; line-height:1.7; overflow-wrap:anywhere; }
 .side-actions { display:flex; gap:7px; flex-wrap:wrap; }
 .side-actions button { font-size:11px; min-height:32px; }
-.send-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:9px; }
+.send-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:9px; flex-wrap:wrap; }
+.side-tools { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
+.side-attach { font-size:11px; min-height:30px; padding:4px 9px; background:transparent; color:var(--c-sub); }
+.side-attach:hover:not(:disabled) { border-color:var(--c-accent); color:var(--c-ink); }
 .send-row span { font-size:10px; color:var(--c-sub); }
 .send-row button { background:var(--c-accent); border-color:var(--c-accent); color:#081823; font-weight:600; padding-inline:16px; }
 textarea { width:100%; resize:vertical; min-height:88px; max-height:180px; font-size:13px; line-height:1.7; background:var(--c-bg); }

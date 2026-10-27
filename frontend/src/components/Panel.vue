@@ -3,11 +3,13 @@
 defineProps({
   title: { type: String, default: '' },
   subtitle: { type: String, default: '' },
+  /** 只影响本卡片：对话页用单行标题，避免旧大标题与新摘要重复占行。 */
+  dense: Boolean,
 })
 </script>
 
 <template>
-  <section class="card">
+  <section class="card" :class="{dense}">
     <header v-if="title" class="head">
       <div>
         <h2 class="title">{{ title }}</h2>
@@ -27,6 +29,11 @@ defineProps({
 .sub{margin:6px 0 0;font-size:12px;color:var(--c-sub);line-height:1.8}
 .head>div{min-width:0}.actions{max-width:100%}.actions:empty{display:none}
 .body{padding:22px 24px;min-width:0}
-@media(max-width:600px){.card{border-radius:10px;margin-bottom:18px}.head{padding:16px;gap:12px}.body{padding:16px}.title{font-size:18px}.title,.sub{overflow-wrap:anywhere}}
+.dense .head{padding:10px 20px;flex-wrap:nowrap;gap:12px}
+.dense .title{font-size:16px;letter-spacing:0}
+.dense .sub{display:none}
+.dense .actions{flex-shrink:0}
+@media(max-width:600px){.card{border-radius:10px;margin-bottom:18px}.head{padding:16px;gap:12px}.body{padding:16px}.title{font-size:18px}.title,.sub{overflow-wrap:anywhere}
+.dense .head{padding:8px 14px}.dense .title{font-size:15px}}
 
 </style>
