@@ -17,6 +17,11 @@
   --duration-fast:160ms;
   --shadow-float:0 12px 36px #0004;
   --control-height:40px;
+  --font-body:15px;
+  --font-content:16px;
+  --font-control:14px;
+  --font-small:12px;
+  --font-label:12px;
   --sev-normal:#2E8B57;
   --sev-mild:#FFA500;
   --sev-moderate:#FF4500;
@@ -24,8 +29,8 @@
   --sev-critical:#8B0000;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--c-bg);color:var(--c-ink);font-family:'Microsoft YaHei','PingFang SC',-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.7;-webkit-font-smoothing:antialiased}
-button,input,select,textarea{font-family:inherit}
+body{margin:0;background:var(--c-bg);color:var(--c-ink);font-family:'Microsoft YaHei','PingFang SC',-apple-system,system-ui,sans-serif;font-size:var(--font-body);line-height:1.75;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit;font-size:var(--font-control)}
 button{font-size:inherit;cursor:pointer}
 button:disabled{cursor:not-allowed}
 a{color:var(--c-accent)}

@@ -1,0 +1,328 @@
+{
+  "url": "http://127.0.0.1:5180/chat",
+  "checks": [
+    {
+      "width": 320,
+      "route": "/chat",
+      "viewport": [
+        320,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 184,
+      "contentVisible": true,
+      "visibleButtons": 8,
+      "answerFont": null,
+      "descriptionFont": null,
+      "tabVisible": true,
+      "composerVisible": true,
+      "pass": true
+    },
+    {
+      "width": 320,
+      "route": "/charts",
+      "viewport": [
+        320,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 3324,
+      "contentVisible": true,
+      "visibleButtons": 9,
+      "answerFont": null,
+      "descriptionFont": "13px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 320,
+      "route": "/river",
+      "viewport": [
+        320,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 3245,
+      "contentVisible": true,
+      "visibleButtons": 6,
+      "answerFont": null,
+      "descriptionFont": "14px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 320,
+      "route": "/tech",
+      "viewport": [
+        320,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 6146,
+      "contentVisible": true,
+      "visibleButtons": 12,
+      "answerFont": null,
+      "descriptionFont": "13px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 390,
+      "route": "/chat",
+      "viewport": [
+        390,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 184,
+      "contentVisible": true,
+      "visibleButtons": 8,
+      "answerFont": null,
+      "descriptionFont": null,
+      "tabVisible": true,
+      "composerVisible": true,
+      "pass": true
+    },
+    {
+      "width": 390,
+      "route": "/charts",
+      "viewport": [
+        390,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 3085,
+      "contentVisible": true,
+      "visibleButtons": 9,
+      "answerFont": null,
+      "descriptionFont": "13px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 390,
+      "route": "/river",
+      "viewport": [
+        390,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 2919,
+      "contentVisible": true,
+      "visibleButtons": 6,
+      "answerFont": null,
+      "descriptionFont": "14px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 390,
+      "route": "/tech",
+      "viewport": [
+        390,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 4901,
+      "contentVisible": true,
+      "visibleButtons": 14,
+      "answerFont": null,
+      "descriptionFont": "13px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 768,
+      "route": "/chat",
+      "viewport": [
+        768,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 222,
+      "contentVisible": true,
+      "visibleButtons": 8,
+      "answerFont": null,
+      "descriptionFont": null,
+      "tabVisible": true,
+      "composerVisible": true,
+      "pass": true
+    },
+    {
+      "width": 768,
+      "route": "/charts",
+      "viewport": [
+        768,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 2805,
+      "contentVisible": true,
+      "visibleButtons": 9,
+      "answerFont": null,
+      "descriptionFont": "13px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 768,
+      "route": "/river",
+      "viewport": [
+        768,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 1641,
+      "contentVisible": true,
+      "visibleButtons": 6,
+      "answerFont": null,
+      "descriptionFont": "14px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 768,
+      "route": "/tech",
+      "viewport": [
+        768,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 3325,
+      "contentVisible": true,
+      "visibleButtons": 14,
+      "answerFont": null,
+      "descriptionFont": "13px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 1280,
+      "route": "/chat",
+      "viewport": [
+        1280,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 222,
+      "contentVisible": true,
+      "visibleButtons": 30,
+      "answerFont": null,
+      "descriptionFont": null,
+      "tabVisible": true,
+      "composerVisible": true,
+      "pass": true
+    },
+    {
+      "width": 1280,
+      "route": "/charts",
+      "viewport": [
+        1280,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 2178,
+      "contentVisible": true,
+      "visibleButtons": 31,
+      "answerFont": null,
+      "descriptionFont": "13px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 1280,
+      "route": "/river",
+      "viewport": [
+        1280,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 1460,
+      "contentVisible": true,
+      "visibleButtons": 28,
+      "answerFont": null,
+      "descriptionFont": "14px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "width": 1280,
+      "route": "/tech",
+      "viewport": [
+        1280,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 3232,
+      "contentVisible": true,
+      "visibleButtons": 36,
+      "answerFont": null,
+      "descriptionFont": "13px",
+      "tabVisible": true,
+      "composerVisible": false,
+      "pass": true
+    },
+    {
+      "viewport": [
+        1280,
+        800
+      ],
+      "bodyFont": "15px",
+      "overflowX": 0,
+      "overflowY": 1244,
+      "contentVisible": true,
+      "visibleButtons": 30,
+      "answerFont": null,
+      "descriptionFont": null,
+      "tabVisible": true,
+      "composerVisible": true,
+      "width": 1280,
+      "route": "/chat",
+      "zoom": "200%",
+      "pass": true
+    }
+  ],
+  "screenshots": [
+    "docs\\validation\\readability_320_chat.png",
+    "docs\\validation\\readability_320_charts.png",
+    "docs\\validation\\readability_320_river.png",
+    "docs\\validation\\readability_320_tech.png",
+    "docs\\validation\\readability_390_chat.png",
+    "docs\\validation\\readability_390_charts.png",
+    "docs\\validation\\readability_390_river.png",
+    "docs\\validation\\readability_390_tech.png",
+    "docs\\validation\\readability_1280_chat.png",
+    "docs\\validation\\readability_1280_charts.png",
+    "docs\\validation\\readability_1280_river.png",
+    "docs\\validation\\readability_1280_tech.png",
+    "docs\\validation\\readability_zoom200_chat.png"
+  ],
+  "passed": true
+}

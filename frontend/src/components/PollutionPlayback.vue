@@ -57,7 +57,7 @@ const option=computed(()=>{
     animation:false,
     grid:{left:56,right:30,top:38,bottom:45},
     tooltip:{trigger:'axis',valueFormatter:v=>`${numberText(v)} mg/L`},
-    title:{text:`${d.label}沿程浓度 · T+${numberText(currentTime.value)} h`,textStyle:{color:'#dae7f3',fontSize:13},left:12},
+    title:{text:`${d.label}沿程浓度 · T+${numberText(currentTime.value)} h`,textStyle:{color:'#dae7f3',fontSize:14},left:12},
     xAxis:{type:'value',name:'桩号 m',nameLocation:'middle',nameGap:28,axisLabel:{color:'#95abbe'},splitLine:{lineStyle:{color:'#263848'}}},
     yAxis:{type:'value',name:'mg/L',min:0,max:Math.max(d.color_scale.max,d.limit ?? 0)*1.1 || 1,
       axisLabel:{color:'#95abbe'},splitLine:{lineStyle:{color:'#263848'}}},

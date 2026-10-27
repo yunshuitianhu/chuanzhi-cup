@@ -54,7 +54,7 @@ const heatOption = computed(() => {
     grid: { left: 108, right: 76, top: 16, bottom: 46 },
     tooltip: {
       backgroundColor: 'rgba(20,30,40,.95)', borderColor: '#2a3947',
-      textStyle: { color: '#e8eef5', fontSize: 12 },
+      textStyle: { color: '#e8eef5', fontSize: 13 },
       formatter: (p) => {
         const c = corr.find(
           (x) => x.视频指标 === vLabels[p.value[1]] && x.传感器指标 === sLabels[p.value[0]],
@@ -65,23 +65,23 @@ const heatOption = computed(() => {
     },
     xAxis: {
       type: 'category', data: sLabels, splitArea: { show: true },
-      axisLabel: { color: '#94a7b8', fontSize: 11 },
+      axisLabel: { color: '#94a7b8', fontSize: 12 },
       axisLine: { lineStyle: { color: '#2a3947' } },
     },
     yAxis: {
       type: 'category', data: vLabels, splitArea: { show: true },
-      axisLabel: { color: '#94a7b8', fontSize: 11 },
+      axisLabel: { color: '#94a7b8', fontSize: 12 },
       axisLine: { lineStyle: { color: '#2a3947' } },
     },
     visualMap: {
       min: -1, max: 1, calculable: true, orient: 'vertical', right: 8, top: 'center',
-      textStyle: { color: '#94a7b8', fontSize: 11 },
+      textStyle: { color: '#94a7b8', fontSize: 12 },
       inRange: { color: ['#2ea3f2', '#17212b', '#ff4d6d'] },
     },
     series: [{
       type: 'heatmap', data,
       label: {
-        show: true, fontSize: 11,
+        show: true, fontSize: 12,
         formatter: (p) => Number(p.value[2]).toFixed(2),
         color: '#e8eef5',
       },

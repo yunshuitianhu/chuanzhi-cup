@@ -21,7 +21,7 @@ watch(displayed, async () => { await nextTick(); emit('rendered') })
 </template>
 
 <style scoped>
-.report-markdown { line-height:1.85; font-size:14px; overflow-wrap:anywhere; min-width:0; }
+.report-markdown { line-height:1.9; font-size:var(--font-content); overflow-wrap:anywhere; min-width:0; }
 .report-markdown :deep(> :first-child) { margin-top:0; }
 .report-markdown :deep(> :last-child) { margin-bottom:0; }
 .report-markdown :deep(h1),.report-markdown :deep(h2),.report-markdown :deep(h3),.report-markdown :deep(h4) { line-height:1.5; margin:1.3em 0 .55em; color:var(--c-ink); }
@@ -37,7 +37,7 @@ watch(displayed, async () => { await nextTick(); emit('rendered') })
 .report-markdown :deep(pre code) { padding:0; background:none; }
 .report-markdown :deep(pre.report-plain) { white-space:pre-wrap; overflow-wrap:anywhere; }
 .report-markdown :deep(.report-table) { max-width:100%; overflow-x:auto; margin:1em 0; }
-.report-markdown :deep(table) { border-collapse:collapse; font-size:13px; min-width:100%; }
+.report-markdown :deep(table) { border-collapse:collapse; font-size:14px; min-width:100%; }
 .report-markdown :deep(th),.report-markdown :deep(td) { padding:8px 10px; border:1px solid var(--c-border); text-align:left; min-width:90px; }
 .report-markdown :deep(th) { background:var(--c-bg); }.report-markdown :deep(hr) { border:0; border-top:1px solid var(--c-border); margin:1.3em 0; }
 </style>

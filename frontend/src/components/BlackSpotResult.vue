@@ -41,7 +41,7 @@ const distOption = computed(() => {
       data: Object.entries(d).map(([k, v]) => ({
         value: v, itemStyle: { color: COLOR[k] || '#2ea3f2' },
       })),
-      label: { show: true, position: 'right', color: '#e8eef5', fontSize: 11 },
+      label: { show: true, position: 'right', color: '#e8eef5', fontSize: 12 },
     }],
   }
 })
