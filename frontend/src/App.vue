@@ -14,7 +14,7 @@ import DataPanel from './components/DataPanel.vue'
 import ProjectPanel from './components/ProjectPanel.vue'
 import TextSelectionMenu from './components/TextSelectionMenu.vue'
 import SideQuestions from './components/SideQuestions.vue'
-import QuestionContextCard from './components/QuestionContextCard.vue'
+import TextSourceReturn from './components/TextSourceReturn.vue'
 import Toast from './components/Toast.vue'
 import { createRouteLoadRecovery } from './utils/routeFailures.js'
 
@@ -194,8 +194,7 @@ const keySummary = computed(() => {
         <div v-if="store.error" class="error-bar">
           <strong>出错了：</strong>{{ store.error }}
         </div>
-        <div v-if="store.textQuestions.sourceCard" id="text-source-return"><QuestionContextCard :context="store.textQuestions.sourceCard" /></div>
-        <p v-if="store.textQuestions.sourceError" class="error-bar" role="alert">{{store.textQuestions.sourceError}}</p>
+        <TextSourceReturn />
         <RouterView v-if="store.ready && !store.switchingProject" :key="store.workspaceRevision" />
       </div>
     </main>

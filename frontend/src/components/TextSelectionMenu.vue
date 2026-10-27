@@ -3,11 +3,9 @@ import {onMounted,onBeforeUnmount,ref,nextTick,watch} from 'vue'
 import {useRouter,useRoute} from 'vue-router'
 import {useSessionStore} from '../stores/session'
 import {selectedPassage,MAX_QUOTE} from '../utils/textQuestions'
-import {api} from '../api/client'
-import {questionContextMatches} from '../utils/questionContext'
 const store=useSessionStore(),router=useRouter(),route=useRoute()
 const selected=ref(null),position=ref({}),menu=ref(null),error=ref('')
-let disposed=false,request=0,raf=0
+let raf=0
 function hide(){cancelAnimationFrame(raf);raf=0;selected.value=null;error.value=''}
 function inspect(){
   const selection=window.getSelection()
@@ -32,26 +30,8 @@ function key(event){
 }
 function outside(event){if(menu.value?.contains(event.target))return;if(!window.getSelection()?.toString())hide()}
 onMounted(()=>{document.addEventListener('selectionchange',changed);document.addEventListener('keydown',key);document.addEventListener('pointerdown',outside);window.addEventListener('scroll',hide,true);window.addEventListener('resize',hide)})
-onBeforeUnmount(()=>{disposed=true;request++;cancelAnimationFrame(raf);document.removeEventListener('selectionchange',changed);document.removeEventListener('keydown',key);document.removeEventListener('pointerdown',outside);window.removeEventListener('scroll',hide,true);window.removeEventListener('resize',hide)})
+onBeforeUnmount(()=>{cancelAnimationFrame(raf);document.removeEventListener('selectionchange',changed);document.removeEventListener('keydown',key);document.removeEventListener('pointerdown',outside);window.removeEventListener('scroll',hide,true);window.removeEventListener('resize',hide)})
 watch(()=>[store.workspaceRevision,store.switchingProject,route.path],hide)
-async function source(){
-  const ticket=++request,id=route.query.text_context,workspace=store.workspaceRevision
-  store.textQuestions.sourceCard=null;store.textQuestions.sourceError=''
-  if(!id||!store.ready||store.switchingProject)return
-  if(typeof id!=='string'||!/^[a-f0-9]{32}$/.test(id)){store.textQuestions.sourceError='文字引用标识无效。';return}
-  try{
-    const card=await api.questionContext(id)
-    if(disposed||ticket!==request||workspace!==store.workspaceRevision)return
-    if(card.kind!=='text_quote'||!questionContextMatches(card,store))throw Error('引用已过期，请重新选择文字。')
-    store.textQuestions.sourceCard=card
-    await nextTick()
-    if(ticket!==request||disposed)return
-    const src=card.selection.source
-    const element=document.getElementById(src.kind==='message'?'message-'+src.message_id:src.kind==='page'?src.anchor||'main-content':src.help_id||'text-source-return')
-    element?.scrollIntoView({block:'center'});element?.focus({preventScroll:true})
-  }catch(e){if(!disposed&&ticket===request)store.textQuestions.sourceError=e.message}
-}
-watch(()=>[route.query.text_context,store.ready,store.workspaceRevision,store.status.analysis_revision,store.status.results_revision,store.switchingProject],source,{immediate:true})
 </script>
 <template>
   <Teleport to="body"><div v-if="selected" ref="menu" class="selection-menu" :style="position" role="toolbar" aria-label="文字引用操作" @pointerdown.prevent>
