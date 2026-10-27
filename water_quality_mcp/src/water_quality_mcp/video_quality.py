@@ -54,7 +54,7 @@ def validate_review(value):
     if any(not isinstance(result[k],str) or len(result[k])>n for k,n in (('reviewer',100),('notes',1000))):
         raise ValueError('帧复核说明格式无效')
     if result['decision']!='pending' or result['roi'] is not None:
-        if not result['reviewer'].strip() or not result['notes'].strip():raise ValueError('人工复核须记录复核人和说明')
+        if not result['reviewer'].strip() or not result['notes'].strip():raise ValueError('帧检查须记录检查人和说明')
     if result['roi'] is not None:result['roi']=validate_roi(result['roi'])
     if 'reviewed_at' in result and not isinstance(result['reviewed_at'],str):raise ValueError('复核时间格式无效')
     return result

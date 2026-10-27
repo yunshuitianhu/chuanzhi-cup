@@ -11,7 +11,7 @@ from .report_evidence import (fingerprints, _digest, utc_now, find_bundle, bundl
     covered_record, record)
 
 STATES = {'open': '待排查', 'planned': '已安排复测', 'sampled': '已记录复测',
-    'reviewed': '已人工复核', 'closed': '已结束本轮排查'}
+    'reviewed': '已检查记录', 'closed': '已结束本轮排查'}
 OUTCOMES = {'supported': '本次记录支持假设', 'not_supported': '本次记录不支持假设',
     'inconclusive': '证据不足，暂无法区分'}
 INDICATORS = {'ammonia', 'do', 'cod', 'ph', 'turbidity', 'sd', 'orp', 'flow', 'connection'}
@@ -144,7 +144,7 @@ def create(session, payload):
                 latitude=coord[0] if coord else None, longitude=coord[1] if coord else None,
                 indicators=['ammonia', 'do'], plan='核对采样时刻与水流信息，在候选位置和对照位置重复采样。'))
     if draft.status != 'open':
-        raise ValueError('新任务从待排查开始，请另行记录复测与人工复核')
+        raise ValueError('新任务从待排查开始，请另行记录复测与检查记录')
     now = utc_now()
     item = {'id': str(uuid4()), 'draft': draft.model_dump(), 'reference': ref,
         'origin': {'fingerprints': fp, 'filename': session.data_filename,
@@ -162,7 +162,7 @@ def update(session, task_id, payload):
     if item is None:
         raise KeyError('当前项目没有该排查任务')
     if payload.draft.status in ('reviewed', 'closed') and not payload.acknowledge_review:
-        raise ValueError('请显式确认已人工复核本次记录；勾选不代表确认污染责任')
+        raise ValueError('请显式确认已检查本次记录；勾选不代表确认污染责任')
     now = utc_now()
     item['history'] = (item['history'] + [{'at': item['updated_at'], 'draft': item['draft'],
         'review_context': item['review_context']}])[-20:]

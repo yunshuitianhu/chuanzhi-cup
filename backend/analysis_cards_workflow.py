@@ -55,7 +55,7 @@ class Confirm(BaseModel):
         if draft.status != 'open':
             raise ValueError('新确认任务须保持“待排查”状态；复测与复核请在排查板中另行记录')
         if draft.review.outcome or draft.review.reviewer or draft.review.notes:
-            raise ValueError('新确认任务不能包含人工复核结论')
+            raise ValueError('新确认任务不能包含已检查结论')
         if draft.retest.observed_at or draft.retest.result:
             raise ValueError('新确认任务不能包含实际复测时间或结果')
         return self

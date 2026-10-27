@@ -7,7 +7,7 @@ const store=useSessionStore()
 const board=ref(null),selected=ref(''),draft=ref(null),dirty=ref(false),reviewAck=ref(false)
 const loading=ref(false),saving=ref(false),error=ref(''),message=ref('')
 let version=0,baseScope='',baseRevision=0
-const labels={open:'待排查',planned:'已安排复测',sampled:'已记录复测',reviewed:'已人工复核',closed:'已结束本轮排查',needs_recheck:'依据已变化，需重新复核'}
+const labels={open:'待排查',planned:'已安排复测',sampled:'已记录复测',reviewed:'已检查记录',closed:'已结束本轮排查',needs_recheck:'依据已变化，需重新复核'}
 const indicators={ammonia:'氨氮',do:'溶解氧',cod:'COD',ph:'pH',turbidity:'浊度',sd:'透明度',orp:'ORP',flow:'流量/流向',connection:'入河连接'}
 function emptyDraft() {
   return {title:'',hypothesis:'',supporting_notes:'',opposing_notes:'',status:'open',
@@ -64,7 +64,7 @@ onBeforeUnmount(()=>{version++})
 
 <template>
   <section id="investigation-board" class="investigation-board">
-    <p class="scope">候选假设 → 记录支持/反对依据 → 安排复测 → 人工复核。结束排查不代表确认污染源或责任。</p>
+    <p class="scope">候选假设 → 记录支持/反对依据 → 安排复测 → 检查记录。结束排查不代表确认污染源或责任。</p>
     <p v-if="board && !board.persisted_project" class="notice">临时会话：请在左侧另存为项目。已保存项目的排查修改会自动写入项目版本。</p>
     <p v-if="loading" role="status">正在读取排查任务…</p>
     <p v-if="store.chatRunning">分析执行中，结束后可更新排查任务。</p>
@@ -110,11 +110,11 @@ onBeforeUnmount(()=>{version++})
         <label>复测计划<textarea v-model="draft.retest.plan" maxlength="3000" rows="2" /></label>
         <label>实际复测时间（须含时区）<input v-model="draft.retest.observed_at" maxlength="50" placeholder="例如 2026-10-22T14:00:00+08:00" /></label>
         <label>实际复测记录<textarea v-model="draft.retest.result" maxlength="4000" rows="3" placeholder="记录方法、读数、对照结果及资料来源；没有复测时不要填写已完成" /></label>
-        <h3>人工复核</h3>
+        <h3>检查记录</h3>
         <div class="two"><label>复核人<input v-model="draft.review.reviewer" maxlength="100" /></label><label>本次假设复核结果<select v-model="draft.review.outcome" aria-label="本次假设复核结果"><option value="">尚未复核</option><option value="supported">本次记录支持假设</option><option value="not_supported">本次记录不支持假设</option><option value="inconclusive">证据不足，暂无法区分</option></select></label></div>
         <label>复核意见与剩余缺口<textarea v-model="draft.review.notes" maxlength="4000" rows="3" /></label>
         <label>排查状态<select v-model="draft.status" aria-label="排查状态"><option v-for="(label,key) in labels" v-show="key!=='needs_recheck'" :key="key" :value="key" :disabled="key==='needs_recheck' || (!selected && key!=='open')">{{label}}</option></select></label>
-        <label v-if="['reviewed','closed'].includes(draft.status)" class="ack"><input v-model="reviewAck" name="review-ack" type="checkbox" />我已人工复核本次记录；这不代表确认污染责任。</label>
+        <label v-if="['reviewed','closed'].includes(draft.status)" class="ack"><input v-model="reviewAck" name="review-ack" type="checkbox" />我已检查本次记录；这不代表确认污染责任。</label>
         <button class="primary" type="submit" :disabled="loading || !board || (!dirty && !!selected)">{{saving?'保存中…':selected?'保存排查记录':'创建排查任务'}}</button>
       </fieldset>
     </form>

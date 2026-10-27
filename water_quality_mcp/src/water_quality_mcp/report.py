@@ -2,7 +2,7 @@ import logging
 import json
 
 from openai import OpenAI
-from .evidence import EVIDENCE_RULES
+from .evidence import EVIDENCE_RULES, REPORT_STYLE
 from .agent_safety import context_cases, citation_catalog, validate_citations
 
 MODEL_NAME = "deepseek-flash"
@@ -89,28 +89,30 @@ def generate_report(api_key, summary, *, reference_sink=None):
     spatial = facts.get('空间分析', {})
     header = [f"> 数据身份：{label}。",
               '> 结论级别：水质筛查与辅助排查；当前报告没有已确认的污染源或责任主体。']
-    header.append('> 治理案例：' + ('已取得参考资料，仅借鉴治理方法。'
+    details = []
+    details.append('治理案例：' + ('已取得参考资料，仅借鉴治理方法。'
         if reference_cases and '暂无相关治理案例' not in reference_cases else '本次未取得可用案例，不补造引用。'))
     if overview:
-        header.append(f"> 数据记录：{overview.get('记录数', '未提供')}；有效GPS记录：{overview.get('有效GPS记录数', '未核对')}。")
+        details.append(f"数据记录：{overview.get('记录数', '未提供')}；有效GPS记录：{overview.get('有效GPS记录数', '未核对')}。")
     if '黑点总数' in screening:
-        header.append(f"> 点级预警：{screening['黑点总数']}；热点数量不能当作污染源数量。")
+        details.append(f"点级预警：{screening['黑点总数']}；热点数量不能当作污染源数量。")
     if isinstance(spatial, dict) and '首末直线距离_m' in spatial:
-        header.append(f"> 首末有效GPS直线距离：{spatial['首末直线距离_m']} m；不是河道长度或污染覆盖范围。")
+        details.append(f"首末有效GPS直线距离：{spatial['首末直线距离_m']} m；不是河道长度或污染覆盖范围。")
     if isinstance(quality, dict) and '需质控复核预警点数' in quality:
-        header.append(f"> 其中需质控复核预警：{quality['需质控复核预警点数']}；仍保留全部预警，标记不能确认仪器故障。")
+        details.append(f"其中需质控复核预警：{quality['需质控复核预警点数']}；仍保留全部预警，标记不能确认仪器故障。")
     model = facts.get('河道模型', {})
     model = model if isinstance(model, dict) else {}
     if model.get('结论限制'):
-        header.append('> 物理模型：本次有模型结果因适用范围或验收限制已排除；不得用于结论。')
+        details.append('物理模型：本次有模型结果因适用范围或验收限制已排除；不得用于结论。')
     elif model.get('水动力模拟'):
-        header.append('> 物理模型：本次提供一维恒定流情景计算；正演设定源不是反演识别结果。')
+        details.append('物理模型：本次提供一维恒定流情景计算；正演设定源不是反演识别结果。')
     elif model.get('模型已初始化'):
-        header.append('> 物理模型：仅已初始化；本次未提供物理模型计算结果，未运行不代表求解失败。')
+        details.append('物理模型：仅已初始化；本次未提供物理模型计算结果，未运行不代表求解失败。')
     else:
-        header.append('> 物理模型：本次未提供物理模型计算结果；未运行不代表求解失败。')
-    prompt += ('\n\n请按数据事实、候选解释、证据缺口、复核建议组织正文。'
-               '正文约1200字，不要完整复写全部工具表格，须保留局限和复核建议。'
+        details.append('物理模型：本次未提供物理模型计算结果；未运行不代表求解失败。')
+    prompt += ('\n\n请按结果摘要、关键依据、必要术语解释、复测建议组织正文。'
+               + REPORT_STYLE +
+               '正文约600—1200字，按实际需要，不要完整复写全部工具表格。'
                '不得确认因果来源；工具给出的时间趋势未判定时，只描述沿航迹读数变化。')
     with OpenAI(base_url=BASE_URL, api_key=api_key, timeout=120.0, max_retries=0) as client:
         resp = client.chat.completions.create(
@@ -131,4 +133,6 @@ def generate_report(api_key, summary, *, reference_sink=None):
     if reference_sink is not None:
         reference_sink.update({'检索结果': cases, '共检索到': len(cases)})
     logger.info('报告正文生成完成，finish_reason=%s', finish_reason)
-    return '\n'.join(header) + '\n\n' + body
+    # 确定事实仍由服务器生成；详细元信息集中在末尾，正文先给摘要。
+    appendix = '\n\n## 数据与依据（服务端核对）\n' + '\n'.join('- ' + line for line in details)
+    return '\n'.join(header) + '\n\n' + body + appendix
