@@ -25,7 +25,8 @@ MODEL_FILES = {'river_hydro_profile.png', 'river_discharge_profile.png', 'river_
 STATE_FIELDS = ('df', 'video_frames', 'data_filename', 'video_filename', 'black_spots',
     'black_spots_json', 'cross_validation', 'comprehensive_summary', 'national_station_result',
     'captions', 'tool_evidence', 'target_water_class', 'messages', 'full_messages',
-    'analysis_done', 'analysis_status', 'analysis_steps', 'analysis_revision', 'river_state', 'river_ui', 'investigations', 'side_threads')
+    'analysis_done', 'analysis_status', 'analysis_steps', 'analysis_revision', 'river_state', 'river_ui', 'investigations', 'side_threads', 'media_assets')
+MEDIA_PATH = re.compile(r'^media/[0-9a-f]{32}\.(png|jpg)$')
 CLASSES = {cls.__name__: cls for cls in (RiverConfig, CrossSection, RiverModelState, HydroResult, WQResult)}
 
 
@@ -57,6 +58,19 @@ def _scrubber():
 def dump_project(session, name):
     entries = {}
     scrub = _scrubber()
+    from .media_assets import EXTENSIONS, MAX_TOTAL_BYTES, MediaError, validate_media_entry, validate_metadata
+    total_media = 0
+    media_bytes = getattr(session, '_media_bytes', {}) or {}
+    for asset_id, meta in (getattr(session, 'media_assets', {}) or {}).items():
+        try:
+            validate_metadata(meta, asset_id)
+            validate_media_entry(media_bytes.get(asset_id, b''), meta)
+        except (MediaError, AttributeError, KeyError, TypeError) as exc:
+            raise ProjectError('图片附件内容缺失或校验失败，请重新上传后再保存') from exc
+        total_media += meta['bytes']
+        if total_media > MAX_TOTAL_BYTES:
+            raise ProjectError('项目图片附件总量超出限制')
+        entries[f'media/{asset_id}.{EXTENSIONS[meta["media_type"]]}'] = media_bytes[asset_id]
     model_dir = getattr(session.river_state, 'output_dir', '') if session.river_state else ''
     if model_dir:
         for filename in MODEL_FILES:
@@ -123,7 +137,7 @@ def dump_project(session, name):
     entries['state.json'] = _json(pack({key:getattr(session,key) for key in STATE_FIELDS}))
     if sum(map(len,entries.values())) > MAX_EXPANDED:
         raise ProjectError('项目超过512MB展开大小限制，请减少视频抽帧或模拟输出')
-    manifest = {'format':'water-quality-project', 'schema_version':3, 'name':scrub(name),
+    manifest = {'format':'water-quality-project', 'schema_version':4, 'name':scrub(name),
         'created_at':datetime.now(timezone.utc).isoformat(),
         'runtime':{'python':platform.python_version(),'numpy':np.__version__,'pandas':pd.__version__},
         'contents':{k:{'bytes':len(v),'sha256':sha256(v).hexdigest()} for k,v in entries.items()}}
@@ -143,6 +157,7 @@ class ProjectSnapshot:
     name: str
     state: dict
     artifacts: dict
+    media: dict
 
 
 def load_project(raw):
@@ -159,7 +174,7 @@ def load_project(raw):
             if 'manifest.json' not in names or archive.getinfo('manifest.json').file_size>1024**2:
                 raise ProjectError('缺少有效项目清单')
             manifest=_read_json(archive.read('manifest.json'))
-            if manifest.get('format')!='water-quality-project' or type(manifest.get('schema_version')) is not int or manifest.get('schema_version') not in (1,2,3):
+            if manifest.get('format')!='water-quality-project' or type(manifest.get('schema_version')) is not int or manifest.get('schema_version') not in (1,2,3,4):
                 raise ProjectError('不支持的项目格式或版本')
             contents=manifest['contents']
             if set(contents)!=(set(names)-{'manifest.json'}) or 'state.json' not in contents:
@@ -167,7 +182,8 @@ def load_project(raw):
             entries={}
             for name,descriptor in contents.items():
                 if not (name=='state.json' or re.fullmatch(r'arrays/\d{5}\.npy',name)
-                        or name in {f'artifacts/{f}' for f in MODEL_FILES}):
+                        or name in {f'artifacts/{f}' for f in MODEL_FILES}
+                        or MEDIA_PATH.fullmatch(name)):
                     raise ProjectError('项目包含未允许的路径或文件')
                 value=archive.read(name)
                 if len(value)!=descriptor['bytes'] or sha256(value).hexdigest()!=descriptor['sha256']:
@@ -233,18 +249,39 @@ def load_project(raw):
         state=unpack(_read_json(entries['state.json']))
         if manifest['schema_version'] in (1,2) and isinstance(state,dict) and 'side_threads' in state:
             raise ProjectError('旧项目格式包含未知侧边问答字段')
-        if manifest['schema_version']==1 and isinstance(state,dict) and set(state)==set(STATE_FIELDS)-{'investigations','side_threads'}:
+        if manifest['schema_version'] in (1,2,3) and isinstance(state,dict) and 'media_assets' in state:
+            raise ProjectError('旧项目格式包含未知图片附件字段')
+        if manifest['schema_version']==1 and isinstance(state,dict) and set(state)==set(STATE_FIELDS)-{'investigations','side_threads','media_assets'}:
             from .investigations import empty_board
             state['investigations']=empty_board()
         if manifest['schema_version'] in (1,2) and isinstance(state,dict) and 'side_threads' not in state:
             state['side_threads']=[]
+        if manifest['schema_version'] in (1,2,3) and isinstance(state,dict) and 'media_assets' not in state:
+            state['media_assets']={}
         if not isinstance(state,dict) or set(state)!=set(STATE_FIELDS):
             raise ProjectError('项目状态字段不完整')
         _validate_state(state)
+        media={}
+        from .media_assets import EXTENSIONS, MediaError, validate_media_entry
+        for key,value in entries.items():
+            match=MEDIA_PATH.fullmatch(key)
+            if not match:
+                continue
+            asset_id=key[len('media/'):].split('.',1)[0]
+            meta=state['media_assets'].get(asset_id) if isinstance(state['media_assets'],dict) else None
+            if meta is None or key.rsplit('.',1)[-1]!=EXTENSIONS.get(meta.get('media_type'),''):
+                raise ProjectError('图片附件路径与元数据不一致')
+            try:
+                validate_media_entry(value,meta)
+            except MediaError as exc:
+                raise ProjectError(str(exc)) from exc
+            media[asset_id]=value
+        if set(media)!=set(state['media_assets']):
+            raise ProjectError('图片附件文件与元数据不一致')
         name=manifest['name']
         if not isinstance(name,str) or not 1<=len(name.strip())<=100:
             raise ProjectError('项目名称无效')
-        return ProjectSnapshot(name,state,{PurePosixPath(k).name:v for k,v in entries.items() if k.startswith('artifacts/')})
+        return ProjectSnapshot(name,state,{PurePosixPath(k).name:v for k,v in entries.items() if k.startswith('artifacts/')},media)
     except ProjectError:
         raise
     except (ValueError,TypeError,KeyError,IndexError,AttributeError,OverflowError,zipfile.BadZipFile,RuntimeError,EOFError,OSError,zlib.error,RecursionError) as exc:
@@ -278,8 +315,21 @@ def _validate_state(state):
     for key in ('river_ui','captions','tool_evidence','analysis_steps'):
         if not isinstance(state[key],dict):
             raise ProjectError('项目界面状态无效')
+    from .media_assets import MAX_ASSETS, MAX_TOTAL_BYTES, MediaError, validate_metadata
+    media=state['media_assets']
+    if not isinstance(media,dict) or len(media)>MAX_ASSETS:
+        raise ProjectError('项目图片附件数量无效')
+    total_media=0
+    for asset_id,meta in media.items():
+        try:
+            validate_metadata(meta,asset_id)
+        except MediaError as exc:
+            raise ProjectError(str(exc)) from exc
+        total_media+=meta['bytes']
+    if total_media>MAX_TOTAL_BYTES:
+        raise ProjectError('项目图片附件总量超出限制')
     for key in ('river_ui','captions','tool_evidence','analysis_steps','cross_validation',
-                'national_station_result','messages','full_messages','video_frames'):
+                'national_station_result','messages','full_messages','video_frames','media_assets'):
         _json(state[key])  # 供HTTP返回的字段不能包含非有限数或隐藏的数组/对象节点。
     if state['target_water_class'] not in ('I','II','III','IV','V'):
         raise ProjectError('项目水质等级无效')

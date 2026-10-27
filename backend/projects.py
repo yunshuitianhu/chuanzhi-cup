@@ -181,6 +181,8 @@ def apply_snapshot(session,info,snapshot):
     restored={k:relocate(v) for k,v in snapshot.state.items()}
     for key in STATE_FIELDS:
         setattr(session,key,restored[key])
+    session._media_bytes=dict(getattr(snapshot,'media',{}) or {})
+    session._vision_image_cache={}
     session.analysis_revision=max(revision,session.analysis_revision)+1
     session.project_id=info['id']
     session.project_revision=info['revision']

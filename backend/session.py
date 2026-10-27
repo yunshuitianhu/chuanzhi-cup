@@ -74,6 +74,10 @@ class Session:
     river_state: Any = None                  # 惰性创建 RiverModelState
     river_ui: dict = field(default_factory=dict)
 
+    # ---- 图片附件（元数据随项目保存；字节见 _media_bytes）----
+    media_assets: dict = field(default_factory=dict)
+    _media_bytes: dict = field(default_factory=dict, repr=False)
+
     @property
     def analysis_config(self) -> AnalysisConfig:
         cfg = AnalysisConfig()
@@ -165,6 +169,7 @@ class Session:
 
     def replace_video(self, frames, filename) -> None:
         self._video_quality_cache = None
+        self._vision_image_cache = {}
         self.video_frames = frames
         self.video_filename = filename
         self.cross_validation = None
@@ -174,12 +179,19 @@ class Session:
             self.analysis_steps.pop(name, None)
         self.results_revision += 1
 
+    def clear_media(self) -> None:
+        """切换数据或项目时避免旧附件与新数据混用。"""
+        self.media_assets = {}
+        self._media_bytes = {}
+        self._vision_image_cache = {}
+
     def clear_all(self) -> None:
         """加载新数据时调用 —— 与原 app.py 的「重置所有分析状态」一致。"""
         self.video_frames = []
         self._video_quality_cache = None
         self.data_filename = ""
         self.video_filename = ""
+        self.clear_media()
         self.reset_analysis()
 
 

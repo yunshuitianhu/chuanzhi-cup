@@ -61,12 +61,12 @@ def shelve(session):
     repo=repository()
     if session.restore_error:
         # 损坏的原快照不写回；允许打开其它项目/导入备份。恢复期间新录入的数据另存。
-        if session.df is not None or session.video_frames or session.river_state or session.messages or session.investigations['items'] or session.side_threads:
+        if session.df is not None or session.video_frames or session.river_state or session.messages or session.investigations['items'] or session.side_threads or session.media_assets:
             return repo.write(session,'恢复期间临时数据 '+datetime.now().strftime('%m-%d %H:%M:%S'),new=True)
         return None
     if session.project_id:
         return repo.write(session)
-    if session.df is not None or session.video_frames or session.river_state or session.messages or session.river_ui or session.investigations['items'] or session.side_threads:
+    if session.df is not None or session.video_frames or session.river_state or session.messages or session.river_ui or session.investigations['items'] or session.side_threads or session.media_assets:
         return repo.write(session,'未命名项目 '+datetime.now().strftime('%m-%d %H:%M:%S'),new=True)
     return None
 
