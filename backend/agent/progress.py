@@ -29,8 +29,12 @@ def tool_notice(name, status, outcome, *, references=None):
             return '知识库或运行依赖不可用，请在技术展示页核对检索状态。'
         if any(key in error.lower() for key in ('timeout', 'timed out', 'connect', '网络', '超时')):
             return '外部请求超时或连接失败，可检查网络后重试。'
-        if any(key in error.lower() for key in ('api key', '401', '403', '未配置', '鉴权')):
-            return '外部服务配置或访问权限不可用，请核对本机服务配置。'
+        if any(key in error.lower() for key in ('quota', 'insufficient', 'balance', '额度', '余额', '429')):
+            return '模型请求额度或频率受限，请核对账户余额后重试；已取得的数据仍保留。'
+        if any(key in error.lower() for key in ('500', '502', '503', 'server error', '服务端')):
+            return '外部服务暂时不可用，请稍后重试；基础数据与筛查不受影响。'
+        if any(key in error.lower() for key in ('api key', '401', '403', 'forbidden', 'permission', '未配置', '鉴权')):
+            return '外部服务配置或访问权限不可用，请核对服务端 Key、账户额度和模型权限。'
         if any(key in error for key in ('坐标', '聚类', '黑点')):
             return '缺少可用定位依据；可在技术展示页指定坐标查询，不自动猜测污染源。'
         if any(key in error for key in ('先运行', '先完成', '未初始化', '未加载', '自动检测需要', '参数', '必填', '缺少', '类型')):

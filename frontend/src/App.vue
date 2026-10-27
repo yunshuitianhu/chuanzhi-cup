@@ -126,7 +126,7 @@ const keySummary = computed(() => {
         <div class="key-row" v-for="k in keySummary" :key="k.name">
           <span class="dot" :class="{ ok: k.ok }"></span>
           <span class="key-name">{{ k.name }}</span>
-          <span class="key-tag">{{ k.ok ? '已配置' : (k.required ? '必填' : '可选') }}</span>
+          <span class="key-tag">{{ k.ok ? '已填写（未验证）' : (k.required ? '未配置（AI功能需要）' : '未配置（可选）') }}</span>
         </div>
         <p class="hint">
           密钥通过后端 <code>.env</code> 配置，前端不接触、不存储密钥。

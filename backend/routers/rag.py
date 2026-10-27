@@ -74,7 +74,11 @@ def status(session: Session = Depends(get_session)) -> dict:
         state, notice = 'ready', '当前进程已完成实际检索；资料片段仍需核对，不代表建议或现场结论正确。'
     else:
         state, notice = 'index_ready', '索引可读；嵌入模型按需加载，尚未验证实际检索。'
+    stages = {'dependency_missing': 'dependencies', 'index_unreadable': 'index_read',
+              'index_missing': 'index_build', 'index_empty': 'index_build',
+              'retrieval_failed': 'retrieval', 'index_ready': 'model_load', 'ready': 'retrieval'}
     return {'available': bool(index_ready and not missing), 'index_ready': index_ready,
+        'stage': stages.get(state, 'unknown'),
         'retrieval_verified': verified, 'state': state, 'notice': notice,
         'missing_dependencies': missing, 'has_index': has_index, 'chunks': chunks,
         'source_documents': doc_count, 'collection': COLLECTION_NAME,

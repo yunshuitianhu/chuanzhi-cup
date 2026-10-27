@@ -21,6 +21,41 @@ Q08已增加核心类型检查及Windows/Ubuntu CI工作流，本机干净副本
 视频目前只提供清晰度和颜色等视觉线索；潮汐模型尚未通过质量守恒验收，
 其数值已从综合摘要中排除，不能用于正式分析结论。
 
+## 快速体验与配置边界
+
+不配置任何 Key 也可以先体验内置示例：
+
+1. 在项目根目录运行 `python scripts/serve_web.py`（或双击 `start_web.cmd`），打开终端显示的地址。
+2. 在左侧「数据与示例」选择 S01—S06 之一，点「载入」；空项目会立即得到一组仿真监测表。
+3. 可点「载入并检测」运行阈值筛查；S01 的零热点是有效结果，不是检测失败。
+
+| 能力 | 前提 | 未配置/不可达时 |
+| --- | --- | --- |
+| 内置示例、质控、阈值筛查、图表 | 基础程序与数据 | 不依赖 LLM Key，可离线操作 |
+| 手工恒定流情景 | 参数和求解器 | 仅理想情景，不宣称当地已率定 |
+| AI 问答、报告、图像理解 | 服务端 DeepSeek Key、权限和网络 | 保留问题/附件，说明配置缺失或请求失败 |
+| 本地 RAG 检索 | 嵌入依赖、模型缓存、索引 | 不把缺 LLM Key 等同于本地检索不可用 |
+| RAG 综合回答 | 本地检索加 LLM | 明确哪个阶段未完成 |
+| 国控、星图、高德、Esri/OSM | 对应服务可达及 Key | 说明失败原因；地图失败不阻塞监测图表 |
+
+DeepSeek 的 Key 只需在启用 AI 功能时配置；模型名和 BASE_URL 固定在代码中，换 Key 不会切换供应商。基础安装与可选 RAG 的依赖、模型缓存和索引是分开的：首次实际语义检索或构建索引且缺缓存时，可能下载数百 MB 模型；只复制 Chroma 数据库不等于完整离线 RAG。
+
+Windows 使用 Python 3.12 为已验证推荐。需要指定解释器时，在 CMD 执行：
+
+```bat
+set "WQ_PYTHON=C:\实际安装目录\python.exe"
+start_web.cmd
+```
+
+PowerShell 使用：
+
+```powershell
+$env:WQ_PYTHON = 'C:\实际安装目录\python.exe'
+& '.\start_web.cmd'
+```
+
+不要把 PowerShell 的 `&` 语法粘到 CMD；启动脚本会保留错误码和窗口，路径不存在时给出明确提示。异机安装尚未由实际队友电脑验证，未验证时不要写成“干净安装通过”。
+
 ## 技术架构
 
 ```text
@@ -128,9 +163,24 @@ python scripts/validate_inverse_robustness.py
 
 ## 安装
 
+基础 Web、示例和手工模型使用锁定依赖：
+
 ```bash
 python -m pip install -r requirements-lock.txt
 ```
+
+可选来源：PyPI 默认源，或只把 PyPI 安装指向清华镜像（不保证模型权重和第三方服务加速）：
+
+```bash
+python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-lock.txt
+```
+
+- `requirements-lock.txt` 用于本机完整运行（含 Streamlit、ChromaDB/嵌入模型等可选依赖）；`requirements-ci.txt` 只用于离线回归，不等同完整产品环境。
+- 产品锁定使用 `opencv-python`；CI 使用 `opencv-python-headless`。同一环境只选一种，不要同时安装两者。
+- `sentence-transformers` 会涉及 PyTorch CPU/CUDA wheel；按实际平台和已验证版本选择安装方式，`pip --isolated` 本身不决定 CPU/CUDA。未验证的版本组合不要写成已支持。
+- 不预先承诺固定下载体积或首次耗时；RAG 的下载、模型加载、索引构建和实际检索是四个阶段，失败时应显示具体阶段。
+- 本地 RAG 可用 `WQ_RAG_INDEX_DIR` 指定索引目录、`WQ_EMBEDDING_MODEL` 指定已下载模型目录；索引必须与嵌入模型版本/向量维度匹配。只复制 Chroma 数据库、不复制匹配模型和依赖，不等于完整离线 RAG。
+- 无缓存时首次实际语义检索或构建索引可能下载数百 MB 模型；技术展示页会区分索引可读、依赖缺失、索引缺失/为空和实际检索已验证。无 Key 或网络失败时仍可使用基础示例与筛查。
 
 ## 启动 Web 应用
 

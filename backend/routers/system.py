@@ -34,12 +34,21 @@ def read_config(session: Session = Depends(get_session)) -> dict:
     密钥只返回"是否已配置"，**绝不返回密钥本身** —— 前端只需要知道
     能不能用，不需要拿到值。
     """
+    keys = {
+        "deepseek": bool(resolve_api_key("DEEPSEEK_API_KEY")),
+        "amap": bool(resolve_api_key("AMAP_KEY")),
+        "starcloud": bool(resolve_api_key("CLOUD_TOKEN")),
+    }
+    notices = {
+        "deepseek": "已填写 DeepSeek Key，但本进程尚未验证；实际成功/失败以本次 AI 请求为准。",
+        "amap": "已填写高德 Key，但本进程尚未验证；逆地理、POI 或底图失败时会单独提示。",
+        "starcloud": "已填写星图 Token，但本进程尚未验证；卫星图失败时可切换备用底图。",
+    }
     return {
-        "keys": {
-            "deepseek": bool(resolve_api_key("DEEPSEEK_API_KEY")),
-            "amap": bool(resolve_api_key("AMAP_KEY")),
-            "starcloud": bool(resolve_api_key("CLOUD_TOKEN")),
-        },
+        "keys": keys,
+        "key_state": {name: {"configured": configured, "verified": False,
+            "notice": notices[name] if configured else "未配置；相关在线能力不可用或会降级，基础示例与筛查仍可用。"}
+            for name, configured in keys.items()},
         "target_water_class": session.target_water_class,
         "valid_classes": VALID_CLASSES,
     }
