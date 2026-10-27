@@ -67,7 +67,13 @@ class TextContext(ContextScope):
     source: TextSource
 
 
-ContextRequest = Annotated[Union[SampleContext,TimeContext,VideoContext,RagContext,TextContext], Field(discriminator='kind')]
+class ImageAssetContext(ContextScope):
+    kind: Literal['image_asset']
+    asset_id: str = Field(min_length=32,max_length=32,pattern=r'^[0-9a-f]{32}$')
+    asset_revision: str = Field(min_length=64,max_length=64,pattern=r'^[0-9a-f]{64}$')
+
+
+ContextRequest = Annotated[Union[SampleContext,TimeContext,VideoContext,RagContext,TextContext,ImageAssetContext], Field(discriminator='kind')]
 
 
 def _clean(value):
@@ -218,7 +224,28 @@ def _video(session,payload):
     return {'title':f'视频帧 #{payload.frame_id+1}','summary':summary,
         'selection':{'frame_id':payload.frame_id,'video_revision':current['revision']},
         'payload':{'frame':row,'settings':settings,'notice':current['notice'],
-            'source_kind':'视觉辅助线索；没有向大模型发送图像，也不是视觉语言模型识别结论'},'anchor':'video-quality'}
+            'image_source':{'kind':'video_frame','frame_id':payload.frame_id,
+                'video_revision':current['revision'],'frame_number':payload.frame_id+1},
+            'source_kind':'视觉辅助线索；提问时服务器可按当前视频版本发送该帧图像；'
+                '图像不是浓度测量，也不确认ROI或同步状态'},'anchor':'video-quality'}
+
+
+def _image_asset(session,payload):
+    from .media_assets import MediaError, get_media
+    try:
+        meta,_=get_media(session,payload.asset_id,payload.asset_revision)
+    except MediaError as exc:
+        raise HTTPException(422,str(exc)) from exc
+    summary=f"{meta['width']}×{meta['height']} · {round(meta['bytes']/1024)}KB · 来源：{meta.get('source_name') or '用户上传截图'}"
+    return {'title':(meta.get('source_name') or '用户截图')[:100],'summary':summary,
+        'selection':{'asset_id':meta['id'],'asset_revision':meta['sha256']},
+        'payload':{'asset':{'asset_id':meta['id'],'sha256':meta['sha256'],'media_type':meta['media_type'],
+                'width':meta['width'],'height':meta['height'],'bytes':meta['bytes'],
+                'source_name':meta.get('source_name',''),'created_at':meta.get('created_at','')},
+            'notice':'这是用户提供的图片材料，不是实测数据；画面内容不能直接当作浓度、水质或污染责任结论。',
+            'source_kind':'用户上传图片；提问时服务器按内容哈希发送该图'},
+        'notice':'这是用户提供的图片材料，不是实测数据；画面内容不能直接当作浓度、水质或污染责任结论。',
+        'path':'/chat','anchor':'image-asset'}
 
 
 def register_retrieval(session, result):
@@ -262,7 +289,8 @@ def _rag(session,payload):
 
 def create_context(session,payload):
     _check_request_scope(session,payload)
-    selected={'sample':_sample,'time_range':_time_range,'video_frame':_video,'rag_excerpt':_rag,'text_quote':select_text}[payload.kind](session,payload)
+    selected={'sample':_sample,'time_range':_time_range,'video_frame':_video,
+        'rag_excerpt':_rag,'text_quote':select_text,'image_asset':_image_asset}[payload.kind](session,payload)
     ident=uuid4().hex
     card={'id':ident,'kind':payload.kind,'title':selected['title'],'summary':selected['summary'],
         'notice':selected.get('notice',BASE_NOTICE),'scope':scope(session),'selection':selected['selection'],
@@ -287,6 +315,13 @@ def resolve_context(session, ident):
         from .routers.video import assessment
         if assessment(session)['revision']!=entry['public']['selection']['video_revision']:
             raise HTTPException(409,'视频或ROI/复核设置已变化，请重新选择。')
+    if entry['public']['kind']=='image_asset':
+        from .media_assets import MediaError, get_media
+        selection=entry['public']['selection']
+        try:
+            get_media(session,selection.get('asset_id'),selection.get('asset_revision'))
+        except MediaError as exc:
+            raise HTTPException(409,str(exc)) from exc
     return deepcopy(entry)
 
 

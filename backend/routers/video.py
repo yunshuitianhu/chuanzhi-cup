@@ -60,6 +60,18 @@ def quality(offset:int=Query(0,ge=0),limit:int=Query(20,ge=1,le=100),
         'total':len(rows),'offset':offset,'limit':limit}
 
 
+def frame_bytes(current,frame_id:int)->bytes:
+    """解码单帧并编码为JPEG；网页预览与模型看图共用同一逻辑。"""
+    if type(frame_id) is not int or not 0<=frame_id<len(current['_frames']):
+        raise ValueError('当前视频没有该帧')
+    image=core.decode_frame(current['_frames'][frame_id])
+    # 单帧证据按JPEG返回；不信任导入数据声称的媒体类型或SVG/HTML。
+    if image.shape[1]>960:image=cv2.resize(image,(960,round(image.shape[0]*960/image.shape[1])))
+    ok,encoded=cv2.imencode('.jpg',image)
+    if not ok:raise ValueError('帧图像无法编码')
+    return encoded.tobytes()
+
+
 @router.get('/frames/{frame_id}')
 def frame(frame_id:int,expected_revision:str=Query(...,min_length=64,max_length=64),
           session:Session=Depends(get_session)):
@@ -67,11 +79,7 @@ def frame(frame_id:int,expected_revision:str=Query(...,min_length=64,max_length=
     if current['revision']!=expected_revision:raise HTTPException(409,'视频或复核设置已变化，请重新载入')
     if not 0<=frame_id<len(current['_frames']):raise HTTPException(404,'当前视频没有该帧')
     try:
-        image=core.decode_frame(current['_frames'][frame_id])
-        # 单帧证据按JPEG返回；不信任导入数据声称的媒体类型或SVG/HTML。
-        if image.shape[1]>960:image=cv2.resize(image,(960,round(image.shape[0]*960/image.shape[1])))
-        ok,encoded=cv2.imencode('.jpg',image)
-        if not ok:raise ValueError('帧图像无法编码')
+        encoded=frame_bytes(current,frame_id)
     except ValueError as exc:raise HTTPException(400,str(exc)) from exc
     if current['_frames'] is not session.video_frames:raise HTTPException(409,'视频已变化，请重新载入')
     return {'revision':expected_revision,'frame':current['rows'][frame_id],

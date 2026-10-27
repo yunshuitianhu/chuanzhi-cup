@@ -51,8 +51,8 @@ def threads(session=Depends(get_session)):
 @router.post('/threads')
 def create(payload: Create, session=Depends(get_exclusive_session)):
     entry = resolve_context(session, payload.context_id)
-    if entry['public']['kind'] != 'text_quote':
-        raise HTTPException(422, '侧边问答需要先选择文字引用。')
+    if entry['public']['kind'] not in ('text_quote', 'video_frame', 'image_asset'):
+        raise HTTPException(422, '侧边问答需要先选择文字、视频帧或图片附件。')
     # Reopening the same selected passage does not create duplicate threads.
     found = next((t for t in session.side_threads if t['quote']['scope'] == entry['public']['scope']
         and t['quote']['selection'] == entry['public']['selection']), None)
