@@ -74,3 +74,44 @@ test('开始切换项目后统计卡片丢弃旧请求，切换结束才重新�
     v.api.summary=async()=>({marker:'new'});v.store.projectState.current.id='b';v.store.switchingProject=false;await settle();assert.equal(v.state.data.marker,'new')
   }finally{v.app.unmount()}
 })
+
+
+test('站点查询自身刷新状态对象时仍接纳本次结果',async()=>{
+ const v=await mount('StationQuery')
+ try{
+  v.store.refreshStatus=async()=>{v.store.status={...v.store.status,results_revision:2,analysis_status:'stale'}}
+  await v.state.run();await settle()
+  assert.equal(v.state.data?.marker,'first')
+  assert.equal(v.store.status.analysis_status,'stale')
+  assert.ok(v.events.some(m=>/查询完成/.test(m)))
+  assert.equal(v.state.loading,false)
+ }finally{v.app.unmount()}
+})
+for(const name of ['StationQuery','MultiSourceTrace']){
+ test(`${name} 同项目同数据的状态或项目对象替换不清空已显示结果`,async()=>{
+  const v=await mount(name)
+  try{
+   await v.state.run();assert.equal(v.state.data?.marker,'first')
+   v.store.status={...v.store.status,results_revision:2,analysis_status:'stale'}
+   v.store.projectState={...v.store.projectState,current:{...v.store.projectState.current}}
+   await settle();assert.equal(v.state.data?.marker,'first')
+  }finally{v.app.unmount()}
+ })
+ test(`${name} 查询期间真正替换监测数据仍丢弃迟到结果`,async()=>{
+  const v=await mount(name);const method=name==='StationQuery'?'queryStations':'multiSource'
+  try{
+   const d=deferred();v.api[method]=()=>d.promise;const pending=v.state.run()
+   v.store.status={...v.store.status,analysis_revision:2};await settle()
+   d.resolve(result());await pending
+   assert.equal(v.state.data,null);assert.equal(v.events.length,0)
+  }finally{v.app.unmount()}
+ })
+}
+test('统计卡片忽略同一监测版本的普通状态刷新，避免查询后重复闪烁加载',async()=>{
+ const v=await mount('SummaryCards')
+ try{
+  let reloads=0;v.api.summary=async()=>{reloads++;return {marker:'reloaded'}}
+  v.store.status={...v.store.status,results_revision:2,analysis_status:'stale'};await settle()
+  assert.equal(reloads,0);assert.equal(v.state.data?.marker,'initial')
+ }finally{v.app.unmount()}
+})

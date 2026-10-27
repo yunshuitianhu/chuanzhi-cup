@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-27",
+  "bug": "Successful station query discarded when refreshStatus replaced status object without changing scope scalars",
+  "before_fix_regression_tests": {
+    "total": 21,
+    "passed": 17,
+    "failed": 4
+  },
+  "after_fix_frontend": {
+    "total": 314,
+    "passed": 314,
+    "failed": 0,
+    "typecheck": true,
+    "production_build": true
+  },
+  "regressions_added": 6,
+  "guards_preserved": [
+    "project change",
+    "workspace revision",
+    "monitoring analysis revision",
+    "query parameters",
+    "component unmount",
+    "global operation lock"
+  ],
+  "browser_verification": {
+    "url": "http://127.0.0.1:5190/tech",
+    "province": "广东省",
+    "live": true,
+    "visible_count": 35,
+    "visible_table": true,
+    "visible_source": "国家地表水水质自动监测实时数据发布系统 (HTTP API 直连)",
+    "api_data_are_observed_not_fixture": true,
+    "project_rows_preserved": 1805,
+    "video_frames_preserved": 147,
+    "project_backup_before_restart": "111 v3 saved and exported"
+  },
+  "screenshot": "station_query_20261027.jpg",
+  "backend_code_changed": false,
+  "python_suite_rerun": false,
+  "review": "Root reviewed scalar comparisons, current request guards, lifecycle and unchanged report invalidation. No model generation or pollutant algorithm change."
+}

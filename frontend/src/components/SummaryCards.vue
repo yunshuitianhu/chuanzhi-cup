@@ -33,8 +33,8 @@ async function load() {
 
 onMounted(load)
 onBeforeUnmount(() => { requestVersion++ })
-watch(() => [store.projectState.current?.id, store.workspaceRevision, store.switchingProject,
-  store.status.has_data, store.status.rows, store.status.analysis_revision], load, {flush:'sync'})
+watch([() => store.projectState.current?.id, () => store.workspaceRevision, () => store.switchingProject,
+  () => store.status.has_data, () => store.status.rows, () => store.status.analysis_revision], load, {flush:'sync'})
 </script>
 
 <template>

@@ -22,8 +22,9 @@ const canRun = computed(() => !requestState.value.error && (requestState.value.m
 const error = ref('')
 const busy = computed(() => loading.value || store.loading || store.chatRunning || store.switchingProject || store.connecting || !store.ready)
 let requestVersion = 0, disposed = false
-watch(() => [store.projectState.current?.id, store.workspaceRevision, store.status.analysis_revision,
-  store.switchingProject, lat.value, lon.value, radius.value], () => {
+// 状态对象会在查询后刷新；只在实际项目、监测版本或条件变化时撤销响应。
+watch([() => store.projectState.current?.id, () => store.workspaceRevision, () => store.status.analysis_revision,
+  () => store.switchingProject, lat, lon, radius], () => {
   requestVersion++
   data.value = null
   error.value = ''

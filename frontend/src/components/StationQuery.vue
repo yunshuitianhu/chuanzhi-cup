@@ -21,8 +21,9 @@ const data = ref(null)
 const error = ref('')
 const busy = computed(() => loading.value || store.loading || store.chatRunning || store.switchingProject || store.connecting || !store.ready)
 let requestVersion = 0, disposed = false
-watch(() => [store.projectState.current?.id, store.workspaceRevision, store.status.analysis_revision,
-  store.switchingProject, province.value, keyword.value, live.value], () => {
+// 状态对象会在查询后刷新；只在实际项目、监测版本或条件变化时撤销响应。
+watch([() => store.projectState.current?.id, () => store.workspaceRevision, () => store.status.analysis_revision,
+  () => store.switchingProject, province, keyword, live], () => {
   requestVersion++
   data.value = null
   error.value = ''
@@ -88,11 +89,11 @@ function classColor(c) {
 <template>
   <div class="wrap">
     <div class="bar">
-      <select v-model="province" :disabled="busy">
+      <select v-model="province" :disabled="busy" aria-label="查询省份">
         <option value="">请选择查询省份</option>
         <option v-for="p in provinces" :key="p" :value="p">{{ p }}</option>
       </select>
-      <input v-model="keyword" placeholder="站名/流域关键词（可选），如 珠江" :disabled="busy" />
+      <input v-model="keyword" aria-label="站名或流域关键词" placeholder="站名/流域关键词（可选），如 珠江" :disabled="busy" />
       <label class="switch">
         <input v-model="live" type="checkbox" :disabled="busy" />
         <span>实时数据</span>
@@ -104,10 +105,11 @@ function classColor(c) {
       实时模式需选择省份（全量拉取会让政府服务器超时）；查不到时自动降级到内置离线站点库。
     </p>
 
+    <p v-if="loading" class="tip" role="status">正在查询站点并同步分析状态，请稍候…</p>
     <p v-if="error" class="note" role="alert">{{ error }}</p>
 
     <template v-if="data">
-      <div class="meta">
+      <div class="meta" role="status" aria-live="polite">
         <span class="chip">{{ data['站点数量'] }} 个站点</span>
         <span class="chip">{{ data['数据来源'] }}</span>
         <span v-if="data['数据时效']" class="chip">{{ data['数据时效'] }}</span>
