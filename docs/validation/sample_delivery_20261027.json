@@ -4,9 +4,7 @@
   "package": {
     "passed": true,
     "files": 555,
-    "zip_sha256": "c08a61c5dd9105cd0e45851240e5c5d4004363d4069d8b239bd959ee68420359",
-    "git_revision": "375271cb8dde2f4b1a6ea5e7b4dc5ad2dea16c4d",
-    "source_note": "包由该 revision 的已提交源码和当时的前端构建生成；其后提交只新增验收文档，未改源码",
+    "manifest_note": "实际源码 revision 由包内 delivery-manifest.json 记录；ZIP 文件数与 SHA-256 记录在仓库实施记录中，避免包内文件自引用自身哈希",
     "sample_entries": [
       "data/samples/README.md",
       "data/samples/S01_仿真_正常背景.csv",
