@@ -1,11 +1,12 @@
 {
   "date": "2026-10-27",
-  "scope": "临时Git副本打包与解压验证；不是正式发布revision，也不是异机安装或现场准确率验收",
+  "scope": "已提交源码生成的正式交付包，并在无 .env 的独立解压副本中做两阶段进程验收；复用本机依赖，不是异机安装、真实模型或现场准确率验收",
   "package": {
     "passed": true,
-    "files": 536,
-    "temporary_zip_sha256": "a0f8bec7d4f1cf316df7dd52490759ade641e0dc48152d54bb7da76d511accfe",
-    "temporary_git_revision": "72c1bedf1ffc962629b54d39776df856f2076880（临时副本，不是正式发布）",
+    "files": 555,
+    "zip_sha256": "c08a61c5dd9105cd0e45851240e5c5d4004363d4069d8b239bd959ee68420359",
+    "git_revision": "375271cb8dde2f4b1a6ea5e7b4dc5ad2dea16c4d",
+    "source_note": "包由该 revision 的已提交源码和当时的前端构建生成；其后提交只新增验收文档，未改源码",
     "sample_entries": [
       "data/samples/README.md",
       "data/samples/S01_仿真_正常背景.csv",
@@ -31,9 +32,9 @@
     "requests_httpx_external_requests_forbidden": true
   },
   "limitations": [
-    "临时Git副本提交不是正式发布提交；正式提交后需重跑打包",
     "复用本机依赖；未验证新机器安装或异机运行",
     "RAG索引和模型缓存不随交付包提供",
-    "未调用真实DeepSeek或外部地图服务；示例为synthetic"
+    "未调用真实DeepSeek或外部地图服务；示例为synthetic",
+    "解压副本验收不等于队友电脑安装验收"
   ]
 }
