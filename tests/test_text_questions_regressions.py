@@ -225,7 +225,7 @@ class TextQuestionTests(unittest.TestCase):
         for version in (1,2):
             with zipfile.ZipFile(BytesIO(raw)) as z:entries={name:z.read(name) for name in z.namelist()}
             state=json.loads(entries['state.json']);state['items']=[item for item in state['items']
-                if item[0]!='side_threads' and not(version==1 and item[0]=='investigations')]
+                if item[0] not in ('side_threads','media_assets') and not(version==1 and item[0]=='investigations')]
             entries['state.json']=json.dumps(state,ensure_ascii=False).encode()
             manifest=json.loads(entries['manifest.json']);manifest['schema_version']=version
             manifest['contents']['state.json']={'bytes':len(entries['state.json']),'sha256':sha256(entries['state.json']).hexdigest()}

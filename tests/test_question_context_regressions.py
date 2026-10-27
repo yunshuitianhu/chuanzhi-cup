@@ -254,7 +254,9 @@ class QuestionContextTests(unittest.TestCase):
         entry=resolve_context(self.s,card['id'])
         self.assertNotIn('image_base64',json.dumps(entry,ensure_ascii=False))
         self.assertEqual(entry['payload']['frame']['id'],0)
-        self.assertIn('没有向大模型发送图像',entry['payload']['source_kind'])
+        self.assertNotIn('没有向大模型发送图像',entry['payload']['source_kind'])
+        self.assertEqual(entry['payload']['image_source']['kind'],'video_frame')
+        self.assertIn('提问时服务器可按当前视频版本发送该帧图像',entry['payload']['source_kind'])
         self.s.video_frames[0]['video_settings']['roi']=[0.,.2,1.,1.]
         self.assertEqual(self.client.get('/api/agent/context/'+card['id'],headers=self.h).status_code,409)
 

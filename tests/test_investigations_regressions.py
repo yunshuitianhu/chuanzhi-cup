@@ -187,9 +187,9 @@ class InvestigationTests(unittest.TestCase):
         loaded=load_project(raw)
         self.assertEqual(loaded.state['investigations']['items'][0]['id'],task_id)
         with zipfile.ZipFile(BytesIO(raw)) as archive:entries={name:archive.read(name) for name in archive.namelist()}
-        manifest=json.loads(entries['manifest.json']);self.assertEqual(manifest['schema_version'],3)
+        manifest=json.loads(entries['manifest.json']);self.assertEqual(manifest['schema_version'],4)
         packed=json.loads(entries['state.json'])
-        packed['items']=[pair for pair in packed['items'] if pair[0] not in ('investigations','side_threads')]
+        packed['items']=[pair for pair in packed['items'] if pair[0] not in ('investigations','side_threads','media_assets')]
         entries['state.json']=json.dumps(packed,ensure_ascii=False).encode()
         manifest['contents']['state.json']={'bytes':len(entries['state.json']),'sha256':sha256(entries['state.json']).hexdigest()}
         def rebuild(version):
