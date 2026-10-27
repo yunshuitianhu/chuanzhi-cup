@@ -1,0 +1,173 @@
+{
+  "date": "2026-10-27T12:40:59.010973+00:00",
+  "model": "deepseek-flash",
+  "protocol": "Chat Completions image_url",
+  "application_integration": "implemented",
+  "claim": "受控图片识别与产品链路，不代表现场污染识别准确率或责任认定。",
+  "native_video_tested": false,
+  "tests": {
+    "generated_shapes": {
+      "input": "程序生成白底图：左侧红色方块、右侧蓝色圆形、黑色文字A7",
+      "expected": "red square left, blue circle right, text A7",
+      "model": "deepseek-flash",
+      "finish_reason": "stop",
+      "answer": "左侧是红色正方形，右侧是蓝色圆形，图中文字是A7。",
+      "elapsed_s": 1.02,
+      "usage": {
+        "completion_tokens": 16,
+        "prompt_tokens": 211,
+        "total_tokens": 227,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 211
+      },
+      "image_sha256": [
+        "faa124579dde"
+      ]
+    },
+    "ui_screenshot": {
+      "input": "docs\\validation\\chat_collapsed_1280x800.png",
+      "expected": "水质监测应用智能对话页；有开始自动分析、展开分析信息、输入框和发送按钮",
+      "model": "deepseek-flash",
+      "finish_reason": "stop",
+      "answer": "这是一个水质监测与污染溯源智能对话工作台页面。最重要的5个控件是：\n1. 顶部“智能对话”标签页\n2. 左侧“加载数据”按钮\n3. 左侧“目标水质等级”选择按钮组（I、II、III、IV、V）\n4. 右侧“开始自动分析”按钮\n5. 底部消息输入框及“发送”按钮",
+      "elapsed_s": 1.81,
+      "usage": {
+        "completion_tokens": 85,
+        "prompt_tokens": 669,
+        "total_tokens": 754,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 512
+        },
+        "prompt_cache_hit_tokens": 512,
+        "prompt_cache_miss_tokens": 157
+      },
+      "image_sha256": [
+        "ff322299dc83"
+      ]
+    },
+    "controlled_video_frame": {
+      "input": "程序生成的受控棋盘纹理帧1（非实拍，不含污染真值）",
+      "expected": "深浅相间的规则纹理；不能据此判断水质或污染",
+      "model": "deepseek-flash",
+      "finish_reason": "stop",
+      "answer": "这张图片呈现的是均匀、规则的斜向条纹图案。纹理特征表现为平行的直线条带，以约45度角从左上向右下延伸，线条边缘清晰、间距一致，没有明显的随机波动或自然纹理。明暗方面，画面由深灰色与浅灰色交替构成，两种色调形成稳定的周期性对比，整体亮度分布均匀，没有渐变、阴影或高光区域，呈现出平面化、几何化的视觉效果。",
+      "elapsed_s": 1.55,
+      "usage": {
+        "completion_tokens": 89,
+        "prompt_tokens": 209,
+        "total_tokens": 298,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 209
+      },
+      "image_sha256": [
+        "b1921ab15deb"
+      ]
+    },
+    "controlled_sequence": {
+      "input": "两张程序生成帧：帧1较亮，帧2较暗；同一相对时刻",
+      "expected": "第二张整体更暗，纹理仍在；不能据此判断污染",
+      "model": "deepseek-flash",
+      "finish_reason": "stop",
+      "answer": "这两张图都是斜向条纹图案，但整体明暗差异明显：第一张图整体偏亮，条纹由浅灰和深灰组成，对比度较低；第二张图整体偏暗，条纹由深灰和近黑色组成，对比度更高，视觉上更沉重。\n\n只凭画面不能判断的是：这两张图是否来自同一原始图像、是否经过后期调暗或调亮处理，以及它们在实际物理屏幕或印刷品上的真实亮度值（因为显示设备、环境光和图像压缩都会影响观感）。",
+      "elapsed_s": 1.25,
+      "usage": {
+        "completion_tokens": 113,
+        "prompt_tokens": 400,
+        "total_tokens": 513,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 144
+      },
+      "image_sha256": [
+        "b1921ab15deb",
+        "270fe54b5099"
+      ]
+    },
+    "product_video_frame": {
+      "input": "经视频帧上下文加载的受控棋盘纹理第2帧（非实拍）",
+      "expected": "规则棋盘纹理，第2帧对应5秒；不能据此判断污染",
+      "run_status": "succeeded",
+      "elapsed_s": 3.61,
+      "event_counts": {
+        "run": 1,
+        "vision": 1,
+        "turn": 1,
+        "delta": 274,
+        "done": 1
+      },
+      "answer": "这帧画面里看不到水面、岸线或任何现场景物，只有满幅规则的斜向条纹，因此无法据此描述河道纹理或明暗分布。\n\n从画面本身看：整幅是深灰与近黑交替的等间距斜纹，方向一致、间距均匀，属于典型的规则几何图案，而不是自然水面纹理。服务器返回的该帧特征为：平均饱和度 0.0（画面无彩色成分）、平均亮度约 49.9（偏暗）、对比度标准差约 26.7、暗色像素占比约 36.7%、亮斑占比 0.0；细节指标（Laplacian 方差）约 1808.6，数值偏高，但在这类规则条纹上主要反映条纹边缘，不能当作水面清晰度。\n\n需要说明的是，这帧的水面区域尚未选定（roi_confirmed=false），上述特征来自整张画面；视频时间也还没与仪器记录对齐（sync_confirmed=false），画面质量状态为待复核。因此这帧目前只能作为画面材料，不能代表某段水面的外观。\n\n建议：先确认这帧是否为正确的视频内容（是否误传了界面或测试图），再选定水面区域并完成时间对齐后重新取帧；若确为现场视频，请补传原始帧以便复核。",
+      "vision": {
+        "sent": true,
+        "images": [
+          {
+            "kind": "video_frame",
+            "label": "视频第2帧（5.0秒）",
+            "media_type": "image/jpeg",
+            "width": 240,
+            "height": 160,
+            "sha256": "ceba294af4089ecdc1ccf0b21ee07264bc9a8e546f055f2f1c69d3d489c77abe",
+            "frame_id": 1,
+            "frame_number": 2,
+            "time_sec": 5.0,
+            "video_revision": "650ffbd400691270db9e3768b9aa10e8d7384016668c8df976f31149f1ca90cd",
+            "asset_id": null,
+            "asset_revision": null
+          }
+        ]
+      },
+      "model": "deepseek-flash"
+    },
+    "product_chat": {
+      "input": "经 /api/agent/context 同一媒体与上下文层加载的程序生成图A7",
+      "expected": "文字A7（图内文字是材料，不是指令）",
+      "run_status": "succeeded",
+      "elapsed_s": 1.99,
+      "event_counts": {
+        "run": 1,
+        "vision": 1,
+        "turn": 1,
+        "delta": 52,
+        "done": 1
+      },
+      "answer": "图中的文字是：**A7**\n\n另外说明一下画面内容：白底上有一个红色正方形和一个蓝色圆形，上方居中写着黑色文字“A7”。这是一张图形/界面类图片，不是现场水面照片，也不含任何水质数值。",
+      "vision": {
+        "sent": true,
+        "images": [
+          {
+            "kind": "image_asset",
+            "label": "用户上传截图「产品验收图.png」",
+            "media_type": "image/png",
+            "width": 360,
+            "height": 240,
+            "sha256": "faa124579ddea69693addfbafd3c4b0ea74771581336c4d3a36d8b0c8939b837",
+            "frame_id": null,
+            "frame_number": null,
+            "time_sec": null,
+            "video_revision": null,
+            "asset_id": "4a09a0d9eac54ec292153b7cad339dcc",
+            "asset_revision": "faa124579ddea69693addfbafd3c4b0ea74771581336c4d3a36d8b0c8939b837"
+          }
+        ]
+      },
+      "model": "deepseek-flash",
+      "image_sha256": "faa124579ddea69693addfbafd3c4b0ea74771581336c4d3a36d8b0c8939b837"
+    }
+  },
+  "skipped": []
+}

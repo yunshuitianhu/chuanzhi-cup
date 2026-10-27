@@ -1,0 +1,183 @@
+{
+  "url": "http://127.0.0.1:5180/chat",
+  "checks": {
+    "desktop_collapsed": {
+      "viewport": [
+        1280,
+        800
+      ],
+      "stream": 431,
+      "composer": 98.1875,
+      "summary": 29.6875,
+      "info": 0,
+      "overflowX": 0,
+      "workspaceBottom": 772,
+      "composerBottom": 761,
+      "textareaVisible": true,
+      "textareaDisabled": false,
+      "sendVisible": true,
+      "sendDisabled": true,
+      "activeIsInput": false,
+      "aria_expanded": "false",
+      "pass": true
+    },
+    "empty_session_input": {
+      "value": "什么是溶解氧？",
+      "focused": true,
+      "disabled": false,
+      "sendDisabled": false,
+      "pass": true
+    },
+    "desktop_expanded": {
+      "viewport": [
+        1280,
+        800
+      ],
+      "stream": 317,
+      "composer": 98,
+      "summary": 29.6875,
+      "info": 114.1875,
+      "overflowX": 0,
+      "workspaceBottom": 772,
+      "composerBottom": 761,
+      "textareaVisible": true,
+      "textareaDisabled": false,
+      "sendVisible": true,
+      "sendDisabled": false,
+      "activeIsInput": false,
+      "draft": "草稿保留检查",
+      "pass": true
+    },
+    "desktop_collapsed_again": {
+      "aria_expanded": "false",
+      "draft": "草稿保留检查",
+      "pass": true
+    },
+    "desktop_image_collapsed": {
+      "viewport": [
+        1280,
+        800
+      ],
+      "stream": 403,
+      "composer": 98,
+      "summary": 29.6875,
+      "info": 0,
+      "overflowX": 0,
+      "workspaceBottom": 772,
+      "composerBottom": 761,
+      "textareaVisible": true,
+      "textareaDisabled": false,
+      "sendVisible": true,
+      "sendDisabled": false,
+      "activeIsInput": false,
+      "pass": true
+    },
+    "mobile_image_collapsed": {
+      "viewport": [
+        390,
+        844
+      ],
+      "stream": 477,
+      "composer": 98,
+      "summary": 33.6875,
+      "info": 0,
+      "overflowX": 0,
+      "workspaceBottom": 826,
+      "composerBottom": 817,
+      "textareaVisible": true,
+      "textareaDisabled": false,
+      "sendVisible": true,
+      "sendDisabled": false,
+      "activeIsInput": false,
+      "pass": true
+    },
+    "paste_image": {
+      "ok": true,
+      "kind": "图片",
+      "title": "pasted-test.png",
+      "collapsed": true,
+      "thumb": true,
+      "side_context": {
+        "opened": true,
+        "quote": "图片附件 · pasted-test.png",
+        "sendVisible": true,
+        "canvas": true
+      },
+      "source_lookup": {
+        "text": "pasted-test.png\n\n320×180 · 2KB · 来源：pasted-test.png\n\n这是用户提供的图片材料，不是实测数据；画面内容不能直接当作浓度、水质或污染责任结论。",
+        "error": false
+      },
+      "pass": true
+    },
+    "side_image_upload": {
+      "quote": "图片附件 · side-upload.png",
+      "thumb": true,
+      "error": "",
+      "sendVisible": true,
+      "main_context": "图片附件 · pasted-test.png",
+      "paste_title": "图片附件 · side-paste.png",
+      "paste_thumb": true,
+      "pass": true
+    },
+    "upload_failure_retry": {
+      "error": "controlled upload failure",
+      "retry_visible": true,
+      "ok": true,
+      "pass": true
+    },
+    "mobile_390x844": {
+      "viewport": [
+        390,
+        844
+      ],
+      "stream": 505,
+      "composer": 98.1875,
+      "summary": 33.6875,
+      "info": 0,
+      "overflowX": 0,
+      "workspaceBottom": 826,
+      "composerBottom": 817,
+      "textareaVisible": true,
+      "textareaDisabled": false,
+      "sendVisible": true,
+      "sendDisabled": true,
+      "activeIsInput": false,
+      "pass": true
+    },
+    "landscape_844x390": {
+      "viewport": [
+        844,
+        390
+      ],
+      "stream": 81,
+      "composer": 98.1875,
+      "summary": 29.6875,
+      "info": 0,
+      "overflowX": 0,
+      "workspaceBottom": 384,
+      "composerBottom": 379,
+      "textareaVisible": true,
+      "textareaDisabled": false,
+      "sendVisible": true,
+      "sendDisabled": true,
+      "activeIsInput": false,
+      "scrollTop": 0,
+      "scrollHeight": 211,
+      "clientHeight": 211,
+      "lastVisible": true,
+      "collapse_visible": true,
+      "pass": true
+    }
+  },
+  "screenshots": [
+    "docs\\validation\\chat_collapsed_1280x800.png",
+    "docs\\validation\\chat_expanded_1280x800.png",
+    "docs\\validation\\chat_image_context_1280x800.png",
+    "docs\\validation\\chat_image_context_mobile_390x844.png",
+    "docs\\validation\\chat_image_context_expanded_1280x800.png",
+    "docs\\validation\\chat_side_image_upload_1280x800.png",
+    "docs\\validation\\chat_mobile_390x844.png",
+    "docs\\validation\\chat_landscape_844x390.png"
+  ],
+  "passed": true
+}
