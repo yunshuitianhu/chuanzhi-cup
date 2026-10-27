@@ -1,0 +1,4 @@
+# 示例 CSV 的字节哈希写入 manifest；禁止 Git 换行转换。
+data/samples/*.csv binary
+data/samples/manifest.json text eol=lf
+data/samples/README.md text eol=lf
