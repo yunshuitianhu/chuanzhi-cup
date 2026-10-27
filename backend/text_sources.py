@@ -1,5 +1,6 @@
 """Visible quotations are material to explain, never proof of a monitored fact."""
 from hashlib import sha256
+from pathlib import Path
 import json
 import re
 
@@ -10,6 +11,8 @@ from typing import Literal
 
 MAX_QUOTE = 3000
 HELP = {
+    # 与已注册可见区域保持一致；前端渲染回归检查该原文契约。
+    'grid_help': Path(__file__).with_name('grid_help.txt').read_text(encoding='utf-8').strip(),
     'rag_help': '本地整理的治理资料结合向量与词面检索，按来源合并并返回相关原文片段。相似度不代表治理效果或责任概率；历史案例不能证明当前河段的污染责任。',
     'screening_help': '黑臭筛查只依据当前已提供的指标与阈值。缺测不当作达标，插值不当作原始观测；质控标记不撤销阈值预警，也不能确认仪器故障。',
     'model_help': '当前模型用于可配置河段的一维恒定流情景分析。几何、边界与反应参数仍需现场核实和率定；情景结果不能直接认定污染责任。',
@@ -24,7 +27,7 @@ class TextSource(BaseModel):
     view: Literal['markdown', 'raw'] = 'raw'
     retrieval_id: str | None = Field(None, pattern=r'^[0-9a-f]{32}$')
     evidence_id: str | None = Field(None, min_length=1, max_length=1000)
-    help_id: Literal['rag_help', 'screening_help', 'model_help'] | None = None
+    help_id: Literal['rag_help', 'screening_help', 'model_help', 'grid_help'] | None = None
 
 
 def message_id(message, position):

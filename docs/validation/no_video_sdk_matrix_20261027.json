@@ -16,43 +16,36 @@
     },
     "progress_steps": [
       {
-        "id": "79512c02e78f443a8c44e65d85393848",
         "name": "get_data_summary",
         "status": "succeeded",
         "elapsed_s": 0.109
       },
       {
-        "id": "06cae3f909fc478cbc5bb1ff366b9e0c",
         "name": "find_black_spots",
         "status": "succeeded",
         "elapsed_s": 0.063
       },
       {
-        "id": "50d0e273b97843e99d9b13354ca10e1c",
         "name": "get_comprehensive_summary",
         "status": "succeeded",
         "elapsed_s": 0.047
       },
       {
-        "id": "5e233e3af0d44298a749825f4c075535",
         "name": "search_treatment_cases",
         "status": "succeeded",
         "elapsed_s": 12.39
       },
       {
-        "id": "91b4f751e977439e9826867b45c5c6e2",
         "name": "generate_final_report",
         "status": "succeeded",
         "elapsed_s": 10.203
       },
       {
-        "id": "f1799097ee2148d9810c78ff9dc701f0",
         "name": "get_analysis_card_catalog",
         "status": "succeeded",
         "elapsed_s": 0.094
       },
       {
-        "id": "c048fbbc12464a42a96eaee3439de8e0",
         "name": "submit_analysis_cards",
         "status": "succeeded",
         "elapsed_s": 0.187
@@ -155,43 +148,36 @@
     },
     "progress_steps": [
       {
-        "id": "c3e15d1fc4c1499382ca6dfd61c82f51",
         "name": "get_data_summary",
         "status": "succeeded",
         "elapsed_s": 0.047
       },
       {
-        "id": "69ff9258228d47f5b92213c8596a5025",
         "name": "find_black_spots",
         "status": "succeeded",
         "elapsed_s": 0.11
       },
       {
-        "id": "5ce3f8d19a4c4657932291111d574432",
         "name": "get_comprehensive_summary",
         "status": "succeeded",
         "elapsed_s": 0.078
       },
       {
-        "id": "a97ab40e6cb044078c8e22e4c8b7e547",
         "name": "search_treatment_cases",
         "status": "succeeded",
         "elapsed_s": 12.328
       },
       {
-        "id": "dc0f90cbfaf44038af7da04530ff0a51",
         "name": "generate_final_report",
         "status": "succeeded",
         "elapsed_s": 10.063
       },
       {
-        "id": "13644e0e1f194fa1b4fec9a1d98f2932",
         "name": "get_analysis_card_catalog",
         "status": "succeeded",
         "elapsed_s": 0.109
       },
       {
-        "id": "8219e0a110df44e49226205773a6bcdc",
         "name": "submit_analysis_cards",
         "status": "succeeded",
         "elapsed_s": 0.203
@@ -294,43 +280,36 @@
     },
     "progress_steps": [
       {
-        "id": "fd1682498c9948eca724d225e95d2b3c",
         "name": "get_data_summary",
         "status": "succeeded",
         "elapsed_s": 0.047
       },
       {
-        "id": "c87ea9b3d56440008feee10221ab0b57",
         "name": "find_black_spots",
         "status": "succeeded",
         "elapsed_s": 0.375
       },
       {
-        "id": "5055482ddad14ea0ba3d3c3974bbdcb2",
         "name": "get_comprehensive_summary",
         "status": "succeeded",
         "elapsed_s": 0.094
       },
       {
-        "id": "5dfd0771ea00442985764f545118a832",
         "name": "search_treatment_cases",
         "status": "succeeded",
         "elapsed_s": 0.296
       },
       {
-        "id": "20e06ca06d8e401480e4dff36187eebd",
         "name": "generate_final_report",
         "status": "succeeded",
         "elapsed_s": 11.032
       },
       {
-        "id": "7ffb713afd494e16b2fa299cec100943",
         "name": "get_analysis_card_catalog",
         "status": "succeeded",
         "elapsed_s": 0.125
       },
       {
-        "id": "32622c943cf047c69e300b26f410b40b",
         "name": "submit_analysis_cards",
         "status": "succeeded",
         "elapsed_s": 0.468
@@ -436,62 +415,52 @@
     },
     "progress_steps": [
       {
-        "id": "c22af1c7cbc1406c9d4ddb146f2ddc0d",
         "name": "get_data_summary",
         "status": "succeeded",
         "elapsed_s": 0.047
       },
       {
-        "id": "943ed80a9da44cc08dc95ac2796613c4",
         "name": "find_black_spots",
         "status": "succeeded",
         "elapsed_s": 0.125
       },
       {
-        "id": "aaed9e7028264b6788c2332cfbd36d4b",
         "name": "get_comprehensive_summary",
         "status": "succeeded",
         "elapsed_s": 0.109
       },
       {
-        "id": "ddadde32b23b4a9ab6b02a7114f08a2c",
         "name": "reverse_geocode",
         "status": "succeeded",
         "elapsed_s": 0.078
       },
       {
-        "id": "34f9d98a8c7a41bb977b846e7d9f9bd9",
         "name": "get_satellite_image",
         "status": "succeeded",
         "elapsed_s": 0.125
       },
       {
-        "id": "0d4600f9dfe441888ccfea66f4708ed7",
         "name": "search_nearby_pollution_sources",
         "status": "skipped",
         "elapsed_s": 0.0,
         "notice": "仿真数据不关联真实企业和国控站点；地名仅供地图参考。"
       },
       {
-        "id": "aa470ebbda974b8f9c5e6398f11d72ad",
         "name": "search_treatment_cases",
         "status": "succeeded",
         "elapsed_s": 0.094
       },
       {
-        "id": "76be262f8c6343e4a608c2417ecaa862",
         "name": "generate_final_report",
         "status": "succeeded",
         "elapsed_s": 10.859
       },
       {
-        "id": "ad44a0cd1aeb460cbefcc3b305da6e70",
         "name": "get_analysis_card_catalog",
         "status": "succeeded",
         "elapsed_s": 0.11
       },
       {
-        "id": "b760a98868a843fe81eb7465ee1d86ec",
         "name": "submit_analysis_cards",
         "status": "succeeded",
         "elapsed_s": 0.468
@@ -615,43 +584,36 @@
     },
     "progress_steps": [
       {
-        "id": "562295d305b142098514c9572b3bf29a",
         "name": "get_data_summary",
         "status": "succeeded",
         "elapsed_s": 0.047
       },
       {
-        "id": "06bdcfa65bf24693afbcd89b8de9004e",
         "name": "find_black_spots",
         "status": "succeeded",
         "elapsed_s": 0.078
       },
       {
-        "id": "25ad9a326384411b870195470cb276b6",
         "name": "get_comprehensive_summary",
         "status": "succeeded",
         "elapsed_s": 0.078
       },
       {
-        "id": "ed3a276ff49c4989acb8c49fabeae413",
         "name": "search_treatment_cases",
         "status": "succeeded",
         "elapsed_s": 0.094
       },
       {
-        "id": "1e9ce8ecc81242dd93ec83fdb9c575dd",
         "name": "generate_final_report",
         "status": "succeeded",
         "elapsed_s": 8.157
       },
       {
-        "id": "3031fb222e3f4cb1add2ebfa01fec2f9",
         "name": "get_analysis_card_catalog",
         "status": "succeeded",
         "elapsed_s": 0.094
       },
       {
-        "id": "b4c457091b504235adedf35dae8f0ced",
         "name": "submit_analysis_cards",
         "status": "succeeded",
         "elapsed_s": 0.281
@@ -754,43 +716,36 @@
     },
     "progress_steps": [
       {
-        "id": "857549b20f73447eba844292dd2b7d93",
         "name": "get_data_summary",
         "status": "succeeded",
         "elapsed_s": 0.047
       },
       {
-        "id": "26470b7eb0c2458b8edee051b4f2d54b",
         "name": "find_black_spots",
         "status": "succeeded",
         "elapsed_s": 0.062
       },
       {
-        "id": "54cc0560bb6941108bfba2ab16c3b6fc",
         "name": "get_comprehensive_summary",
         "status": "succeeded",
         "elapsed_s": 0.047
       },
       {
-        "id": "4f2a3a63a7a9421e83c025e89ff7347a",
         "name": "search_treatment_cases",
         "status": "succeeded",
         "elapsed_s": 0.109
       },
       {
-        "id": "07f720ca9fa24b4fa471ad11d6f7df48",
         "name": "generate_final_report",
         "status": "succeeded",
         "elapsed_s": 11.594
       },
       {
-        "id": "26f0b531e39f4674838c7f4aaa1ab5d4",
         "name": "get_analysis_card_catalog",
         "status": "succeeded",
         "elapsed_s": 0.219
       },
       {
-        "id": "4683edc1c73a4c47b520da36cadd6682",
         "name": "submit_analysis_cards",
         "status": "succeeded",
         "elapsed_s": 0.375

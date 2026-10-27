@@ -51,7 +51,7 @@ class TextQuestionTests(unittest.TestCase):
         calls=[]
         def create(**kwargs):
             calls.append(deepcopy(kwargs));return iter([chunk(answer)])
-        with patch('backend.side_chat.resolve_api_key',return_value='controlled-client'),patch('backend.side_chat.OpenAI') as client:
+        with patch('backend.side_chat.resolve_api_key',autospec=True,return_value='controlled-client'),patch('backend.side_chat.OpenAI') as client:
             client.return_value.chat.completions.create.side_effect=create
             res=self.client.post('/api/side/threads/'+thread['id']+'/chat',headers=self.h,
                 json={'message':'这是什么意思？','request_id':request_id or str(uuid4())})
@@ -91,6 +91,36 @@ class TextQuestionTests(unittest.TestCase):
         self.assertEqual(res.status_code,200,res.text)
         self.assertEqual(res.json()['kind'],'text_quote')
         self.assertEqual(self.select('虚构说明',{'kind':'help','help_id':'rag_help'}).status_code,422)
+
+    def test_grid_help_full_visible_region_and_partial_phrase_are_server_verified(self):
+        for text in (HELP['grid_help'], '水动力与水质采用独立计算网格', '每个区间默认细分 4 倍'):
+            result=self.select(text,{'kind':'help','help_id':'grid_help'})
+            self.assertEqual(result.status_code,200,result.text)
+            self.assertEqual(result.json()['selection']['text'],text)
+            self.assertIn('grid_help',result.json()['source_url'])
+        self.assertEqual(self.select('已经确认污染责任',{'kind':'help','help_id':'grid_help'}).status_code,422)
+        self.assertEqual(self.select('每个区间默认细分 4 倍',{'kind':'help','help_id':'unknown_grid_help'}).status_code,422)
+
+    def test_grid_help_side_explanation_receives_selected_text_only_and_preserves_main(self):
+        quoted=self.select('每个区间默认细分 4 倍',{'kind':'help','help_id':'grid_help'})
+        self.assertEqual(quoted.status_code,200,quoted.text)
+        thread=self.client.post('/api/side/threads',headers=self.h,json={'context_id':quoted.json()['id']}).json()
+        before=deepcopy(self.s.messages)
+        result,calls=self.ask(thread,answer='这是水质网格的细分倍数说明。')
+        self.assertEqual(result.status_code,200,result.text)
+        sent=json.dumps(calls,ensure_ascii=False)
+        self.assertIn('每个区间默认细分 4 倍',sent)
+        self.assertNotIn('100 个断面',sent)
+        self.assertEqual(self.s.messages,before)
+
+    def test_side_explanation_uses_real_key_resolver_signature(self):
+        thread=self.thread()
+        with patch.dict('os.environ',{'DEEPSEEK_API_KEY':'controlled-client'}),patch('backend.side_chat.OpenAI') as factory:
+            factory.return_value.chat.completions.create.return_value=iter([chunk('这是对所选文字的解释。')])
+            response=self.client.post('/api/side/threads/'+thread['id']+'/chat',headers=self.h,
+                json={'message':'功能验证问题','request_id':str(uuid4())})
+        self.assertIn('"status": "succeeded"',response.text)
+        self.assertEqual(factory.call_args.kwargs['api_key'],'controlled-client')
 
     def test_main_agent_can_use_text_context_but_auto_mix_rejected(self):
         quote=self.select().json()
@@ -172,7 +202,7 @@ class TextQuestionTests(unittest.TestCase):
             yield chunk('受控部分文字',None)
             entered.set();release.wait(3)
             yield chunk('不应提交的尾部')
-        with patch('backend.side_chat.resolve_api_key',return_value='controlled-client'),patch('backend.side_chat.OpenAI') as client:
+        with patch('backend.side_chat.resolve_api_key',autospec=True,return_value='controlled-client'),patch('backend.side_chat.OpenAI') as client:
             client.return_value.chat.completions.create.side_effect=lambda **kw:stream()
             with ThreadPoolExecutor(max_workers=1) as pool:
                 future=pool.submit(self.client.post,'/api/side/threads/'+t['id']+'/chat',headers=self.h,

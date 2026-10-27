@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-27",
+  "scope": "grid-help introduction, workflow cards and node formula; not arbitrary whole-page text",
+  "reason": "WaterQualityGridTech did not contain an opted-in quote source",
+  "changes": [
+    "QuoteText explicit source region and fallback button",
+    "Server-owned grid_help text whitelist and visible-render contract",
+    "Side explanation calls credential resolver with DEEPSEEK_API_KEY; tests now cover its real signature"
+  ],
+  "validation": {
+    "python": {
+      "tests": 542,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "success": true,
+      "legacy_checks": true,
+      "secret_scan": true,
+      "contracts_exported": true,
+      "elapsed_s": 101.84
+    },
+    "frontend": {
+      "tests": 315,
+      "passed": 315,
+      "typecheck": true,
+      "production_build": true
+    },
+    "before_fix_backend_new_tests": "unknown help key and rejected source demonstrated",
+    "browser": {
+      "native_mouse_selection": true,
+      "toolbar_actions": [
+        "添加到对话",
+        "在侧边聊天中提问"
+      ],
+      "main_quote_card": true,
+      "main_question_not_sent": true,
+      "original_main_draft_empty_restored": true,
+      "flow_card_partial_side_quote": true,
+      "whole_region_fallback_quote": true,
+      "real_side_model": "deepseek-flash",
+      "side_question_explicitly_labelled": "功能验证",
+      "side_answer_complete": true,
+      "project_auto_save_visible": true,
+      "project_backup_before_restart": "111 v4 saved and exported",
+      "rows_preserved": 1805,
+      "frames_preserved": 147
+    }
+  },
+  "metadata_cleanup": {
+    "prior_no_video_report_opaque_step_ids_removed": 45,
+    "actual_env_key_matches": 0,
+    "secret_rule_unchanged": true,
+    "original_full_trace_retained_only_in_local_work_directory": true
+  },
+  "limitations": [
+    "Benchmark tables and other unregistered page text are outside this quote region",
+    "No new numerical model or detection accuracy result"
+  ],
+  "screenshots": [
+    "grid_quote_selection_menu_20261027.jpg",
+    "grid_quote_side_answer_20261027.jpg"
+  ]
+}

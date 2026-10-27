@@ -87,7 +87,7 @@ def explain(session, thread, question, request_id, run):
     # The parent session is held exclusively, but its analysis state is never used as thread state.
     def emit(event, body):
         return _sse(event, {**body, 'run_id': run.id, 'thread_id': thread['id'], 'progress': run.snapshot()})
-    key = resolve_api_key()
+    key = resolve_api_key('DEEPSEEK_API_KEY')
     if not key:
         run.end('failed')
         yield emit('error', {'message': '未配置DeepSeek密钥，问题草稿仍可保留。'})

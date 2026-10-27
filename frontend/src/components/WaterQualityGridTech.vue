@@ -1,4 +1,5 @@
 <script setup>
+import QuoteText from './QuoteText.vue'
 // 已完成的离线解析基准，来源见 docs/水质独立网格与分辨率改进记录.md。
 // 这些固定结果不代表当前会话已经模拟，也不代表现场检测准确率。
 const benchmarks = [
@@ -10,6 +11,7 @@ const benchmarks = [
 
 <template>
   <div class="grid-tech">
+    <QuoteText :source="{kind:'help',help_id:'grid_help'}" source-id="grid_help" title="水动力与水质独立网格说明">
     <p class="intro">
       <b>水动力与水质采用独立计算网格</b>，在已有断面之间细分水质单元，缓解粗网格把污染峰摊宽的问题。
       无需增加水动力断面或重新计算水动力，即可比较不同网格下的污染浓度与到达时间。
@@ -33,6 +35,8 @@ const benchmarks = [
       </div>
     </div>
     <p class="note">上图以 100 个水动力断面为例。支持 1、2、4、8 倍细分，节点数为（断面数 − 1）× 细分数 + 1；8 倍时为 793 个节点。</p>
+
+    </QuoteText>
 
     <div class="benchmarks">
       <div class="benchmark-heading">
