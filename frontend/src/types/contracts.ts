@@ -32,10 +32,22 @@ export type AgentEventArgs =
   | [event: 'delta', payload: EventContext & { text: string }]
   | [event: 'tool', payload: EventContext & { name: string; step_id?: string; args?: string[] }]
   | [event: 'tool_done', payload: EventContext & { name: string; ok: boolean; status: 'succeeded'|'failed'|'skipped'; step_id?: string; chars?: number; notice?: string }]
+  | [event: 'vision', payload: EventContext & { status: 'sent'|'failed'; images?: VisionImage[]; errors?: string[]; error?: string }]
   | [event: 'done', payload: EventContext & { status: TerminalStatus; turns?: number; tool_errors?: number; message?: string }]
   | [event: 'error', payload: EventContext & { message: string; status?: TerminalStatus }]
 
-export type QuestionContextKind = 'sample' | 'time_range' | 'video_frame' | 'rag_excerpt' | 'text_quote'
+export interface VisionImage {
+  kind?: 'video_frame'|'image_asset'; label?: string; media_type?: string
+  width?: number; height?: number; sha256?: string
+  frame_id?: number|null; frame_number?: number|null; time_sec?: number|null; video_revision?: string|null
+  asset_id?: string|null; asset_revision?: string|null
+}
+export interface VisionInfo { sent: boolean; images?: VisionImage[]; errors?: string[]; error?: string; at?: string }
+export interface MediaAsset {
+  asset_id: string; sha256: string; media_type: string; width: number; height: number
+  bytes: number; source: string; source_name: string; created_at: string; preview_url: string
+}
+export type QuestionContextKind = 'sample' | 'time_range' | 'video_frame' | 'rag_excerpt' | 'text_quote' | 'image_asset'
 export interface QuestionContextScope {
   project_id:string|null; analysis_revision:number; results_revision:number; data_version:string
 }
@@ -49,6 +61,7 @@ export type QuestionContextSelector =
   | {kind:'sample';sample_id:number}
   | {kind:'time_range';start:string;end:string;indicator:string}
   | {kind:'video_frame';frame_id:number;video_revision:string}
+  | {kind:'image_asset';asset_id:string;asset_revision:string}
   | {kind:'rag_excerpt';retrieval_id:string;evidence_id:string}
 export type QuestionContextRequest = QuestionContextSelector & {
   project_id:string|null;analysis_revision:number;results_revision:number
@@ -67,10 +80,12 @@ export interface ChatMessage {
   incomplete?: boolean
   evidence?: { id: string }
   question_context?: QuestionContext
+  vision?: VisionInfo
 }
 export interface ChatHistory { messages: ChatMessage[]; analysis_revision: number }
 export interface Config {
   keys: { deepseek?: boolean; amap?: boolean; starcloud?: boolean }
+  key_state?: Record<string,{configured:boolean;verified:boolean;notice:string}>
   target_water_class: WaterClass
   valid_classes: WaterClass[]
 }
@@ -85,6 +100,7 @@ export interface DataStatus {
   analysis_status?: string; analysis_steps?: Record<string, ToolStatus>
   has_detection?: boolean; target_water_class?: WaterClass; messages?: number
   time_range?: string[]; detection_algorithm_version?: string | null; detection_outdated?: boolean
+  sample_meta?: JsonObject | null
 }
 export interface Preview { columns: string[]; rows: JsonObject[]; total: number }
 export interface BlackSpots { result: JsonObject; cluster_fields: string[] }
@@ -130,6 +146,26 @@ export interface RiverUI {
   form?: Partial<RiverForm>
   init?: JsonObject; hydro?: JsonObject; pollution?: JsonObject
 }
+
+export interface SampleInfo {
+  id: string; title: string; description: string; data_kind: 'synthetic'
+  version: string; rows: number; columns: string[]; time_range: [string, string] | string[]
+  time_zone?: string; coordinate_system: string; source_reference: string
+  has_video: false; notice?: string; size_bytes?: number
+  field_units?: Record<string,string>; missing_rule?: string
+}
+export interface SampleList { manifest_version: number; data_kind: 'synthetic'; notice: string; samples: SampleInfo[] }
+export interface SampleDetection { requested: boolean; ok: boolean; black_spots?: number; clusters?: number|null; saved?: boolean; warning?: string; error?: string }
+export interface SampleLoadRequest {
+  project_id: string|null; analysis_revision: number; results_revision: number
+  detect: boolean; river_form: Partial<RiverForm>|null
+}
+export interface SampleLoadResponse {
+  ok: boolean; sample: SampleInfo; report: string; rows: number; columns: string[]
+  time_range: string[]; data_identity: JsonObject; video_frames: number
+  detection: SampleDetection; project_state: ProjectState
+}
+
 export interface ProjectInfo { id: string; name: string; revision: number; created_at: string; updated_at: string }
 export interface ProjectState {
   projects: ProjectInfo[]; current: ProjectInfo | null; river_ui: RiverUI
@@ -174,4 +210,6 @@ export interface SessionState {
   blackSpots: BlackSpots | null; crossValidation: JsonObject | null; comprehensive: JsonObject | null
   resultsWarnings: string[]; statusRequest: number; resultsRequest: number; projectRequest: number; previewRequest: number
   investigationRevision: number; selectedInvestigationId: string
+  sampleCatalog: SampleInfo[]; sampleCatalogLoaded: boolean; sampleCatalogError: string
+  sampleLastReport: string; sampleLastDetection: SampleDetection|null
 }

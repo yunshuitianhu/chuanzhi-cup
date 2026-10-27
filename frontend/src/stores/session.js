@@ -50,6 +50,8 @@ export const useSessionStore = defineStore('session', {
     previewRequest: 0,
     investigationRevision: 0,
     selectedInvestigationId: '',
+    sampleCatalog: [], sampleCatalogLoaded: false, sampleCatalogError: '',
+    sampleLastReport: '', sampleLastDetection: null,
   }),
 
   getters: {
@@ -141,7 +143,8 @@ export const useSessionStore = defineStore('session', {
     /** @param {import('../types/contracts').QuestionContextSelector} selector
      * @returns {Promise<import('../types/contracts').QuestionContext|null>} */
     async prepareQuestionContext(selector) {
-      if(!this.ready || this.switchingProject || (!this.status.has_data && selector.kind!=='rag_excerpt'))
+      const withoutData=['rag_excerpt','image_asset','video_frame']
+      if(!this.ready || this.switchingProject || (!this.status.has_data && !withoutData.includes(selector.kind)))
         throw new Error('请先载入相应数据，或选择一份实际检索的资料片段。')
       const workspace=this.workspaceRevision, project=this.projectState.current?.id??null
       const revision=this.status.analysis_revision, results=this.status.results_revision??0
@@ -166,6 +169,81 @@ export const useSessionStore = defineStore('session', {
           throw error
         }
       })
+    },
+    /** 上传图片并附加为当前问题上下文；上传与建卡共用同一版本检查。 */
+    /** @param {File} file @returns {Promise<import('../types/contracts').QuestionContext|null>} */
+    async attachMedia(file) {
+      const workspace=this.workspaceRevision, project=this.projectState.current?.id??null
+      const revision=this.status.analysis_revision, results=this.status.results_revision??0
+      const current=()=>workspace===this.workspaceRevision && !this.switchingProject
+        && project===(this.projectState.current?.id??null) && revision===this.status.analysis_revision
+        && results===(this.status.results_revision??0)
+      return this._run(async()=>{
+        if(typeof revision!=='number')throw new Error('数据版本尚未就绪，请刷新后重试。')
+        const meta=await api.uploadMedia(file)
+        if(!current())throw new Error('项目已切换，本次图片未附加到当前对话。')
+        const ticket=++this.questionContextRequest
+        const card=await api.createQuestionContext({kind:'image_asset',asset_id:meta.asset_id,
+          asset_revision:meta.sha256,project_id:project,analysis_revision:revision,results_revision:results})
+        if(!current()||ticket!==this.questionContextRequest)return null
+        if(!isQuestionContext(card)||!questionContextMatches(card,this))throw new Error('图片附件版本不匹配，请重新选择。')
+        this.questionContext=card
+        this.questionContextNotice=''
+        if(!this.chatDraft.trim())this.chatDraft=contextQuestion('image_asset')
+        return card
+      })
+    },
+    /** 用当前主对话来源打开侧边解释线程；不复制图片，只引用同一上下文。 */
+    /** @param {import('../types/contracts').QuestionContext} context */
+    async openSideThreadForContext(context) {
+      if(!isQuestionContext(context))throw new Error('当前来源格式无效，不能打开侧边追问。')
+      return this._run(async()=>{
+        const thread=await api.createSideThread(context.id)
+        const q=this.textQuestions
+        if(!q.threads.some(t=>t.id===thread.id))q.threads.push(thread)
+        q.active=thread.id;q.pendingSide=null;q.open=true;q.error='';q.notice=''
+        return thread
+      })
+    },
+    /** 上传图片并为侧边新建/复用图片线程；不改变主对话当前选择。 */
+    /** @param {File} file @returns {Promise<import('../types/contracts').SideThread|null>} */
+    async attachSideMedia(file) {
+      const workspace=this.workspaceRevision, project=this.projectState.current?.id??null
+      const revision=this.status.analysis_revision, results=this.status.results_revision??0
+      const current=()=>workspace===this.workspaceRevision && !this.switchingProject
+        && project===(this.projectState.current?.id??null) && revision===this.status.analysis_revision
+        && results===(this.status.results_revision??0)
+      return this._run(async()=>{
+        if(typeof revision!=='number')throw new Error('数据版本尚未就绪，请刷新后重试。')
+        const meta=await api.uploadMedia(file)
+        if(!current())throw new Error('项目已切换，本次图片未附加到侧边线程。')
+        const card=await api.createQuestionContext({kind:'image_asset',asset_id:meta.asset_id,
+          asset_revision:meta.sha256,project_id:project,analysis_revision:revision,results_revision:results})
+        if(!current())return null
+        if(!isQuestionContext(card)||!questionContextMatches(card,this))throw new Error('图片附件版本不匹配，请重新选择。')
+        const thread=await api.createSideThread(card.id)
+        if(!current())return null
+        const q=this.textQuestions
+        if(!q.threads.some(t=>t.id===thread.id))q.threads.push(thread)
+        q.active=thread.id;q.pendingSide=null;q.open=true;q.error='';q.notice=''
+        if(!q.drafts[thread.id])q.drafts[thread.id]=contextQuestion('image_asset')
+        return thread
+      })
+    },
+    /** 将侧边线程的图片/文字来源转到主对话，沿用同一来源选择。 */
+    /** @param {import('../types/contracts').QuestionContext} quote */
+    async transferQuoteToMain(quote) {
+      if(!isQuestionContext(quote))throw new Error('该侧边来源格式无效，不能转到主对话。')
+      /** @type {import('../types/contracts').QuestionContextSelector|null} */
+      let selector=null
+      const selection=/** @type {Record<string,any>} */(quote.selection)
+      if(quote.kind==='text_quote')selector={kind:'text_quote',text:String(quote.excerpt||''),source:selection.source}
+      else if(quote.kind==='video_frame')selector={kind:'video_frame',frame_id:Number(selection.frame_id),video_revision:String(selection.video_revision)}
+      else if(quote.kind==='image_asset')selector={kind:'image_asset',asset_id:String(selection.asset_id),asset_revision:String(selection.asset_revision)}
+      if(!selector)throw new Error('该侧边来源暂不能转到主对话。')
+      const card=await this.prepareQuestionContext(selector)
+      if(!card)throw new Error('准备期间数据或项目已变化，请从当前来源重新选择。')
+      return card
     },
     /** @param {string|null} id @param {import('../types/contracts').JsonObject} payload */
     async saveInvestigation(id,payload) {
@@ -269,6 +347,50 @@ export const useSessionStore = defineStore('session', {
         return response
       })
     },
+    /** 重新读取服务端配置状态；只读，不反复轮询外部服务。 */
+    async refreshConfig() {
+      this.config = await api.config()
+      return this.config
+    },
+    /** 读取内置示例目录；只读，不载入数据、不创建演示项目。 */
+    async loadSamples(force = false) {
+      if (this.sampleCatalogLoaded && !force) return {samples:this.sampleCatalog}
+      try {
+        const res = await api.samples()
+        this.sampleCatalog = Array.isArray(res.samples) ? res.samples : []
+        this.sampleCatalogLoaded = true
+        this.sampleCatalogError = ''
+        return res
+      } catch (error) {
+        this.sampleCatalogError = errorMessage(error)
+        throw error
+      }
+    },
+    /** 载入内置仿真示例到独立演示项目；只在明确点击后调用。 */
+    /** @param {string} id @param {boolean} [detect] */
+    async loadSample(id, detect = false) {
+      const workspace=this.workspaceRevision, project=this.projectState.current?.id??null
+      const analysis=this.status.analysis_revision??0, results=this.status.results_revision??0
+      return this._run(async()=>{
+        const res = await api.loadSample(id,{project_id:project,analysis_revision:analysis,
+          results_revision:results,detect,river_form:this.riverForm})
+        if(workspace!==this.workspaceRevision||this.switchingProject)
+          throw new Error('项目已切换，本次示例载入结果未应用到当前页面。')
+        await this.adoptProject(res.project_state)
+        let summary=`已载入 ${res.sample.title}：${res.rows} 条记录`
+        if(detect&&res.detection){
+          if(res.detection.ok){
+            summary+=`；筛查完成：${res.detection.black_spots??0} 个预警点`
+            if(res.detection.clusters!==undefined&&res.detection.clusters!==null)
+              summary+=`、${res.detection.clusters} 个聚类`
+            if(res.detection.saved===false)summary+='；项目保存失败，筛查结果仅在当前会话可用'
+          }else summary+=`；数据已载入，筛查未完成：${res.detection.error||'未知原因'}`
+        }else summary+='；尚未运行筛查。'
+        this.sampleLastReport=summary
+        this.sampleLastDetection=res.detection||null
+        return res
+      })
+    },
     async refreshProjects() {
       const request = ++this.projectRequest
       const workspace = this.workspaceRevision
@@ -291,6 +413,8 @@ export const useSessionStore = defineStore('session', {
         this.blackSpots = this.crossValidation = this.comprehensive = null
         this.resultsWarnings = []
         this.chatMessages = []
+        this.sampleLastReport = ''
+        this.sampleLastDetection = null
         this.config = await api.config()
         await this.refreshStatus()
         this.chatMessages = (await api.chatHistory()).messages

@@ -205,6 +205,20 @@ export const api = {
   status: () => request('/data/status'),
   /** @param {number} [limit] @returns {Promise<import('../types/contracts').Preview>} */
   preview: (limit = 50) => request(`/data/preview?limit=${limit}`),
+  /** @param {File} file @returns {Promise<import('../types/contracts').MediaAsset>} */
+  uploadMedia: (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return request('/media', { method: 'POST', body: fd, isForm: true })
+  },
+  /** @param {string} id @returns {Promise<Blob>} */
+  mediaBlob: (id) => requestBlob(`/media/${encodeURIComponent(id)}`, {}),
+  /** @param {string} id */
+  deleteMedia: (id) => request(`/media/${encodeURIComponent(id)}`, { method:'DELETE' }),
+  /** @returns {Promise<import('../types/contracts').SampleList>} */
+  samples: () => request('/data/samples'),
+  /** @param {string} id @param {import('../types/contracts').SampleLoadRequest} body @returns {Promise<import('../types/contracts').SampleLoadResponse>} */
+  loadSample: (id, body) => request(`/data/samples/${encodeURIComponent(id)}/load`, { method:'POST', body }),
   /** @param {File} file */
   uploadData: (file) => {
     const fd = new FormData()
