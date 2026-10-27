@@ -41,6 +41,7 @@ const stepTime=step=>{
 const isFinishedStatus=status=>['succeeded','partial','failed','cancelled'].includes(status)
 const steps=computed(()=>Array.isArray(props.run?.steps) ? props.run.steps.filter(step => step && typeof step === "object") : [])
 const activeStep=computed(()=>{
+  if(isFinishedStatus(props.run?.status)) return null
   for(let i=steps.value.length-1;i>=0;i--){
     if(steps.value[i]?.status==='running') return steps.value[i]
   }
@@ -54,6 +55,12 @@ const elapsedSeconds=computed(()=>{
   return Number.isFinite(server) && server>0 ? server : 0
 })
 const elapsedText=computed(()=>`${Math.floor(elapsedSeconds.value)}秒`)
+const toolCount=computed(()=>{
+  const count=Number(props.run?.tool_count)
+  const server=Number.isFinite(count) && count>=0 ? count : 0
+  return Math.max(server,steps.value.length)
+})
+const stepsTruncated=computed(()=>toolCount.value > steps.value.length)
 const currentOperation=computed(()=>{
   const run=props.run
   if(run?.stop_requested && run?.busy) return '停止请求已收到，等待当前调用收尾'
@@ -91,14 +98,72 @@ const countParts=computed(()=>{
   if(c.cancelled) parts.push(`${statusLabels.cancelled} ${c.cancelled}`)
   return parts
 })
+const finished=computed(()=>isFinishedStatus(props.run?.status))
+const stepMeta=computed(()=>{
+  const attempts=new Map(), ordered=[]
+  for(const step of steps.value){
+    const attempt=(attempts.get(step.name) || 0)+1
+    attempts.set(step.name,attempt)
+    ordered.push({step,attempt})
+  }
+  return ordered.map((item,index)=>{
+    const recovered=item.step.status==='failed' && !!item.step.operation_id && ordered.slice(index+1).some(later=>
+      later.step.id===item.step.recovered_by && later.step.operation_id===item.step.operation_id &&
+      later.step.name===item.step.name && later.step.status==='succeeded')
+    return {step:item.step,attempt:item.attempt,total:attempts.get(item.step.name),recovered}
+  })
+})
+const unresolvedFailures=computed(()=>stepMeta.value.filter(item=>item.step.status==='failed' && !item.recovered))
+const recoveredFailures=computed(()=>stepMeta.value.filter(item=>item.step.status==='failed' && item.recovered))
+const reportAttempts=computed(()=>stepMeta.value.filter(item=>item.step.name==='generate_final_report'))
+const reportOutcome=computed(()=>{
+  const attempts=reportAttempts.value
+  const failures=attempts.filter(item=>item.step.status==='failed')
+  const last=attempts[attempts.length-1]
+  const recovered=failures.filter(item=>item.recovered).length
+  const server=props.run?.report_result
+  const serverValid=server && typeof server.step_id==='string' && Number.isInteger(server.attempts) && server.attempts>0 &&
+    Number.isInteger(server.analysis_revision) && server.analysis_revision===props.run.analysis_revision &&
+    ['running','succeeded','failed','cancelled','skipped'].includes(server.status)
+  if(!last && !serverValid) return {kind:stepsTruncated.value?'unknown':'none',
+    label:stepsTruncated.value?'报告状态暂无法核实（较早记录未保留）':'未生成报告',attempts,failures:0,recovered:0}
+  const status=serverValid?server.status:last.step.status
+  const totalAttempts=serverValid?server.attempts:attempts.length
+  const base={attempts,failures:failures.length,recovered,totalAttempts}
+  if(status==='running') return {kind:'running',label:'报告生成中',...base}
+  if(status==='succeeded') return {kind:'generated',label:'报告已生成',...base}
+  if(status==='cancelled') return {kind:'cancelled',label:'报告未完成（已停止）',...base}
+  if(status==='skipped') return {kind:'skipped',label:'报告已跳过',...base}
+  if(attempts.some(item=>item.step.status==='succeeded'))
+    return {kind:'stale',label:'报告未更新（最新一次失败）',...base}
+  return {kind:'failed',label:'报告未生成',...base}
+})
+const showReport=computed(()=>!!props.run?.auto || !!props.run?.report_result || reportAttempts.value.length>0)
+const otherRecovered=computed(()=>recoveredFailures.value.filter(item=>item.step.name!=='generate_final_report').length)
+const summaryParts=computed(()=>{
+  if(!props.run?.run_id) return []
+  const parts=[]
+  const report=reportOutcome.value
+  if(showReport.value && (finished.value || report.attempts.length)) parts.push(report.label)
+  if(report.kind==='generated' && report.recovered)
+    parts.push(`${report.recovered}次报告失败后重试成功`)
+  if(otherRecovered.value)
+    parts.push(`${otherRecovered.value}次失败已由同一请求的重试恢复`)
+  if(unresolvedFailures.value.length)
+    parts.push(`未恢复失败 ${unresolvedFailures.value.length}`)
+  if(!finished.value && countParts.value.length) parts.push(countParts.value.join(' · '))
+  parts.push(`${toolCount.value} 次工具调用`)
+  return parts
+})
 const honestNotice=computed(()=>{
   const run=props.run
   if(!run) return ''
   if(run.busy && (run.stop_requested || run.status==='stopping')) return safeText(run.notice,120) || '停止请求会阻止后续步骤；当前调用收尾前操作仍保持锁定。'
-  if(run.status==='failed') return '本轮执行失败；请查看失败步骤，已完成的步骤仍保留。'
-  if(run.status==='partial') return '本轮部分完成；未完成或跳过的步骤已标记。'
+  if(run.status==='failed') return '本轮执行失败；已完成的步骤仍保留，失败原因见下方记录。'
+  if(run.status==='partial') return '本轮部分完成；未恢复的失败或跳过项见下方记录。'
   if(run.status==='cancelled') return '本轮已停止；已完成的部分保留。'
-  if(counts.value.failed>0) return '存在失败步骤，请查看失败记录；不以部分步骤成功代表整轮完成。'
+  if(unresolvedFailures.value.length) return `存在 ${unresolvedFailures.value.length} 次未恢复失败；仅核实到同一请求的重试成功才标记恢复。`
+  if(recoveredFailures.value.length) return `曾有 ${recoveredFailures.value.length} 次失败，已核实后续重试成功；下方保留每次尝试。`
   return ''
 })
 const stepNotice=step=>{
@@ -111,6 +176,10 @@ const stepNotice=step=>{
   return ''
 }
 const latestNotice=computed(()=>stepNotice(latestStep.value))
+const detailsOpen=ref(false)
+const detailsRef=ref(null)
+const detailsButton=ref(null)
+let returnFocus=null
 const historyEl=ref(null)
 const autoFollow=ref(true)
 const showLatest=ref(false)
@@ -175,22 +244,53 @@ const onHistoryKeydown=event=>{
     showLatest.value=true
   }
 }
-const historyOpen=ref(!isFinishedStatus(props.run?.status))
-const failureSteps=computed(()=>steps.value.filter(step=>['failed','partial','cancelled','skipped'].includes(step?.status) || !!step?.notice))
-const historySteps=computed(()=>historyOpen.value ? steps.value : failureSteps.value)
-const historyLabel=computed(()=>historyOpen.value ? '收起历史' : `展开历史（${steps.value.length}）`)
-const toggleHistory=async()=>{
-  historyOpen.value=!historyOpen.value
-  if(historyOpen.value && autoFollow.value){
-    await nextTick()
-    scrollToLatest()
+const detailsLabel=computed(()=>detailsOpen.value ? '收起详情'
+  : stepsTruncated.value ? `查看详情（最近${steps.value.length}次）` : `查看详情（${toolCount.value}）`)
+const openDetails=async()=>{
+  try{returnFocus=globalThis.document?.activeElement || null}catch{returnFocus=null}
+  detailsOpen.value=true
+  await nextTick()
+  if(autoFollow.value && !isSelectingText()) scrollToLatest()
+  detailsRef.value?.focus?.()
+}
+const closeDetails=async()=>{
+  if(!detailsOpen.value) return
+  detailsOpen.value=false
+  await nextTick()
+  const target=returnFocus?.focus ? returnFocus : detailsButton.value
+  target?.focus?.()
+}
+const toggleDetails=()=>detailsOpen.value ? closeDetails() : openDetails()
+const FOCUSABLE='button:not(:disabled),[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])'
+const onDetailsKeydown=event=>{
+  if(!event) return
+  if(event.key==='Escape'){
+    event.preventDefault?.()
+    closeDetails()
+    return
+  }
+  if(event.key!=='Tab') return
+  const root=detailsRef.value
+  const items=root?.querySelectorAll ? Array.from(root.querySelectorAll(FOCUSABLE)).filter(el=>!el.disabled) : []
+  if(!items.length){
+    event.preventDefault?.()
+    return
+  }
+  const first=items[0], last=items[items.length-1]
+  const active=globalThis.document?.activeElement
+  if(event.shiftKey && (active===first || active===root)){
+    event.preventDefault?.()
+    last.focus?.()
+  }else if(!event.shiftKey && active===last){
+    event.preventDefault?.()
+    first.focus?.()
   }
 }
 onMounted(()=>{
   globalThis.document?.addEventListener('pointerup',onSelectEnd)
   globalThis.document?.addEventListener('pointercancel',onSelectEnd)
   nextTick(()=>{
-    if(autoFollow.value && !isSelectingText()) scrollToLatest()
+    if(detailsOpen.value && autoFollow.value && !isSelectingText()) scrollToLatest()
   })
 })
 onBeforeUnmount(()=>{
@@ -199,17 +299,13 @@ onBeforeUnmount(()=>{
 })
 watch(()=>props.run?.run_id, async (id, old)=>{
   if(id===old) return
+  detailsOpen.value=false
   autoFollow.value=true
   showLatest.value=false
-  historyOpen.value=!isFinishedStatus(props.run?.status)
   await nextTick()
-  scrollToLatest()
 },{flush:'post'})
-watch(()=>props.run?.status, status=>{
-  if(isFinishedStatus(status) && autoFollow.value && !isSelectingText()) historyOpen.value=false
-  else if(status==='running' || status==='stopping') historyOpen.value=true
-})
 watch(()=>[steps.value.length,activeStep.value?.id,latestStep.value?.id,latestStep.value?.status], async ()=>{
+  if(!detailsOpen.value) return
   if(autoFollow.value && !isSelectingText()){
     await nextTick()
     scrollToLatest()
@@ -220,71 +316,148 @@ watch(()=>[steps.value.length,activeStep.value?.id,latestStep.value?.id,latestSt
 </script>
 
 <template>
-  <section v-if='run?.run_id || connectionError' class='progress'>
+  <div class='agent-progress'>
+  <section v-if='run?.run_id || connectionError' class='progress' :data-status='run?.status || "unknown"'>
     <div class='head'>
-      <strong role="status" aria-live="polite">{{ currentOperation }}</strong>
-      <span>{{ overallStatus }} · 已用 {{ elapsedText }}</span>
-      <button v-if='run?.busy' type='button' :disabled='run.stop_requested' @click='emitStop'>{{ run.stop_requested ? '等待当前调用收尾…' : '停止本轮' }}</button>
-      <button type='button' @click='emitSync'>核对任务状态</button>
-    </div>
-    <p v-if='run?.run_id' class='meta'>
-      第 {{ run.turn ?? 0 }} 轮 · 工具 {{ run.tool_count ?? steps.length }} 次
-      <template v-if='countParts.length'> · {{ countParts.join(' · ') }}</template>
-    </p>
-    <p v-if='honestNotice' class='notice'>{{ honestNotice }}</p>
-    <p v-if='connectionError' class='error'>{{ connectionError }}</p>
-
-    <div v-if='latestStep' class='latest' aria-live='polite'>
-      <div class='latest-line'>
-        <strong>{{ toolLabel(latestStep.name) }}</strong>
-        <span>{{ statusLabel(latestStep.status) }}<template v-if='stepTime(latestStep)'> · {{ stepTime(latestStep) }}</template></span>
+      <span class='status-dot' aria-hidden='true'></span>
+      <strong role='status' aria-live='polite'>{{ currentOperation }}</strong>
+      <span v-if='run?.run_id' class='timing'>{{ run?.busy ? `${overallStatus} · 已用 ${elapsedText}` : `已用 ${elapsedText}` }}</span>
+      <div class='head-actions'>
+        <button v-if='run?.busy' type='button' :disabled='run.stop_requested' @click='emitStop'>{{ run.stop_requested ? '等待当前调用收尾…' : '停止本轮' }}</button>
+        <button v-if='run?.run_id' ref='detailsButton' type='button' class='toggle' :aria-expanded='detailsOpen' aria-controls='agent-progress-details' @click='toggleDetails'>{{ detailsLabel }}</button>
+        <button type='button' class='sync' @click='emitSync'>核对任务状态</button>
       </div>
-      <p v-if='latestNotice' class='latest-note'>{{ latestNotice }}</p>
     </div>
-    <div v-if='showLatest' class='jump-row'>
-      <button type='button' class='jump' @click='scrollToLatest' aria-label='跳到最新步骤'>最新步骤 ↓</button>
-    </div>
-
-    <div v-if='steps.length' class='history-head'>
-      <button type='button' class='toggle' :aria-expanded='historyOpen' @click='toggleHistory'>{{ historyLabel }}</button>
-      <span v-if='!historyOpen && failureSteps.length' class='history-hint'>失败、跳过和有提示的步骤保持可见</span>
-    </div>
-    <ol v-if='historySteps.length' ref='historyEl' class='history' tabindex='0' @scroll='onHistoryScroll' @keydown='onHistoryKeydown' @selectstart='onSelectStart' @mouseup='onSelectEnd' @touchend='onSelectEnd' aria-label='工具步骤历史'>
-      <li v-for='step in historySteps' :key='step.id' :data-status='step.status'>
-        <div class='step-line'>
-          <span>{{ toolLabel(step.name) }}</span>
-          <span>{{ statusLabel(step.status) }}<template v-if='stepTime(step)'> · {{ stepTime(step) }}</template></span>
-        </div>
-        <small v-if='stepNotice(step)'>{{ stepNotice(step) }}</small>
-      </li>
-    </ol>
+    <p v-if='summaryParts.length' class='summary'>{{ summaryParts.join(' · ') }}</p>
+    <p v-if='connectionError' class='error' role='alert'>{{ connectionError }}</p>
   </section>
+
+  <div v-if='detailsOpen' class='details-layer' @keydown='onDetailsKeydown'>
+    <div class='details-backdrop' aria-hidden='true' @click='closeDetails'></div>
+    <section ref='detailsRef' id='agent-progress-details' class='details' role='dialog' aria-modal='true' aria-labelledby='agent-progress-title' tabindex='-1'>
+      <header class='details-head'>
+        <div class='details-title'>
+          <strong id='agent-progress-title'>任务详情</strong>
+          <p v-if='run?.run_id' class='detail-meta'>{{ overallStatus }} · 第 {{ run.turn ?? 0 }} 轮 · 工具 {{ toolCount }} 次 · 已用 {{ elapsedText }}</p>
+          <p v-else class='detail-meta'>任务状态尚未核实</p>
+        </div>
+        <button type='button' class='close' @click='closeDetails'>关闭</button>
+      </header>
+      <p v-if='honestNotice' class='notice'>{{ honestNotice }}</p>
+      <p v-if='connectionError' class='error' role='alert'>{{ connectionError }}</p>
+
+      <div v-if='run?.run_id' class='counts-block'>
+        <p class='detail-meta'>尝试级统计：{{ countParts.length ? countParts.join(' · ') : '暂无步骤' }}<template v-if='unresolvedFailures.length'> · 未恢复失败 {{ unresolvedFailures.length }}</template><template v-else-if='recoveredFailures.length'> · 已核实恢复 {{ recoveredFailures.length }}</template></p>
+        <p class='detail-meta'>同一工具多次调用按次保留，不合并为多个独立任务。</p>
+        <p v-if='stepsTruncated' class='detail-meta'>服务端只保留最近 {{ steps.length }} 次步骤；更早尝试不在本页展示，工具总数仍为 {{ toolCount }}。</p>
+      </div>
+
+      <div v-if='showReport' class='report-card' tabindex='0' aria-label='报告状态与尝试记录' :data-status='reportOutcome.kind'>
+        <div class='report-head'><strong>报告状态</strong><span>{{ reportOutcome.label }}</span></div>
+        <ol v-if='reportOutcome.attempts.length' class='report-attempts'>
+          <li v-for='item in reportOutcome.attempts' :key='item.step.id' :data-status='item.step.status'>
+            <span>第 {{ item.attempt }} 次</span>
+            <span>{{ statusLabel(item.step.status) }}<template v-if='stepTime(item.step)'> · {{ stepTime(item.step) }}</template></span>
+            <small v-if='stepNotice(item.step)'>{{ stepNotice(item.step) }}</small>
+            <small v-if='item.recovered' class='relation'>后续报告调用已成功</small>
+          </li>
+        </ol>
+        <p v-else class='detail-meta'>{{reportOutcome.kind==='unknown'?'较早的报告调用记录未保留，暂无法核实。':reportOutcome.totalAttempts?'报告状态来自服务端本轮记录；较早尝试不在最近步骤中。':'本轮尚未调用报告生成。'}}</p>
+      </div>
+
+      <div v-if='latestStep' class='latest' aria-live='polite'>
+        <div class='latest-line'>
+          <strong>{{ toolLabel(latestStep.name) }}</strong>
+          <span>{{ statusLabel(latestStep.status) }}<template v-if='stepTime(latestStep)'> · {{ stepTime(latestStep) }}</template></span>
+        </div>
+        <p v-if='latestNotice' class='latest-note'>{{ latestNotice }}</p>
+      </div>
+
+      <div v-if='steps.length' class='history-head'>
+        <strong class='history-title'>{{ stepsTruncated ? '最近工具尝试' : '全部工具尝试' }}（{{ steps.length }}<template v-if='stepsTruncated'> / {{ toolCount }}</template>）</strong>
+        <span class='history-hint'>按发生顺序保留，每次调用单独记录</span>
+      </div>
+      <ol v-if='steps.length' ref='historyEl' class='history' tabindex='0' @scroll='onHistoryScroll' @keydown='onHistoryKeydown' @selectstart='onSelectStart' @mouseup='onSelectEnd' @touchend='onSelectEnd' aria-label='工具步骤历史'>
+        <li v-for='item in stepMeta' :key='item.step.id' :data-status='item.step.status'>
+          <div class='step-line'>
+            <span><span v-if='item.total>1' class='attempt'>第{{ item.attempt }}次</span> {{ toolLabel(item.step.name) }}</span>
+            <span>{{ statusLabel(item.step.status) }}<template v-if='stepTime(item.step)'> · {{ stepTime(item.step) }}</template></span>
+          </div>
+          <small v-if='item.recovered' class='relation'>{{ item.step.name==='generate_final_report' ? '后续报告调用已成功' : '后续同一请求重试已成功' }}</small>
+          <small v-if='stepNotice(item.step)'>{{ stepNotice(item.step) }}</small>
+        </li>
+      </ol>
+      <p v-else class='detail-meta'>本轮尚无工具步骤。</p>
+
+      <div v-if='showLatest' class='jump-row'>
+        <button type='button' class='jump' @click='scrollToLatest' aria-label='跳到最新步骤'>最新步骤 ↓</button>
+      </div>
+    </section>
+  </div>
+  </div>
 </template>
 
 <style scoped>
-.progress { border:1px solid var(--c-border);background:var(--c-surface-2);border-radius:8px;padding:12px;margin-bottom:12px; }
-.head { display:flex;gap:10px;align-items:center;flex-wrap:wrap; }
-.head strong { flex:1 1 220px;line-height:1.35; }
-.head span,.meta,.notice,.latest-note,.history-hint { font-size:12px;color:var(--c-sub); }
-.head span { white-space:nowrap; }
-button { background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:5px;padding:6px 10px;min-height:32px;cursor:pointer; }
+.agent-progress { display:contents; }
+.progress { border:1px solid var(--c-border);background:var(--c-surface-2);border-radius:8px;padding:8px 12px;margin-bottom:10px;flex-shrink:0; }
+.head { display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap; }
+.status-dot { width:8px;height:8px;border-radius:50%;background:var(--c-sub);flex:0 0 auto; }
+.progress[data-status='running'] .status-dot { background:var(--c-accent);box-shadow:0 0 0 3px #7cd4eb22; }
+.progress[data-status='succeeded'] .status-dot { background:#73d5be; }
+.progress[data-status='partial'] .status-dot,.progress[data-status='failed'] .status-dot { background:var(--sev-mild,#e6a23c); }
+.progress[data-status='cancelled'] .status-dot { background:var(--c-muted); }
+.head strong { flex:1 1 220px;min-width:0;line-height:1.35;font-size:13px;overflow-wrap:anywhere; }
+.timing,.summary,.notice,.detail-meta,.latest-note,.history-hint,.report-attempts small { font-size:12px;color:var(--c-sub); }
+.timing { white-space:nowrap; }
+.head-actions { display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto; }
+button { background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-border);border-radius:5px;padding:5px 9px;min-height:30px;font-size:12px;cursor:pointer; }
 button:disabled { opacity:.6;cursor:default; }
-button:focus-visible,.history:focus-visible { outline:2px solid var(--c-accent, #7aa2ff);outline-offset:2px; }
-.meta,.notice { margin:8px 0 0; }
-.error { color:#ffb3c1; }
-.latest { margin-top:10px;padding:8px 10px;border:1px solid var(--c-border);border-radius:6px;background:var(--c-surface); }
+button:focus-visible,.history:focus-visible,.details:focus-visible { outline:2px solid var(--c-accent, #7aa2ff);outline-offset:2px; }
+.summary { margin:2px 0 0;line-height:1.5;overflow-wrap:anywhere; }
+.error { color:#ffb3c1;margin:6px 0 0;font-size:12px; }
+.details-layer { position:fixed;inset:0;z-index:80;display:flex;justify-content:flex-end;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom)); }
+.details-backdrop { position:absolute;inset:0;background:rgba(4,10,16,.62); }
+.details { position:relative;width:min(560px,100%);max-height:100%;display:flex;flex-direction:column;gap:9px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:14px 16px;box-shadow:0 20px 60px rgba(0,0,0,.45);overflow:auto;overscroll-behavior:contain; }
+.details-head { position:sticky;top:0;z-index:1;background:var(--c-surface);display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-shrink:0; }
+.details-title { min-width:0; }
+.details-head strong { font-size:14px; }
+.detail-meta { margin:4px 0 0;line-height:1.6;overflow-wrap:anywhere; }
+.notice { margin:0;line-height:1.6; }
+.counts-block { flex-shrink:0;padding:7px 9px;border:1px solid var(--c-border);border-radius:7px;background:var(--c-surface-2); }
+.report-card { flex-shrink:0;max-height:30%;overflow:auto;padding:8px 10px;border:1px solid var(--c-border);border-radius:8px;background:var(--c-surface-2); }
+.report-card[data-status='generated'] { border-color:#2d635a; }
+.report-card[data-status='failed'],.report-card[data-status='stale'] { border-color:#794354; }
+.report-head { display:flex;justify-content:space-between;gap:10px;font-size:12px; }
+.report-attempts { margin:6px 0 0;padding:0;list-style:none;font-size:12px; }
+.report-attempts li { display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 8px;padding:4px 0;border-top:1px solid var(--c-border); }
+.report-attempts li small { flex-basis:100%;line-height:1.5; }
+.report-attempts li[data-status='failed'] { color:#ffb3c1; }
+.latest { flex-shrink:0;max-height:20%;overflow:auto;padding:7px 9px;border:1px solid var(--c-border);border-radius:7px;background:var(--c-surface-2); }
 .latest-line { display:flex;justify-content:space-between;gap:12px;align-items:baseline;font-size:12px; }
 .latest-line strong { font-size:13px; }
 .latest-line span { color:var(--c-sub);white-space:nowrap; }
 .latest-note { margin:4px 0 0; }
-.jump-row { display:flex;justify-content:flex-end;margin-top:6px; }
+.jump-row { display:flex;justify-content:flex-end;flex-shrink:0; }
 .jump,.toggle { font-size:12px; }
-.history-head { display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap; }
-.history { padding:0;list-style:none;max-height:220px;overflow:auto;margin:6px 0 0;overscroll-behavior:contain;touch-action:pan-y;scrollbar-gutter:stable; }
+.history-head { display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;flex-shrink:0; }
+.history-title { font-size:13px; }
+.history { flex:1;min-height:120px;padding:0;list-style:none;overflow:auto;margin:0;overscroll-behavior:contain;touch-action:pan-y;scrollbar-gutter:stable; }
 .history li { padding:6px 0;border-top:1px solid var(--c-border);font-size:12px; }
 .step-line { display:flex;justify-content:space-between;gap:12px; }
 .step-line span:last-child { color:var(--c-sub);white-space:nowrap; }
-.history small { display:block;margin-top:2px;color:var(--c-sub); }
+.attempt { display:inline-block;margin-right:4px;padding:0 4px;border-radius:3px;background:var(--c-surface);color:var(--c-sub);font-size:11px; }
+.history small { display:block;margin-top:2px;color:var(--c-sub);line-height:1.5; }
+.history small.relation { color:#9fd8c8; }
 .history li[data-status='failed'],.history li[data-status='partial'],.history li[data-status='cancelled'] { color:#ffb3c1; }
-@media (max-width:560px){ .head strong{flex-basis:100%} .latest-line,.step-line{flex-direction:column;gap:2px} .head button{flex:1 1 auto;} }
+@media (max-width:600px){
+  .head strong{flex-basis:auto}
+  .head-actions{width:100%;margin-left:0}
+  .head-actions button{flex:1 1 auto}
+  .timing{font-size:11px}
+  .latest-line,.step-line{flex-direction:column;gap:2px}
+  .details-layer{padding:0;align-items:flex-end}
+  .details{width:100%;max-height:84dvh;border-radius:14px 14px 0 0;border-bottom:0;padding:13px}
+  .report-card{max-height:26%}
+  .history{min-height:100px}
+}
 </style>

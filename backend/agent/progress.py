@@ -18,6 +18,13 @@ def tool_notice(name, status, outcome, *, references=None):
             return '仿真数据不关联真实企业和国控站点；地名仅供地图参考。'
         return '当前输入不满足该可选步骤的条件，已跳过。'
     if status == 'failed':
+        if isinstance(outcome, dict) and outcome.get('error_code') == 'report_prerequisites_missing':
+            labels = {'get_data_summary':'监测摘要', 'find_black_spots':'异常点筛查',
+                      'get_comprehensive_summary':'综合摘要', 'analyze_video':'视频线索分析',
+                      'cross_validate_video':'视频与监测记录核对'}
+            missing = outcome.get('missing_steps')
+            names = [labels[key] for key in missing if key in labels] if isinstance(missing, list) else []
+            return '生成报告尚需完成：' + ('、'.join(names) if names else '本轮必要分析步骤') + '。'
         if any(key in error.lower() for key in ('chromadb', 'sentence_transformers', '依赖', '索引', '知识库')):
             return '知识库或运行依赖不可用，请在技术展示页核对检索状态。'
         if any(key in error.lower() for key in ('timeout', 'timed out', 'connect', '网络', '超时')):
@@ -60,6 +67,10 @@ class AgentRun:
     transport_closed: threading.Event = field(default_factory=threading.Event, repr=False)
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
     question_context: dict | None = field(default=None, repr=False)
+    _operations: dict = field(default_factory=dict, repr=False)
+    _failures: dict = field(default_factory=dict, repr=False)
+    _report_result: dict | None = field(default=None, repr=False)
+    _report_attempts: int = 0
 
     def request_stop(self, reason='user') -> bool:
         with self.lock:
@@ -87,21 +98,47 @@ class AgentRun:
             if turn is not None:
                 self.turn = turn
 
-    def start_tool(self, name):
+    def start_tool(self, name, *, operation_key=None, results_revision=None):
         with self.lock:
             self.check()
             step_id = uuid.uuid4().hex
+            step = dict(id=step_id, name=name, status='running', started=time.monotonic(), ended=None)
+            if operation_key is not None:
+                # Keys may contain query parameters; only opaque IDs leave this object.
+                operation = self._operations.setdefault(operation_key, uuid.uuid4().hex)
+                step['operation_id'] = operation
             self.tool_count += 1
-            self.steps.append(dict(id=step_id, name=name, status='running', started=time.monotonic(), ended=None))
+            self.steps.append(step)
             self.steps = self.steps[-100:]
+            if name == 'generate_final_report':
+                self._report_attempts += 1
+                self._report_result = dict(step_id=step_id, status='running', attempts=self._report_attempts,
+                                          analysis_revision=self.revision, results_revision=results_revision)
             self.stage = '执行工具：' + name
             return step_id
 
     def finish_tool(self, step_id, status, notice=''):
         with self.lock:
-            for step in self.steps:
-                if step['id'] == step_id:
-                    step.update(status=status, ended=time.monotonic(), notice=notice[:160])
+            step = next((s for s in self.steps if s['id'] == step_id), None)
+            if step is None or step['status'] != 'running':
+                return
+            step.update(status=status, ended=time.monotonic(), notice=notice[:160])
+            if status == 'failed':
+                self._failures[step_id] = step
+            elif status == 'succeeded' and step.get('operation_id'):
+                matching = [s for s in self._failures.values()
+                            if s.get('operation_id') == step['operation_id']]
+                if matching:
+                    step['retry_of'] = matching[-1]['id']
+                for failed in matching:
+                    failed['recovered_by'] = step_id
+                    self._failures.pop(failed['id'])
+            if self._report_result and self._report_result['step_id'] == step_id:
+                self._report_result['status'] = status
+
+    def has_unresolved_failures(self, exclude=()):
+        with self.lock:
+            return any(s['name'] not in exclude for s in self._failures.values())
 
     def complete(self, status, commit):
         """完成标记与最后正文一次提交，停止请求不能插入到两者之间。"""
@@ -120,7 +157,7 @@ class AgentRun:
             self.ended = time.monotonic()
             for step in self.steps:
                 if step['status'] == 'running':
-                    step.update(status='cancelled' if status=='cancelled' else 'failed', ended=self.ended)
+                    self.finish_tool(step['id'], 'cancelled' if status=='cancelled' else 'failed')
 
     def snapshot(self):
         with self.lock:
@@ -132,5 +169,7 @@ class AgentRun:
                 stop_requested=self.cancel.is_set(),
                 steps=[dict(id=s['id'],name=s['name'],status=s['status'],
                             elapsed_s=round((s['ended'] or now)-s['started'],3),
-                            **({'notice':s['notice']} if s.get('notice') else {})) for s in self.steps],
+                            **({'notice':s['notice']} if s.get('notice') else {}),
+                            **{key:s[key] for key in ('operation_id','retry_of','recovered_by') if key in s}) for s in self.steps],
+                **({'report_result':dict(self._report_result)} if self._report_result else {}),
                 notice='停止为协作请求；等待中的网络或计算调用需先收尾，期间禁止替换数据或启动新任务。')

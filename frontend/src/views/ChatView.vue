@@ -236,7 +236,7 @@ async function submit(text,auto) {
     <p v-else-if="store.status.detection_outdated" class="tip warning">历史检测使用旧版证据口径，请重新分析。下方文字尚未按当前数据和走航时空限制复核。</p>
     <AgentProgress :run="store.agentRun" :elapsed="elapsed" :connection-error="store.agentConnectionError" @stop="stop" @sync="refreshRun" />
     <button v-if="lastRequest && !running && store.agentRun?.status!=='succeeded'" class="retry" @click="retryLast">从当前数据重新执行上一请求</button>
-    <div class="conversation" :class="{'has-progress':!!store.agentRun?.run_id || !!store.agentConnectionError}">
+    <div class="conversation">
       <div ref="scroller" class="stream" role="region" aria-label="分析对话与报告" tabindex="0"
         @scroll.passive="scrollController.onScroll" @wheel.passive="readIntent" @keydown="readIntent" @pointerdown="readIntent" @touchstart.passive="readIntent">
         <div v-if="!messages.length" class="placeholder">
@@ -261,26 +261,23 @@ async function submit(text,auto) {
 </template>
 <style scoped>
 .primary{display:inline-flex;align-items:center;gap:8px;background:var(--c-accent);color:#07222f;border:1px solid transparent;padding:10px 16px;border-radius:var(--radius-sm);font-weight:650;font-size:13px;min-height:42px}.primary svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.4}.primary:disabled{opacity:.45;cursor:not-allowed}
-.context-strip{border-bottom:1px solid var(--c-border-soft);margin-bottom:20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;color:var(--c-sub);font-size:13px;padding-bottom:16px}.project-tag{color:var(--c-ink);font-weight:600;max-width:100%;overflow-wrap:anywhere}.data-kind{color:#73d5be;border:1px solid #2d635a;border-radius:5px;padding:1px 6px}
+.context-strip{flex-shrink:0;border-bottom:1px solid var(--c-border-soft);margin-bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;color:var(--c-sub);font-size:13px;padding-bottom:6px}.project-tag{color:var(--c-ink);font-weight:600;max-width:100%;overflow-wrap:anywhere}.data-kind{color:#73d5be;border:1px solid #2d635a;border-radius:5px;padding:1px 6px}
 .tip{margin:0 0 16px;padding:12px 14px;background:var(--c-surface-2);border-radius:var(--radius-sm);color:var(--c-sub);font-size:13px}.warning{border-left:3px solid var(--sev-mild)}
-.conversation{position:relative}.stream{min-height:260px;max-height:calc(100dvh - 440px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:6px 12px 20px 2px;display:flex;flex-direction:column;gap:28px;overflow-anchor:none}
-.conversation.has-progress .stream{max-height:calc(100dvh - 530px)}
-.reading-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px;padding:6px 2px;color:var(--c-sub);font-size:12px}.latest{white-space:nowrap;border:1px solid var(--c-border);border-radius:20px;background:var(--c-surface-2);color:var(--c-ink);padding:5px 12px;font-size:12px;min-height:30px}
+.conversation{position:relative;display:flex;flex-direction:column;flex:1;min-height:160px}.stream{flex:1;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:6px 12px 20px 2px;display:flex;flex-direction:column;gap:28px;overflow-anchor:none}
+.reading-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:34px;padding:4px 2px;color:var(--c-sub);font-size:12px}.latest{white-space:nowrap;border:1px solid var(--c-border);border-radius:20px;background:var(--c-surface-2);color:var(--c-ink);padding:5px 12px;font-size:12px;min-height:30px}
 .placeholder{padding:38px 12px;max-width:620px;width:100%;margin:auto;color:var(--c-sub)}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--c-accent)}.placeholder h3{font-size:25px;font-weight:600;color:var(--c-ink);margin:8px 0}.placeholder p{font-size:14px;margin:0 0 24px;line-height:1.8}
 .suggestions{display:grid;gap:8px}.suggestions button{text-align:left;padding:12px 14px;border:1px solid var(--c-border);border-radius:var(--radius-sm);background:transparent;color:var(--c-ink);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;line-height:1.6}.suggestions button:hover:not(:disabled){border-color:var(--c-accent);background:var(--c-surface-2)}.suggestions button:disabled{opacity:.45}
-.composer{margin-top:10px;border:1px solid var(--c-border);border-radius:var(--radius-md);background:var(--c-surface-2);padding:10px 12px;transition:border-color var(--duration-fast)}.composer:focus-within{border-color:var(--c-accent);box-shadow:0 0 0 2px #7cd4eb12}.composer textarea{display:block;resize:vertical;width:100%;min-height:62px;max-height:180px;background:transparent;border:0;outline:0;color:var(--c-ink);padding:4px;font:inherit;font-size:14px;line-height:1.65}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.keyboard-hint{font-size:11px;color:var(--c-sub)}
+.composer{margin-top:6px;border:1px solid var(--c-border);border-radius:var(--radius-md);background:var(--c-surface-2);padding:8px 10px;transition:border-color var(--duration-fast)}.composer:focus-within{border-color:var(--c-accent);box-shadow:0 0 0 2px #7cd4eb12}.composer textarea{display:block;resize:vertical;width:100%;min-height:52px;max-height:180px;background:transparent;border:0;outline:0;color:var(--c-ink);padding:4px;font:inherit;font-size:14px;line-height:1.65}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.keyboard-hint{font-size:11px;color:var(--c-sub)}
 .composer button{display:flex;align-items:center;gap:12px;background:var(--c-accent);color:#07222f;border:0;padding:8px 15px;border-radius:var(--radius-sm);font-weight:650;min-height:36px}.composer button:disabled{opacity:.4;cursor:not-allowed}
 .investigation-details>summary{cursor:pointer;color:var(--c-ink);font-size:13px;padding:2px 0}.investigation-details[open]>summary{margin-bottom:18px}.retry{margin-bottom:12px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-ink);border-radius:var(--radius-sm);padding:8px 12px}
-@media(max-width:600px){.conversation.has-progress .stream{min-height:160px;max-height:calc(100dvh - 570px)}.stream{min-height:180px;max-height:calc(100dvh - 440px);gap:16px;padding-right:2px}.context-strip{gap:6px 12px;padding-bottom:12px}.primary{min-height:40px;padding:8px 12px}.placeholder{padding:24px 4px}.placeholder h3{font-size:22px}.keyboard-hint{font-size:10px}.composer{padding:8px}.reading-controls{font-size:11px}.latest{font-size:11px}}
+@media(max-width:600px){.stream{gap:16px;padding-right:2px}.context-strip{gap:6px 12px}.primary{min-height:40px;padding:8px 12px}.placeholder{padding:24px 4px}.placeholder h3{font-size:22px}.keyboard-hint{font-size:10px}.reading-controls{font-size:11px}.latest{font-size:11px}}
 
-/* Keep the question composer visible while the report owns its scrolling area. */
+/* 固定工作区高度，正文占据剩余空间；进度条与输入区保持紧凑，不再用多组高度常量互相覆盖。 */
 .chat-workspace{display:flex;flex-direction:column;height:calc(100dvh - 122px);min-height:580px}
-.chat-workspace :deep(.head){flex-shrink:0}
-.chat-workspace :deep(.body){display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto}
-.context-strip{flex-shrink:0}
-.conversation{display:flex;flex-direction:column;flex:1;min-height:120px}
-.chat-workspace .stream,.chat-workspace .conversation.has-progress .stream{flex:1;min-height:0;max-height:none}
-.reading-controls,.composer{flex-shrink:0}
+.chat-workspace > :deep(.head){flex-shrink:0;padding:10px 20px}
+.chat-workspace > :deep(.body){display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto;padding:10px 20px}
+.chat-workspace :deep(.progress){flex-shrink:0}
+.retry,.reading-controls,.composer{flex-shrink:0}
 @media(max-width:1023px){.chat-workspace{height:calc(100dvh - 104px)}}
-@media(max-width:600px){.chat-workspace{height:calc(100dvh - 96px)}.conversation{min-height:100px}}
+@media(max-width:600px){.chat-workspace{height:calc(100dvh - 96px)}.chat-workspace > :deep(.head),.chat-workspace > :deep(.body){padding:10px 14px}.conversation{min-height:120px}}
 </style>

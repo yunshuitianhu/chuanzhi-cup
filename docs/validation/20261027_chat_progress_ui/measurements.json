@@ -1,0 +1,76 @@
+{
+  "recorded_at": "2026-10-27",
+  "baseline_commit": "a820e5d76d29c5ded6589ecb255d7511107b007e",
+  "method": {
+    "kind": "浏览器布局验收（只读 Mock 接口）",
+    "served_build": "frontend/dist",
+    "static_port": 5192,
+    "page": "http://127.0.0.1:5192/chat",
+    "api": "Playwright 路由拦截返回固定 JSON；未连接 5190、后端、DeepSeek、RAG 或用户项目库",
+    "browser": "Playwright Chromium headless",
+    "run_states": [
+      "完成态：19 次调用，18 次成功，1 次报告失败后同一工具再次成功",
+      "运行态：10 次成功 + 1 次报告生成中"
+    ],
+    "sidebar": "1280 宽桌面为折叠；390 宽移动端为默认收起"
+  },
+  "desktop_1280x800": {
+    "compact_progress_height_px": 68,
+    "stream_height_px": 315.625,
+    "composer_bottom_px": 761,
+    "viewport_bottom_px": 800,
+    "drawer": {
+      "width_px": 560,
+      "height_px": 768,
+      "history_client_height_px": 352.09375,
+      "history_scroll_height_px": 672,
+      "escape_closed": true,
+      "backdrop_click_closed": true,
+      "focus_trapped_over_16_tab_moves": true,
+      "focus_returned_to": "查看详情（19）"
+    },
+    "page_errors": []
+  },
+  "mobile_390x844": {
+    "compact_progress_height_px": 92.6875,
+    "stream_height_px": 310.4375,
+    "composer_bottom_px": 815,
+    "viewport_bottom_px": 844,
+    "drawer": {
+      "width_px": 390,
+      "height_px": 708.953125,
+      "history_client_height_px": 255.65625,
+      "history_scroll_height_px": 1097,
+      "escape_closed": true,
+      "backdrop_click_closed": true,
+      "focus_trapped_over_16_tab_moves": true,
+      "focus_returned_to": "查看详情（19）"
+    },
+    "page_errors": []
+  },
+  "checks": {
+    "npm_test": {
+      "tests": 341,
+      "pass": 341,
+      "fail": 0,
+      "skipped": 0
+    },
+    "npm_run_typecheck": "通过",
+    "npm_run_build": "通过"
+  },
+  "screenshots": {
+    "desktop_compact": "desktop-finished.png",
+    "desktop_details": "desktop-details.png",
+    "desktop_running": "desktop-running.png",
+    "mobile_compact": "mobile-finished.png",
+    "mobile_details": "mobile-details.png"
+  },
+  "not_covered": [
+    "未在 5190 当前服务上验收；旧进程仍可能提供旧构建，源码构建与运行服务不是同一快照",
+    "未发起真实 DeepSeek、RAG 或报告生成请求",
+    "未读取或操作用户项目 111 的项目库、历史报告或草稿",
+    "未验证真实 SSE 流式增量、断线、停止和迟到事件；这些由现有单元测试与既有逻辑覆盖，未在本轮浏览器 Mock 中重放",
+    "未运行 Python 回归；本轮没有修改后端",
+    "Mock 数据不代表现场检测准确率、污染因果或报告质量"
+  ]
+}

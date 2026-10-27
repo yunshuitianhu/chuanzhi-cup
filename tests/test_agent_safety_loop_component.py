@@ -39,6 +39,13 @@ def load_loop():
     tools.SYSTEM_PROMPT_AUTO = tools.SYSTEM_PROMPT_CHAT = '受控组件测试'
     tools.TOOLS = []
     tools.ANALYSIS_CARD_TOOLS = {'get_analysis_card_catalog','submit_analysis_cards'}
+    # Keep the pure prerequisite planner real while scientific execution stays stubbed.
+    tree = ast.parse((ROOT/'backend/agent/tools.py').read_text(encoding='utf-8'))
+    pure = ast.Module(body=[node for node in tree.body if isinstance(node, ast.FunctionDef)
+                           and node.name in ('report_prerequisites','report_summary_needs_refresh')], type_ignores=[])
+    namespace = {}
+    exec(compile(pure, '<report-prerequisite-planner>', 'exec'), namespace)
+    tools.report_summary_needs_refresh = namespace['report_summary_needs_refresh']
     tools.execute_tool = MagicMock()
     tools.truncate = lambda name, text: compact_tool_result(text) if name=='search_treatment_cases' else text
     evidence = ModuleType(prefix+'.report_evidence')
@@ -71,7 +78,7 @@ class LoopCompletionComponentTests(unittest.TestCase):
         cls.loop = load_loop()
 
     def setUp(self):
-        self.session = NS(analysis_revision=1,agent_run=None,analysis_status='idle',
+        self.session = NS(analysis_revision=1,results_revision=1,agent_run=None,analysis_status='idle',
             analysis_done=False,analysis_steps={},tool_evidence={},data_identity={'kind':'synthetic'},
             full_messages=[],messages=[],df=None,video_frames=[],black_spots=None)
 

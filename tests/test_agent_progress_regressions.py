@@ -178,3 +178,59 @@ class ToolNoticeTests(unittest.TestCase):
         self.assertIn('未取得可用治理案例',tool_notice('generate_final_report','succeeded',{},references={}))
         self.assertEqual(tool_notice('generate_final_report','succeeded',{},references={'检索结果':[{}]}),'')
         self.assertIn('未取得实时监测值',tool_notice('get_national_station_data','succeeded',{'data':{'含实时监测值':False}}))
+
+
+class RecoveryIdentityTests(unittest.TestCase):
+    def test_different_queries_remain_unresolved(self):
+        run=AgentRun(1)
+        a=run.start_tool('reverse_geocode',operation_key='query-A')
+        run.finish_tool(a,'failed')
+        b=run.start_tool('reverse_geocode',operation_key='query-B')
+        run.finish_tool(b,'succeeded')
+        self.assertTrue(run.has_unresolved_failures())
+        self.assertNotIn('recovered_by',run.snapshot()['steps'][0])
+
+    def test_same_request_retry_has_explicit_opaque_relation(self):
+        run=AgentRun(1)
+        a=run.start_tool('reverse_geocode',operation_key='private query parameters')
+        run.finish_tool(a,'failed')
+        b=run.start_tool('reverse_geocode',operation_key='private query parameters')
+        run.finish_tool(b,'succeeded')
+        snapshot=run.snapshot()
+        self.assertEqual(snapshot['steps'][0]['recovered_by'],b)
+        self.assertEqual(snapshot['steps'][1]['retry_of'],a)
+        self.assertEqual(snapshot['steps'][0]['operation_id'],snapshot['steps'][1]['operation_id'])
+        self.assertFalse(run.has_unresolved_failures())
+        self.assertNotIn('private',json.dumps(snapshot))
+        run.finish_tool(b,'failed')
+        self.assertEqual(run.snapshot()['steps'][1]['status'],'succeeded')
+
+    def test_unknown_identity_does_not_claim_recovery(self):
+        run=AgentRun(1)
+        a=run.start_tool('reverse_geocode');run.finish_tool(a,'failed')
+        b=run.start_tool('reverse_geocode');run.finish_tool(b,'succeeded')
+        self.assertTrue(run.has_unresolved_failures())
+
+    def test_report_state_survives_history_truncation_and_ended_run(self):
+        run=AgentRun(3)
+        report=run.start_tool('generate_final_report',operation_key='report-v2',results_revision=2)
+        run.finish_tool(report,'succeeded')
+        for _ in range(120):
+            step=run.start_tool('get_data_summary');run.finish_tool(step,'succeeded')
+        run.end('succeeded')
+        snapshot=run.snapshot()
+        self.assertEqual(len(snapshot['steps']),100)
+        self.assertFalse(any(s['name']=='generate_final_report' for s in snapshot['steps']))
+        self.assertEqual(snapshot['report_result'],dict(step_id=report,status='succeeded',attempts=1,analysis_revision=3,results_revision=2))
+
+    def test_stop_closes_running_report_state(self):
+        run=AgentRun(1)
+        run.start_tool('generate_final_report',results_revision=1)
+        run.end('cancelled')
+        self.assertEqual(run.snapshot()['report_result']['status'],'cancelled')
+
+    def test_missing_report_steps_show_only_safe_labels(self):
+        notice=tool_notice('generate_final_report','failed',{'error_code':'report_prerequisites_missing',
+            'missing_steps':['get_comprehensive_summary','private key'], 'error':'private secret'})
+        self.assertIn('综合摘要',notice)
+        self.assertNotIn('private',notice)

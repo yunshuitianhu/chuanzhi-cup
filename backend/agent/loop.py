@@ -34,7 +34,7 @@ from water_quality_mcp.src.water_quality_mcp.agent_safety import (
 
 from .tools import (
     SYSTEM_PROMPT_AUTO, SYSTEM_PROMPT_CHAT, TOOLS,
-    execute_tool, truncate, ANALYSIS_CARD_TOOLS,
+    execute_tool, truncate, ANALYSIS_CARD_TOOLS, report_summary_needs_refresh,
 )
 from .progress import AgentRun, AgentStopped, tool_notice
 from ..report_evidence import capture_tool, build_bundle, utc_now
@@ -166,6 +166,60 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
     turn = 0
     stream = None
 
+    def perform_tool(name, args, call_id=None, internal_refresh=False):
+        nonlocal tool_errors
+        operation_key = None
+        if isinstance(args, dict):
+            try:
+                operation_key = json.dumps({'name':name,
+                    'args':{} if name == 'generate_final_report' else args,
+                    'analysis_revision':session.analysis_revision,
+                    'results_revision':session.results_revision}, sort_keys=True, allow_nan=False)
+            except (ValueError, TypeError):
+                pass
+        step_id = run.start_tool(name, operation_key=operation_key,
+                                 results_revision=session.results_revision)
+        yield emit("tool", {"name": name, "args": list(args) if isinstance(args, dict) else [], 'step_id':step_id})
+
+        check()
+        tool_started_at = utc_now()
+        result, is_err = execute_tool(name, args, session, api_key, evidence_traces=evidence_traces)
+        check()
+        evidence_traces.append(capture_tool(name, args, result, tool_started_at))
+        model_result = truncate(name, result)
+        if name == 'search_treatment_cases':
+            merge_catalog(citation_sources, result_catalog(model_result))
+        if name == 'generate_final_report' and not is_err:
+            # These are the actual snippets used by the report generator's
+            # internal retrieval, not IDs inferred from its generated body.
+            references = session.tool_evidence.get('report_treatment_cases')
+            if references:
+                reference_result = json.dumps({'ok':True,'data':json.loads(references),
+                    'error':None,'skipped':False}, ensure_ascii=False)
+                evidence_traces.append(capture_tool('search_treatment_cases',
+                    {'via':'generate_final_report'}, reference_result, tool_started_at))
+                merge_catalog(citation_sources, result_catalog(reference_result))
+        tool_errors += int(is_err and name not in ANALYSIS_CARD_TOOLS)
+        outcome = json.loads(result)
+        step_status = 'failed' if is_err else 'skipped' if outcome.get('skipped') else 'succeeded'
+        reference_meta = None
+        if name == 'generate_final_report':
+            try:
+                reference_meta = json.loads(session.tool_evidence.get('report_treatment_cases', '{}'))
+            except (TypeError, ValueError):
+                pass
+        notice = tool_notice(name, step_status, outcome, references=reference_meta)
+        if internal_refresh and not is_err:
+            notice = '分析结果已更新，已重新取得综合摘要。'
+        run.finish_tool(step_id,step_status,notice)
+        if auto and name not in ANALYSIS_CARD_TOOLS:
+            session.analysis_steps[name] = step_status
+        yield emit("tool_done", {"name": name, "ok": not is_err, 'step_id':step_id,
+                                 'status':step_status, 'notice':notice, "chars": len(result)})
+
+        if call_id is not None:
+            msgs.append({"role":"tool", "tool_call_id":call_id, "content":model_result})
+
     try:
         check()
         client = OpenAI(base_url=BASE_URL, api_key=api_key, timeout=TIMEOUT, max_retries=0)
@@ -245,49 +299,9 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                     args = json.loads(call["function"]["arguments"] or "{}")
                 except json.JSONDecodeError:
                     args = None
-                # 工具参数可能很大（如 summary），事件里只带键名
-                step_id = run.start_tool(name)
-                yield emit("tool", {"name": name, "args": list(args) if isinstance(args, dict) else [], 'step_id':step_id})
-
-                check()
-                tool_started_at = utc_now()
-                result, is_err = execute_tool(name, args, session, api_key, evidence_traces=evidence_traces)
-                check()
-                evidence_traces.append(capture_tool(name, args, result, tool_started_at))
-                model_result = truncate(name, result)
-                if name == 'search_treatment_cases':
-                    merge_catalog(citation_sources, result_catalog(model_result))
-                if name == 'generate_final_report' and not is_err:
-                    # These are the actual snippets used by the report generator's
-                    # internal retrieval, not IDs inferred from its generated body.
-                    references = session.tool_evidence.get('report_treatment_cases')
-                    if references:
-                        reference_result = json.dumps({'ok':True,'data':json.loads(references),
-                            'error':None,'skipped':False}, ensure_ascii=False)
-                        evidence_traces.append(capture_tool('search_treatment_cases',
-                            {'via':'generate_final_report'}, reference_result, tool_started_at))
-                        merge_catalog(citation_sources, result_catalog(reference_result))
-                tool_errors += int(is_err and name not in ANALYSIS_CARD_TOOLS)
-                outcome = json.loads(result)
-                step_status = 'failed' if is_err else 'skipped' if outcome.get('skipped') else 'succeeded'
-                reference_meta = None
-                if name == 'generate_final_report':
-                    try:
-                        reference_meta = json.loads(session.tool_evidence.get('report_treatment_cases', '{}'))
-                    except (TypeError, ValueError):
-                        pass
-                notice = tool_notice(name, step_status, outcome, references=reference_meta)
-                run.finish_tool(step_id,step_status,notice)
-                if auto and name not in ANALYSIS_CARD_TOOLS:
-                    session.analysis_steps[name] = step_status
-                yield emit("tool_done", {"name": name, "ok": not is_err, 'step_id':step_id,
-                                         'status':step_status, 'notice':notice, "chars": len(result)})
-
-                msgs.append({
-                    "role": "tool",
-                    "tool_call_id": call["id"],
-                    "content": model_result,
-                })
+                if auto and name == 'generate_final_report' and report_summary_needs_refresh(session):
+                    yield from perform_tool('get_comprehensive_summary', {}, internal_refresh=True)
+                yield from perform_tool(name, args, call['id'])
 
         else:
             # 达到轮次上限：强制收口，不再允许调用工具
@@ -315,14 +329,15 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         if not final_text.strip():
             raise RuntimeError('模型未返回有效正文，本轮不能视为成功。')
         validate_citations(final_text, citation_sources)
-        status = 'partial' if tool_errors else 'succeeded'
+        status = 'partial' if run.has_unresolved_failures(ANALYSIS_CARD_TOOLS) else 'succeeded'
         if auto:
             required = REQUIRED_ANALYSIS_STEPS | ({'analyze_video', 'cross_validate_video'} if session.video_frames else set())
             complete = (bool(final_text) and run_revision == session.analysis_revision
                         and session.black_spots is not None
                         and all(session.analysis_steps.get(name) == 'succeeded'
                                 for name in required)
-                        and 'failed' not in session.analysis_steps.values())
+                        and 'failed' not in session.analysis_steps.values()
+                        and not run.has_unresolved_failures(ANALYSIS_CARD_TOOLS))
             status = ('succeeded' if complete else 'partial'
                 if final_text and 'succeeded' in session.analysis_steps.values() else 'failed')
 

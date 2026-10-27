@@ -1,0 +1,247 @@
+{
+  "date": "2026-10-27",
+  "scope": [
+    "explicit retry identity",
+    "unknown report status for clipped history",
+    "scrollable short-screen details",
+    "bounded report summary refresh"
+  ],
+  "checks": {
+    "python": {
+      "tests": 556,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "success": true,
+      "legacy_checks": true,
+      "secret_scan": true,
+      "contracts_exported": true,
+      "elapsed_s": 69.39
+    },
+    "frontend": {
+      "tests": 346,
+      "pass": 346,
+      "typecheck": true,
+      "production_build": true
+    },
+    "browser": {
+      "method": "Native browser; original Vue components and isolated fixed data, separate from real API validation",
+      "differentQuery": "部分完成\n已用 6秒\n查看详情（2）\n核对任务状态\n\n未生成报告 · 未恢复失败 1 · 2 次工具调用",
+      "truncatedHistory": "本轮已完成\n已用 90秒\n查看详情（最近100次）\n核对任务状态\n\n报告状态暂无法核实（较早记录未保留） · 120 次工具调用",
+      "desktop": {
+        "composerBottom": 755.3333358764648,
+        "progress": 67.33333587646484,
+        "stream": 314.29168701171875
+      },
+      "mobile": {
+        "composerBottom": 813.3333358764648,
+        "progress": 92.03125,
+        "stream": 309.09375
+      },
+      "landscape": {
+        "dialogBottom": 374,
+        "dialogOverflow": "auto",
+        "dialogScrollTop": 131.3333282470703,
+        "historyBottom": 359.3645935058594,
+        "historyClientHeight": 120,
+        "historyScrollHeight": 662,
+        "historyScrollTop": 542
+      },
+      "focusTrapped": true
+    }
+  },
+  "real_model_validation": {
+    "kind": "Real DeepSeek auto analysis of an isolated restored original sample, not field accuracy validation",
+    "rows": 1805,
+    "frames": 147,
+    "status": "succeeded",
+    "analysis_done": true,
+    "report_status": "succeeded",
+    "report_attempts": 1,
+    "tools": 15,
+    "elapsed_seconds": 150.81,
+    "events": [
+      {
+        "event": "tool",
+        "name": "get_data_summary"
+      },
+      {
+        "event": "tool_done",
+        "name": "get_data_summary",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "find_black_spots"
+      },
+      {
+        "event": "tool_done",
+        "name": "find_black_spots",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "analyze_video"
+      },
+      {
+        "event": "tool_done",
+        "name": "analyze_video",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "cross_validate_video"
+      },
+      {
+        "event": "tool_done",
+        "name": "cross_validate_video",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "get_comprehensive_summary"
+      },
+      {
+        "event": "tool_done",
+        "name": "get_comprehensive_summary",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "reverse_geocode"
+      },
+      {
+        "event": "tool_done",
+        "name": "reverse_geocode",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "reverse_geocode"
+      },
+      {
+        "event": "tool_done",
+        "name": "reverse_geocode",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "search_nearby_pollution_sources"
+      },
+      {
+        "event": "tool_done",
+        "name": "search_nearby_pollution_sources",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "get_satellite_image"
+      },
+      {
+        "event": "tool_done",
+        "name": "get_satellite_image",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "get_national_station_data"
+      },
+      {
+        "event": "tool_done",
+        "name": "get_national_station_data",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "search_treatment_cases"
+      },
+      {
+        "event": "tool_done",
+        "name": "search_treatment_cases",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "get_comprehensive_summary"
+      },
+      {
+        "event": "tool_done",
+        "name": "get_comprehensive_summary",
+        "status": "succeeded",
+        "ok": true,
+        "notice": "分析结果已更新，已重新取得综合摘要。"
+      },
+      {
+        "event": "tool",
+        "name": "generate_final_report"
+      },
+      {
+        "event": "tool_done",
+        "name": "generate_final_report",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "get_analysis_card_catalog"
+      },
+      {
+        "event": "tool_done",
+        "name": "get_analysis_card_catalog",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "tool",
+        "name": "submit_analysis_cards"
+      },
+      {
+        "event": "tool_done",
+        "name": "submit_analysis_cards",
+        "status": "succeeded",
+        "ok": true,
+        "notice": ""
+      },
+      {
+        "event": "done",
+        "status": "succeeded",
+        "tool_errors": 0
+      }
+    ],
+    "original_project_mutated": false
+  },
+  "user_project_backup": {
+    "name": "111",
+    "revision": 10,
+    "backup": "preserved-project-111.wqproj"
+  },
+  "limits": [
+    "Fixed browser fixtures are UI checks only; real-model validation used a separate restored sample session.",
+    "Tool execution success is not field detection accuracy or causal confirmation.",
+    "Unknown legacy retry relations stay unresolved; no inference from tool names alone."
+  ]
+}

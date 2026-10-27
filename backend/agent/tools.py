@@ -78,7 +78,7 @@ TOOLS: list[dict] = [
            "top_k": {"type": "integer", "minimum": 1, "maximum": 10, "description": "返回案例数，默认 5"}},
           required=["query"]),
     _tool("generate_final_report", "生成受证据边界约束的水质辅助排查报告（治理案例仅供参考）",
-          {"summary": {"type": "string"}}, required=["summary"]),
+          {"summary": {"type": "string", "description": "可选兼容参数；报告事实由服务器从本轮数据重建"}}),
     _tool("reverse_geocode", "将经纬度转为地址与省份",
           {"lat": {"type": "number"}, "lon": {"type": "number"}}, required=["lat", "lon"]),
     _tool("search_nearby_pollution_sources",
@@ -112,6 +112,19 @@ RIVER_TOOLS = [
     "init_river_model", "run_hydrodynamic_simulation", "simulate_pollution_event",
     "get_concentration_profile", "compare_scenarios", "export_river_model_data",
 ]
+
+
+def report_prerequisites(session):
+    steps = ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary')
+    return steps + (('analyze_video', 'cross_validate_video') if session.video_frames else ())
+
+
+def report_summary_needs_refresh(session):
+    """Only repair a stale summary; never fabricate missing screening/video results."""
+    return (session.analysis_status == 'running' and session.df is not None
+            and session.analysis_steps.get('get_comprehensive_summary') != 'succeeded'
+            and all(session.analysis_steps.get(name) == 'succeeded'
+                    for name in report_prerequisites(session) if name != 'get_comprehensive_summary'))
 
 
 def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
@@ -175,13 +188,12 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 return "未配置 DeepSeek API Key", True
             if session.df is None:
                 return json.dumps({'error': '数据未加载'}, ensure_ascii=False), True
-            report_prerequisites = ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary')
-            if session.video_frames:
-                report_prerequisites += ('analyze_video', 'cross_validate_video')
-            if session.analysis_status == 'running' and any(
-                    session.analysis_steps.get(step) != 'succeeded'
-                    for step in report_prerequisites):
-                return json.dumps({'error': '请先完成本轮数据摘要、黑臭检测和综合摘要；已上传视频时还须完成视觉分析与交叉印证，再生成报告'}, ensure_ascii=False), True
+            missing = [name for name in report_prerequisites(session)
+                       if session.analysis_steps.get(name) != 'succeeded']
+            if session.analysis_status == 'running' and missing:
+                return json.dumps({'error': '请先完成本轮必要分析步骤，再生成报告',
+                                   'error_code': 'report_prerequisites_missing',
+                                   'missing_steps': missing}, ensure_ascii=False), True
             # 报告以会话内的实际分析数据为依据，不直接信任模型拼写的 summary 数字。
             evidence = build_comprehensive_summary(
                 session.water_quality_state(), session.get_river_state(), cfg)
@@ -382,6 +394,8 @@ def execute_tool(name: str, args: dict, session, api_key: str | None = None,
     failed = bool(failed or error)
     outcome = {'ok': not failed, 'data': None if failed else data,
                'error': str(error or raw) if failed else None, 'skipped': skipped and not failed}
+    if failed and isinstance(data, dict) and data.get('error_code') == 'report_prerequisites_missing':
+        outcome.update(error_code='report_prerequisites_missing', missing_steps=data['missing_steps'])
     evidence_tools = {'search_nearby_pollution_sources', 'reverse_geocode',
                       'get_national_station_data', 'search_treatment_cases', 'analyze_video'}
     if name in evidence_tools:

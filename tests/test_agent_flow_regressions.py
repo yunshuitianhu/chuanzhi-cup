@@ -93,13 +93,81 @@ class AgentFlowTests(unittest.TestCase):
             raw, failed = execute_tool('generate_final_report', {'summary':'ignored'}, self.s, api_key='test-only')
         self.assertTrue(failed)
         report.assert_not_called()
-        self.assertIn('视频', raw)
+        self.assertEqual(json.loads(raw)['error_code'], 'report_prerequisites_missing')
+        self.assertIn('analyze_video', json.loads(raw)['missing_steps'])
 
     def test_turn_limit_summary_is_also_checked_for_truncation(self):
         frames = self.run_sequence([[chunk(calls=[call('get_data_summary')], finish='tool_calls')],
                                     [chunk(text='达到上限后的截断', finish='length')]], turns=1)
         self.assertIn('event: error', frames[-1])
         self.assertFalse(self.s.analysis_done)
+
+    def test_station_update_refreshes_only_summary_before_report(self):
+        self.s.data_filename = 'controlled.xlsx'
+        names = ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary')
+        sequence = [[chunk(calls=[call(name)], finish='tool_calls')] for name in names]
+        sequence += [[chunk(calls=[call('get_national_station_data', '{"province":"广东省"}')], finish='tool_calls')],
+                     [chunk(calls=[call('generate_final_report')], finish='tool_calls')],
+                     [chunk(text='受控筛查完成，仍需复核')]]
+        with patch('backend.agent.tools.get_national_station_data', return_value='{"含实时监测值":false}'):
+            frames = self.run_sequence(sequence)
+        steps = self.s.agent_run.snapshot()['steps']
+        actual = [step['name'] for step in steps]
+        self.assertEqual(actual.count('find_black_spots'), 1)
+        self.assertEqual(actual.count('get_comprehensive_summary'), 2)
+        self.assertEqual(actual[-2:], ['get_comprehensive_summary', 'generate_final_report'])
+        self.assertEqual([s['status'] for s in steps if s['name']=='generate_final_report'], ['succeeded'])
+        self.assertTrue(self.s.analysis_done)
+        self.assertEqual(self.s.agent_run.snapshot()['report_result']['status'], 'succeeded')
+        self.assertIn('"status": "succeeded"', frames[-1])
+
+    def test_report_repair_does_not_fabricate_missing_video_or_detection(self):
+        from backend.agent.tools import report_summary_needs_refresh
+        self.s.analysis_status='running'
+        self.s.analysis_steps={'get_data_summary':'succeeded'}
+        self.assertFalse(report_summary_needs_refresh(self.s))
+        self.s.analysis_steps['find_black_spots']='succeeded'
+        self.assertTrue(report_summary_needs_refresh(self.s))
+        self.s.video_frames=[{'time_sec':0}]
+        self.assertFalse(report_summary_needs_refresh(self.s))
+        self.s.analysis_steps.update(analyze_video='succeeded',cross_validate_video='succeeded')
+        self.assertTrue(report_summary_needs_refresh(self.s))
+        self.s.df=None
+        self.assertFalse(report_summary_needs_refresh(self.s))
+
+    def test_different_successful_query_cannot_complete_an_unresolved_query(self):
+        self.s.data_filename='controlled.xlsx'
+        sequence=self.complete_tools()[:-1]+[
+            [chunk(calls=[call('reverse_geocode','{"lat":31,"lon":121}')],finish='tool_calls')],
+            [chunk(calls=[call('reverse_geocode','{"lat":32,"lon":122}')],finish='tool_calls')],
+            [chunk(calls=[call('generate_final_report')],finish='tool_calls')],
+            [chunk(text='已生成筛查报告，但坐标A查询仍失败')]]
+        with patch('backend.agent.tools.reverse_geocode',side_effect=['{"error":"controlled failure"}','{"地址":"controlled place"}']):
+            frames=self.run_sequence(sequence)
+        self.assertEqual(self.s.analysis_steps['reverse_geocode'],'succeeded')
+        self.assertFalse(self.s.analysis_done)
+        self.assertTrue(self.s.agent_run.has_unresolved_failures())
+        self.assertEqual(self.s.agent_run.snapshot()['report_result']['status'],'succeeded')
+        self.assertIn('"status": "partial"',frames[-1])
+
+    def test_failed_summary_refresh_cannot_become_a_successful_report(self):
+        self.s.data_filename='controlled.xlsx'
+        from backend.agent.tools import build_comprehensive_summary as original
+        seen=0
+        def summary(*args, **kwargs):
+            nonlocal seen
+            seen += 1
+            if seen == 2:
+                raise RuntimeError('controlled summary failure')
+            return original(*args, **kwargs)
+        names=('get_data_summary','find_black_spots','get_comprehensive_summary','get_national_station_data','generate_final_report')
+        sequence=[[chunk(calls=[call(name)],finish='tool_calls')] for name in names]
+        with patch('backend.agent.tools.get_national_station_data',return_value='{"含实时监测值":false}'), \
+             patch('backend.agent.tools.build_comprehensive_summary',side_effect=summary):
+            frames=self.run_sequence(sequence+[[chunk(text='摘要未完成，报告未生成')]])
+        self.assertFalse(self.s.analysis_done)
+        self.assertEqual(self.s.agent_run.snapshot()['report_result']['status'],'failed')
+        self.assertIn('"status": "partial"',frames[-1])
 
     def test_generated_report_is_not_cut_at_generic_tool_limit(self):
         from backend.agent.tools import truncate
