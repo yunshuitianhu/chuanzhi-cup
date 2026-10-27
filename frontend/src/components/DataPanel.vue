@@ -8,7 +8,7 @@
  * 之所以不在选择文件后立即上传：大视频上传耗时，原版特意让用户
  * 「等文件名出现后再点加载」，避免误以为卡住。这里保留该节奏。
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useSessionStore } from '../stores/session'
 import { toastOk, toastErr } from '../composables/useToast'
 
@@ -19,6 +19,12 @@ const videoFile = ref(null)
 const dataInput = ref(null)
 const videoInput = ref(null)
 const report = ref('')
+const sampleBusy = ref('')
+const sampleError = ref('')
+const sampleReport = ref(store.sampleLastReport || '')
+const sampleDetectionError = ref('')
+const samples = computed(() => store.sampleCatalog || [])
+const sampleDisabled = computed(() => !!sampleBusy.value || store.loading || store.chatRunning || store.switchingProject)
 
 const canLoad = computed(() => (!!dataFile.value || (!!videoFile.value && store.status.has_data)) && !store.loading && !store.chatRunning)
 
@@ -64,6 +70,49 @@ function clearPick(kind) {
   else { videoFile.value = null; if (videoInput.value) videoInput.value.value = '' }
 }
 
+function detectionNotice(detection) {
+  if (!detection?.requested) return ''
+  if (detection.ok) return detection.saved === false
+    ? (detection.warning || '筛查结果仅在当前会话可用，项目保存失败。')
+    : ''
+  return `数据已载入，但筛查未完成：${detection.error || '未知原因'}`
+}
+function syncSampleNotice() {
+  sampleReport.value = store.sampleLastReport || ''
+  sampleDetectionError.value = detectionNotice(store.sampleLastDetection)
+}
+watch(() => store.sampleLastReport, value => { sampleReport.value = value || '' })
+watch(() => store.sampleLastDetection, value => { sampleDetectionError.value = detectionNotice(value) })
+onMounted(async () => {
+  syncSampleNotice()
+  try { await store.loadSamples() }
+  catch (e) { sampleError.value = e.message }
+})
+async function reloadSamples() {
+  sampleError.value = ''
+  try { await store.loadSamples(true) }
+  catch (e) { sampleError.value = e.message }
+}
+async function loadSample(sample, detect) {
+  if (sampleDisabled.value) return
+  if (dataFile.value || videoFile.value) {
+    sampleError.value = '已有待上传文件；请先点击“加载数据”或清除选择，再载入示例。'
+    return
+  }
+  sampleBusy.value = sample.id + (detect ? '-detect' : '-load')
+  sampleError.value = ''; sampleReport.value = ''; sampleDetectionError.value = ''
+  try {
+    const res = await store.loadSample(sample.id, detect)
+    sampleReport.value = store.sampleLastReport
+    sampleDetectionError.value = detectionNotice(res.detection)
+    if (sampleDetectionError.value) toastOk('示例数据已载入；筛查未完成，请查看提示。')
+    else if (res.detection?.ok) toastOk(`示例已载入并完成基础筛查：${res.detection.black_spots ?? 0} 个预警点`)
+    else toastOk(`示例已载入：${res.rows} 条记录`)
+  } catch (e) {
+    sampleError.value = e.message
+    toastErr(`示例载入失败：${e.message}`)
+  } finally { sampleBusy.value = '' }
+}
 async function load() {
   if (!canLoad.value) return
   try {
@@ -87,7 +136,37 @@ async function load() {
 
 <template>
   <section class="panel">
-    <h3 class="panel-title">数据上传</h3>
+    <h3 class="panel-title">数据与示例</h3>
+
+    <section class="sample-section" :class="{prominent:!store.status.has_data}" aria-label="内置仿真示例">
+      <div class="sample-head">
+        <div><strong>试用仿真示例</strong><span class="sample-tag">仅监测表 · 仿真</span></div>
+        <button v-if="store.sampleCatalogError || sampleError" type="button" class="sample-retry" :disabled="store.loading" @click="reloadSamples">重新读取目录</button>
+      </div>
+      <p class="hint sample-intro">没有数据也可以先体验图表、质控和阈值筛查；载入会先保存当前项目，在独立演示项目中打开。基础示例和筛查不需要模型 Key；AI 解读与报告需另行配置。</p>
+      <p v-if="sampleError" class="sample-error" role="alert">{{sampleError}}</p>
+      <p v-else-if="store.sampleCatalogError" class="sample-error" role="alert">{{store.sampleCatalogError}}</p>
+      <p v-if="sampleBusy" class="hint" role="status">正在载入示例并准备数据，请稍候…</p>
+      <p v-if="sampleReport" class="sample-report" role="status">{{sampleReport}}</p>
+      <p v-if="sampleDetectionError" class="sample-error" role="alert">{{sampleDetectionError}}</p>
+      <ul v-if="samples.length" class="sample-list">
+        <li v-for="sample in samples" :key="sample.id" class="sample-item">
+          <div class="sample-copy">
+            <strong>{{sample.title}}</strong>
+            <span class="sample-meta">{{sample.data_kind === 'synthetic' ? '仿真' : sample.data_kind}} · {{sample.rows}} 条 · 仅监测表</span>
+            <p>{{sample.description}}</p>
+          </div>
+          <div class="sample-actions">
+            <button type="button" class="sample-load" :disabled="sampleDisabled" @click="loadSample(sample,false)">{{sampleBusy === sample.id+'-load' ? '载入中…' : '载入'}}</button>
+            <button type="button" class="sample-detect" :disabled="sampleDisabled" @click="loadSample(sample,true)">{{sampleBusy === sample.id+'-detect' ? '筛查中…' : '载入并检测'}}</button>
+          </div>
+        </li>
+      </ul>
+      <p v-else-if="!store.sampleCatalogLoaded && !sampleError && !store.sampleCatalogError" class="hint">正在读取示例目录…</p>
+      <p v-if="store.chatRunning" class="hint">AI 任务进行中，完成后再切换示例。</p>
+    </section>
+
+    <h3 class="panel-title upload-title">上传自己的数据</h3>
 
     <label class="file-btn" :class="{ filled: dataFile || store.status.has_data }">
       <input
@@ -128,6 +207,7 @@ async function load() {
       </p>
       <div class="stat-row"><span>走航数据</span><b>{{ store.status.rows }} 条</b></div>
       <div class="stat-row"><span>视频帧</span><b>{{ store.status.video_frames }} 帧</b></div>
+      <div v-if="store.status.sample_meta" class="stat-row"><span>示例</span><b class="small">{{store.status.sample_meta.id}} · {{store.status.sample_meta.version}}</b></div>
       <div class="stat-row" v-if="store.status.time_range">
         <span>时段</span>
         <b class="small">{{ store.status.time_range[0].slice(5, 16) }} ~ {{ store.status.time_range[1].slice(11, 16) }}</b>
@@ -143,27 +223,48 @@ async function load() {
 
 <style scoped>
 .panel { padding:0 0 20px; border-bottom:1px solid var(--c-border); min-width:0; }
-.panel-title { margin:0 0 12px; font-size:12px; font-weight:500; color:var(--c-sub); letter-spacing:.08em; }
-.file-btn { display:flex; align-items:center; gap:10px; min-width:0; border:1px dashed var(--c-border); border-radius:var(--radius-sm); padding:11px 10px; margin-bottom:9px; cursor:pointer; font-size:12px; color:var(--c-sub); background:var(--c-bg); transition:border-color var(--duration-fast),background var(--duration-fast); }
+.panel-title { margin:0 0 12px; font-size:13px; font-weight:500; color:var(--c-sub); letter-spacing:.08em; }
+.upload-title { margin-top:18px; }
+.sample-section { border:1px solid var(--c-border); border-radius:var(--radius-sm); padding:11px 10px; margin-bottom:14px; background:var(--c-bg); min-width:0; }
+.sample-section.prominent { border-color:var(--c-accent); background:var(--c-surface-2); }
+.sample-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; font-size:12px; color:var(--c-ink); }
+.sample-head > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; min-width:0; }
+.sample-tag { color:var(--c-accent); border:1px solid var(--c-border); border-radius:9px; padding:1px 6px; font-size:10px; }
+.sample-retry { border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-sub); border-radius:5px; font:inherit; font-size:10px; padding:3px 7px; min-height:26px; }
+.sample-intro { margin:6px 0 8px; }
+.sample-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
+.sample-item { border-top:1px solid var(--c-border-soft); padding-top:7px; min-width:0; }
+.sample-copy strong { display:block; font-size:13px; color:var(--c-ink); line-height:1.5; }
+.sample-meta { display:block; font-size:11px; color:var(--c-accent); margin-top:1px; }
+.sample-copy p { margin:3px 0 0; font-size:12px; color:var(--c-sub); line-height:1.65; }
+.sample-actions { display:flex; gap:6px; margin-top:6px; }
+.sample-actions button { min-height:30px; border-radius:5px; font:inherit; font-size:11px; padding:4px 9px; }
+.sample-load { background:var(--c-accent); border:1px solid var(--c-accent); color:#06121c; font-weight:600; }
+.sample-detect { background:var(--c-surface); border:1px solid var(--c-border); color:var(--c-ink); }
+.sample-actions button:disabled { opacity:.45; cursor:not-allowed; }
+.sample-error { margin:5px 0; color:#ffb7a7; font-size:11px; line-height:1.6; }
+.sample-report { margin:7px 0 0; color:var(--c-sub); font-size:11px; line-height:1.6; }
+@media(max-width:600px) { .sample-actions button { flex:1; } }
+.file-btn { display:flex; align-items:center; gap:10px; min-width:0; border:1px dashed var(--c-border); border-radius:var(--radius-sm); padding:11px 10px; margin-bottom:9px; cursor:pointer; font-size:13px; color:var(--c-sub); background:var(--c-bg); transition:border-color var(--duration-fast),background var(--duration-fast); }
 .file-btn:hover { border-color:var(--c-accent); color:var(--c-ink); }
 .file-btn.filled { border-style:solid; color:var(--c-ink); }
 .ico { display:grid; place-items:center; width:30px; height:34px; flex-shrink:0; border:1px solid var(--c-border); border-radius:5px; color:var(--c-sub); font-size:13px; }
 .filled .ico { color:var(--c-accent); }
 .file-copy { display:flex; flex-direction:column; gap:3px; min-width:0; flex:1; }
-.file-kind { color:var(--c-sub); font-size:10px; letter-spacing:.03em; }
+.file-kind { color:var(--c-sub); font-size:11px; letter-spacing:.03em; }
 .txt { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.6; }
 .clear { background:transparent; border:none; color:var(--c-sub); font-size:18px; line-height:1; padding:4px; }
 .clear:hover { color:#ff6b81; }
 .load-btn { width:100%; min-height:39px; padding:9px; border-radius:var(--radius-sm); border:none; background:var(--c-accent); color:#06121c; font-weight:600; transition:opacity var(--duration-fast); }
 .load-btn:disabled { opacity:.4; cursor:not-allowed; }
 .load-btn:not(:disabled):hover { opacity:.88; }
-.hint { margin:10px 0 0; font-size:11px; color:var(--c-sub); line-height:1.8; }
+.hint { margin:10px 0 0; font-size:12px; color:var(--c-sub); line-height:1.8; }
 .loaded-note { color:var(--c-sub); }
 .stat { margin-top:16px; padding-top:12px; border-top:1px solid var(--c-border); }
 .stat > .hint { display:inline-block; margin:0 0 8px; border:1px solid var(--c-border); border-radius:4px; padding:2px 6px; line-height:1.5; }
-.stat-row { display:flex; justify-content:space-between; align-items:baseline; font-size:12px; padding:4px 0; gap:8px; color:var(--c-sub); }
+.stat-row { display:flex; justify-content:space-between; align-items:baseline; font-size:13px; padding:4px 0; gap:8px; color:var(--c-sub); }
 .stat-row b { color:var(--c-ink); font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
-.stat-row b.small { font-size:11px; font-weight:400; }
+.stat-row b.small { font-size:12px; font-weight:400; }
 .report { margin-top:8px; font-size:11px; }
 .report summary { cursor:pointer; color:var(--c-sub); }
 .report pre { margin:6px 0 0; padding:10px; background:var(--c-bg); border-radius:var(--radius-sm); white-space:pre-wrap; word-break:break-all; color:var(--c-sub); font-size:11px; }
