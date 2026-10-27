@@ -1,0 +1,75 @@
+{
+  "url": "http://127.0.0.1:5180/river",
+  "checks": {
+    "initial": {
+      "statuses": [
+        "可计算",
+        "未开始",
+        "未开始"
+      ],
+      "changed": "「运行水动力」需先点「初始化模型」生成断面序列。",
+      "result": "",
+      "failure": "",
+      "notice": "",
+      "tabs": true,
+      "pass": true
+    },
+    "after_init": {
+      "statuses": [
+        "已完成",
+        "可计算",
+        "未开始"
+      ],
+      "changed": "「模拟污染事件」需先运行水动力 —— 它提供流速场。",
+      "result": "断面数\n50\n河段长度\n1 km\n糙率\n0.03",
+      "failure": "",
+      "notice": "",
+      "tabs": true,
+      "pass": true
+    },
+    "after_hydro": {
+      "statuses": [
+        "已完成",
+        "已完成",
+        "可计算"
+      ],
+      "changed": "",
+      "result": "断面数\n50\n河段长度\n1 km\n糙率\n0.03 | 工况\n恒定流\n帧数\n13\n水位变幅\n0.01 m\n最大流速\n0.117 m/s",
+      "failure": "",
+      "notice": "",
+      "tabs": true,
+      "pass": true
+    },
+    "changed_upstream": {
+      "statuses": [
+        "已完成",
+        "可计算",
+        "未开始"
+      ],
+      "changed": "上游流量、下游水位或模拟时长已变化，请重新运行水动力。",
+      "result": "断面数\n50\n河段长度\n1 km\n糙率\n0.03",
+      "failure": "",
+      "notice": "上游流量、下游水位或模拟时长已变化，请重新运行水动力。",
+      "tabs": true,
+      "pass": true
+    },
+    "invalid_length": {
+      "statuses": [
+        "失败",
+        "未开始",
+        "未开始"
+      ],
+      "changed": "河段几何、初始水质或糙率已变化，请重新初始化模型。",
+      "result": "",
+      "failure": "初始化失败：parameters.length_m：Input should be greater than or equal to 10。请检查河段范围、断面数和参数来源后重试。",
+      "notice": "河段几何、初始水质或糙率已变化，请重新初始化模型。",
+      "tabs": true,
+      "pass": true
+    }
+  },
+  "screenshots": [
+    "docs\\validation\\river_guide_after_hydro_1280x800.png",
+    "docs\\validation\\river_guide_invalid_1280x800.png"
+  ],
+  "passed": true
+}

@@ -28,6 +28,16 @@ const pollutionResult = ref(null)
 const busy = ref('')
 const alignmentRevision = ref(0)
 const playbackRevision = computed(()=>({pollution:pollutionResult.value,alignment:alignmentRevision.value}))
+const changedNotice = ref('')
+const paramsNotice = ref('')
+const runNotice = ref('')
+const failedStep = ref('')
+const STEP_LABEL = {blocked:'未开始', ready:'可计算', running:'计算中', done:'已完成', failed:'失败'}
+const stepState = computed(()=>({
+  init: busy.value==='init' ? 'running' : failedStep.value==='init' ? 'failed' : initResult.value ? 'done' : 'ready',
+  hydro: busy.value==='hydro' ? 'running' : failedStep.value==='hydro' ? 'failed' : hydroResult.value ? 'done' : initResult.value ? 'ready' : 'blocked',
+  pollution: busy.value==='pollution' ? 'running' : failedStep.value==='pollution' ? 'failed' : pollutionResult.value ? 'done' : hydroResult.value ? 'ready' : 'blocked',
+}))
 
 const form = ref({
   n_cross_sections: 50,
@@ -85,6 +95,7 @@ onMounted(async () => {
 watch(form, () => { store.riverForm = { ...form.value } }, { deep:true })
 watch(() => store.status.analysis_revision, () => {
   params.value = null
+  paramsNotice.value = ''
   initResult.value = null
   hydroResult.value = null
   pollutionResult.value = null
@@ -98,14 +109,18 @@ watch(() => ['river_name','length_m','width_avg_m','depth_avg_m','longitudinal_s
   .map(k => form.value[k]), () => {
     if (hydrating) return
     initResult.value = hydroResult.value = pollutionResult.value = null
+    changedNotice.value = '河段几何、初始水质或糙率已变化，请重新初始化模型。'
+    failedStep.value = ''; runNotice.value = ''
 })
 watch(() => [form.value.upstream_flow_m3s, form.value.high_water_mean_m, form.value.duration_h], () => {
   if (hydrating) return
   hydroResult.value = pollutionResult.value = null
+  changedNotice.value = '上游流量、下游水位或模拟时长已变化，请重新运行水动力。'
+  failedStep.value = ''; runNotice.value = ''
 })
 watch(() => [form.value.wq_refinement, form.value.chainage_m, form.value.pollutant_type,
   form.value.load_kg, form.value.source_start_h, form.value.duration_min], () => {
-  if (!hydrating) pollutionResult.value = null
+  if (!hydrating) { pollutionResult.value = null; changedNotice.value = '排放或网格参数已变化，请重新模拟污染事件。'; failedStep.value=''; runNotice.value='' }
 })
 
 async function detectParams() {
@@ -117,6 +132,7 @@ async function detectParams() {
     const result = await api.riverParams()
     if (revision !== store.status.analysis_revision) return
     params.value = result
+    paramsNotice.value = ''
     if (JSON.stringify(form.value) !== formSnapshot) {
       toastOk('参数建议已返回，已保留你正在编辑的手工参数')
       return
@@ -129,7 +145,7 @@ async function detectParams() {
     form.value.chainage_m = form.value.length_m / 2
     toastOk(`识别到河道：${params.value.river_name}`)
   } catch (e) {
-    toastErr(`参数检测失败：${e.message}`)
+    paramsNotice.value = `自动参数建议未完成：${e.message}。可直接手工填写下方参数，不影响手工情景计算。`
   } finally {
     if (revision === store.status.analysis_revision) busy.value = ''
   }
@@ -138,6 +154,7 @@ async function detectParams() {
 async function runInit() {
   const request = captureRequest([...geometryKeys, 'upstream_flow_m3s'])
   initResult.value = hydroResult.value = pollutionResult.value = null
+  failedStep.value = ''; runNotice.value = ''
   busy.value = 'init'
   try {
     const result = await api.riverInit({
@@ -152,9 +169,10 @@ async function runInit() {
     if (!request.current()) return
     if (!request.matches()) { toastOk('参数已变化，请重新初始化；旧参数结果未采用'); return }
     initResult.value = result
+    changedNotice.value = ''; failedStep.value = ''; runNotice.value = ''
     toastOk('模型初始化完成')
   } catch (e) {
-    if (request.current()) toastErr(`初始化失败：${e.message}`)
+    if (request.current()) { failedStep.value='init'; runNotice.value=`初始化失败：${e.message}。请检查河段范围、断面数和参数来源后重试。` }
   } finally {
     if (request.current()) busy.value = ''
   }
@@ -163,6 +181,7 @@ async function runInit() {
 async function runHydro() {
   const request = captureRequest(hydroKeys)
   hydroResult.value = pollutionResult.value = null
+  failedStep.value = ''; runNotice.value = ''
   busy.value = 'hydro'
   try {
     const result = await api.riverHydro({
@@ -174,9 +193,10 @@ async function runHydro() {
     if (!request.current()) return
     if (!request.matches()) { toastOk('参数已变化，请重新运行水动力；旧参数结果未采用'); return }
     hydroResult.value = result
+    changedNotice.value = ''; failedStep.value = ''; runNotice.value = ''
     toastOk('水动力模拟完成')
   } catch (e) {
-    if (request.current()) toastErr(`水动力模拟失败：${e.message}`)
+    if (request.current()) { failedStep.value='hydro'; runNotice.value=`水动力模拟失败：${e.message}。请核对流量、水位、时长和断面设置后重试。` }
   } finally {
     if (request.current()) busy.value = ''
   }
@@ -185,6 +205,7 @@ async function runHydro() {
 async function runPollution() {
   const request = captureRequest(pollutionKeys)
   pollutionResult.value = null
+  failedStep.value = ''; runNotice.value = ''
   busy.value = 'pollution'
   try {
     const result = await api.riverPollution({
@@ -199,9 +220,10 @@ async function runPollution() {
     if (!request.current()) return
     if (!request.matches()) { toastOk('参数已变化，请重新模拟污染事件；旧参数结果未采用'); return }
     pollutionResult.value = result
+    changedNotice.value = ''; failedStep.value = ''; runNotice.value = ''
     toastOk('污染事件模拟完成')
   } catch (e) {
-    if (request.current()) toastErr(`污染模拟失败：${e.message}`)
+    if (request.current()) { failedStep.value='pollution'; runNotice.value=`污染模拟失败：${e.message}。请核对排放量、桩号、时段和网格细分后重试。` }
   } finally {
     if (request.current()) busy.value = ''
   }
@@ -249,7 +271,7 @@ const pollutionCompare = computed(() => {
     grid: { left: 6, right: 80, top: 20, bottom: 28, containLabel: true },
     tooltip: {
       backgroundColor: 'rgba(20,30,40,.95)', borderColor: '#2a3947',
-      textStyle: { color: '#e8eef5', fontSize: 12 },
+      textStyle: { color: '#e8eef5', fontSize: 13 },
     },
     xAxis: {
       type: 'value', splitNumber:3, axisLabel: { color: '#94a7b8' },
@@ -258,7 +280,7 @@ const pollutionCompare = computed(() => {
     yAxis: {
       type: 'category',
       data: [`相对标准限值 (${std['基准_mgL']} mg/L)`, `相对监测基线 (${base['基准_mgL']} mg/L)`],
-      axisLabel: { color: '#94a7b8', fontSize: 11, width:110, overflow:'break', lineHeight:14 },
+      axisLabel: { color: '#94a7b8', fontSize: 12, width:110, overflow:'break', lineHeight:14 },
       axisLine: { lineStyle: { color: '#2a3947' } },
     },
     series: [{
@@ -267,7 +289,7 @@ const pollutionCompare = computed(() => {
         { value: std['断面数'] ?? 0, itemStyle: { color: '#ff4d6d' } },
         { value: base['断面数'] ?? 0, itemStyle: { color: '#2ea3f2' } },
       ],
-      label: { show: true, position: 'right', color: '#e8eef5', fontSize: 11,
+      label: { show: true, position: 'right', color: '#e8eef5', fontSize: 12,
                formatter: '{c} 个水质节点' },
     }],
   }
@@ -279,22 +301,24 @@ const pollutionCompare = computed(() => {
     <!-- 局限说明：固定展示，不可关闭 -->
     <div class="caveat">
       <div class="cv-title">模型适用范围</div>
-      <p>项目自带求解器，无需安装商业水动力软件。支持自定义河段的一维恒定流情景分析。</p>
-      <p>几何、边界和反应参数仍需现场核实与率定；潮汐、支汊及二维回流暂不支持，不能据此认定污染责任。</p>
+      <p>给定河段、水流和排放条件，模拟污染物沿河移动与浓度变化。实际河流应用需要可靠参数；当前支持一维恒定流理想情景。</p>
+      <p>项目自带求解器，无需安装商业水动力软件。几何、边界和反应参数仍需现场核实与率定；潮汐、支汊及二维回流暂不支持，不能据此认定污染责任。</p>
+      <div class="guide-paths"><a href="#river-hydrodynamics">先看理想河段演示</a><a href="#river-parameters">配置自己的河段</a></div>
     </div>
 
     <div v-if="!store.status.has_data" class="empty">未加载走航数据时可手工配置并运行情景模型；自动参数建议和轨迹动画需上传对应数据。</div>
+    <p v-if="changedNotice" class="seq-hint" role="status">{{changedNotice}}</p>
 
     <nav class="model-guide" aria-label="河道模型步骤导航">
-      <a href="#river-parameters"><span>01</span><div><b>参数来源</b><small>核对建议与现场依据</small></div></a>
-      <a href="#river-hydrodynamics"><span>02</span><div><b>配置与水动力</b><small>初始化断面，计算流场</small></div></a>
-      <a href="#river-pollution"><span>03</span><div><b>污染情景</b><small>设定排放，查看模拟结果</small></div></a>
+      <a href="#river-parameters"><span>01</span><div><b>参数来源</b><small>核对建议与现场依据 · {{STEP_LABEL[stepState.init]}}</small></div></a>
+      <a href="#river-hydrodynamics"><span>02</span><div><b>配置与水动力</b><small>初始化断面，计算流场 · {{STEP_LABEL[stepState.hydro]}}</small></div></a>
+      <a href="#river-pollution"><span>03</span><div><b>污染情景</b><small>设定排放，查看模拟结果 · {{STEP_LABEL[stepState.pollution]}}</small></div></a>
     </nav>
 
     <div class="river-workspace">
       <!-- 参数自动检测 -->
       <section class="block" id="river-parameters">
-        <h3 class="st"><span class="section-number" aria-hidden="true">01</span>河道参数自动检测</h3>
+        <h3 class="st"><span class="section-number" aria-hidden="true">01</span>河道参数自动检测 <em class="step-status" :data-state="stepState.init">{{STEP_LABEL[stepState.init]}}</em></h3>
         <p class="desc">
           GPS 与地名识别提供位置和长度建议；缺失的水力参数以经验关系生成初始情景，需手工核实。
           参数建议不等于实测断面。缺少 GPS 时请直接手工配置；不自动套用任何特定河流的几何或流量。
@@ -302,8 +326,10 @@ const pollutionCompare = computed(() => {
         <button class="mini" :disabled="!!busy || store.chatRunning || !store.status.has_data" @click="detectParams">
           {{ busy === 'params' ? '检测中…' : '重新检测' }}
         </button>
+        <p v-if="paramsNotice" class="seq-hint" role="status">{{paramsNotice}}</p>
 
         <div v-if="params" class="params">
+          <p class="param-note">百分比是参数估计参考，不是统计概率或现场率定；缺失值请手工核对。</p>
           <div v-for="[label, val, key] in paramRows" :key="key" class="prow">
             <span class="pk">{{ label }}</span>
             <span class="pv">{{ val }}</span>
@@ -319,7 +345,7 @@ const pollutionCompare = computed(() => {
 
       <!-- 模拟参数与运行 -->
       <section class="block" id="river-hydrodynamics">
-        <h3 class="st"><span class="section-number" aria-hidden="true">02</span>运行模拟</h3>
+        <h3 class="st"><span class="section-number" aria-hidden="true">02</span>运行模拟 <em class="step-status" :data-state="stepState.hydro">{{STEP_LABEL[stepState.hydro]}}</em></h3>
         <p class="desc">以下参数均可编辑。初始模板仅用于情景分析；水位与河底须使用同一高程基准。修改后重新初始化，才会进入本次计算。</p>
         <fieldset class="form-section">
           <legend>河段几何与离散</legend>
@@ -331,8 +357,9 @@ const pollutionCompare = computed(() => {
             <label>河底坡降<input v-model.number="form.longitudinal_slope" type="number" min="0" step="0.0001" /></label>
             <label>平均河底高程 m<input v-model.number="form.bed_elevation_avg_m" type="number" step="0.1" /></label>
             <label>断面数<input v-model.number="form.n_cross_sections" type="number" min="3" max="100" /></label>
-            <label>曼宁糙率<input v-model.number="form.mannings_n" type="number" step="0.001" /></label>
+            <label>曼宁糙率<input v-model.number="form.mannings_n" type="number" min="0.00000001" max="0.2" step="0.001" /></label>
           </div>
+          <p class="hint field-help">常用范围（应用约束，不是现场率定）：长度 10—100000 m；水面宽 0.5—5000 m；水深 0.1—100 m；断面 3—100；糙率 1e-8—0.2；坡降单位 m/m。</p>
         </fieldset>
         <fieldset class="form-section">
           <legend>水力边界与计算时段</legend>
@@ -376,6 +403,7 @@ const pollutionCompare = computed(() => {
           </button>
         </div>
         <!-- 按顺序禁用的按钮必须说明原因，否则就是一个看不出所以然的死按钮 -->
+        <p v-if="runNotice && ['init','hydro'].includes(failedStep)" class="seq-hint" role="alert">{{runNotice}}</p>
         <p v-if="!initResult" class="seq-hint">「运行水动力」需先点「初始化模型」生成断面序列。</p>
 
         <div v-if="initResult" class="result">
@@ -395,7 +423,7 @@ const pollutionCompare = computed(() => {
 
       <!-- 污染事件 -->
       <section class="block" id="river-pollution">
-        <h3 class="st"><span class="section-number" aria-hidden="true">03</span>污染事件模拟（ADR 模型）</h3>
+        <h3 class="st"><span class="section-number" aria-hidden="true">03</span>污染事件模拟（ADR 模型） <em class="step-status" :data-state="stepState.pollution">{{STEP_LABEL[stepState.pollution]}}</em></h3>
         <div class="grid">
           <label>污染物
             <select v-model="form.pollutant_type">
@@ -425,6 +453,7 @@ const pollutionCompare = computed(() => {
         >
           {{ busy === 'pollution' ? '模拟中…' : '模拟污染事件' }}
         </button>
+        <p v-if="failedStep==='pollution'" class="seq-hint" role="alert">{{runNotice}}</p>
         <p v-if="!hydroResult" class="seq-hint">「模拟污染事件」需先运行水动力 —— 它提供流速场。</p>
         <p class="hint">COD 尚未实现独立组分模拟，当前支持氨氮和 CBOD，不使用 CBOD 冒充 COD。</p>
 
@@ -462,26 +491,29 @@ const pollutionCompare = computed(() => {
 </template>
 
 <style scoped>
+.guide-paths { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.guide-paths a { font-size:12px; border:1px solid var(--c-border); border-radius:6px; padding:5px 9px; text-decoration:none; }
+.guide-paths a:hover { border-color:var(--c-accent); background:var(--c-surface-2); }
 .caveat {
   background: #30291c; border: 1px solid #655539; border-left: 3px solid #b99a61; border-radius: var(--radius-sm);
-  padding: 14px 18px; margin-bottom: 20px; font-size: 12px; line-height: 1.8;
+  padding: 14px 18px; margin-bottom: 20px; font-size: 13px; line-height: 1.8;
   color: #e8c98a;
 }
-.cv-title { font-weight: 700; margin-bottom: 5px; font-size: 13px; }
+.cv-title { font-weight: 700; margin-bottom: 5px; font-size: 14px; }
 .caveat p { margin: 5px 0; }
 .caveat code { background: #3a2a14; padding: 1px 5px; border-radius: 3px; }
 .cv-foot { opacity: .8; font-size: 11px; }
 
-.empty { padding:13px 16px; margin-bottom:16px; background:var(--c-surface-2); border-radius:var(--radius-sm); color:var(--c-sub); font-size:12px; line-height:1.8; }
+.empty { padding:13px 16px; margin-bottom:16px; background:var(--c-surface-2); border-radius:var(--radius-sm); color:var(--c-sub); font-size:13px; line-height:1.8; }
 
 .block { padding:28px 0; border-bottom:1px solid var(--c-border); scroll-margin-top:84px; }
 .block:last-child { border-bottom: none; }
 .st { display:flex; align-items:center; gap:10px; margin:0 0 12px; font-size:16px; font-weight:600; }
-.desc { margin:0 0 16px; font-size:13px; color:var(--c-sub); line-height:1.85; max-width:860px; }
+.desc { margin:0 0 16px; font-size:14px; color:var(--c-sub); line-height:1.85; max-width:860px; }
 
 .mini {
   background: transparent; border: 1px solid var(--c-border); color: var(--c-ink);
-  min-height:38px; padding:8px 16px; border-radius:var(--radius-sm); font-size:12px;
+  min-height:38px; padding:8px 16px; border-radius:var(--radius-sm); font-size:13px;
 }
 .mini:hover:not(:disabled) { border-color: var(--c-accent); }
 .mini:disabled { opacity: .45; cursor: not-allowed; }
@@ -489,12 +521,12 @@ const pollutionCompare = computed(() => {
 
 .params { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,280px), 1fr)); gap: 6px; }
 .prow {
-  display:flex; align-items:baseline; flex-wrap:wrap; gap:5px 8px; font-size:12px;
+  display:flex; align-items:baseline; flex-wrap:wrap; gap:5px 8px; font-size:13px;
   background: var(--c-surface-2); border-radius: 6px; padding: 7px 11px;
 }
 .pk { color: var(--c-sub); min-width: 74px; }
 .pv { flex:1; min-width:0; font-weight:600; overflow-wrap:anywhere; }
-.ps { font-size: 11px; color: var(--c-sub); }
+.ps { font-size: 12px; color: var(--c-sub); }
 .ps i { opacity: .75; font-style: normal; margin-left: 3px; }
 .ps.good { color: var(--c-accent-2); }
 .ps.mid { color: var(--sev-mild); }
@@ -502,22 +534,22 @@ const pollutionCompare = computed(() => {
 .ps.bad { color: #ff6b81; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,190px), 1fr)); gap:14px; margin-bottom:12px; }
-.grid label { display: flex; flex-direction: column; gap:7px; font-size:12px; color:var(--c-sub); min-width:0; }
+.grid label { display: flex; flex-direction: column; gap:7px; font-size:13px; color:var(--c-sub); min-width:0; }
 .grid input, .grid select {
   background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-ink);
-  border-radius:var(--radius-sm); min-height:40px; width:100%; padding:8px 11px; font-family:inherit; font-size:13px;
+  border-radius:var(--radius-sm); min-height:40px; width:100%; padding:8px 11px; font-family:inherit; font-size:14px;
 }
 .warn-text { color: var(--sev-mild); font-size: 10px; }
 
 .btn-row { display: flex; flex-wrap:wrap; gap: 10px; }
 
-.result { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr)); gap:16px; margin-top:16px; padding:15px 16px; border:1px solid var(--c-border); border-radius:var(--radius-sm); font-size:12px; color:var(--c-sub); }
+.result { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr)); gap:16px; margin-top:16px; padding:15px 16px; border:1px solid var(--c-border); border-radius:var(--radius-sm); font-size:13px; color:var(--c-sub); }
 .result span { display:flex; flex-direction:column; gap:4px; min-width:0; }
 .result b { color:var(--c-ink); font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-.cred { margin:10px 0 0; font-size:12px; color:#e8c98a; line-height:1.8; }
-.hint { margin:10px 0; font-size:12px; color:var(--c-sub); line-height:1.8; }
+.cred { margin:10px 0 0; font-size:13px; color:#e8c98a; line-height:1.8; }
+.hint { margin:10px 0; font-size:13px; color:var(--c-sub); line-height:1.8; }
 .seq-hint {
-  margin: 8px 0 0; font-size: 11px; color: #e8c98a;
+  margin: 8px 0 0; font-size: 12px; color: #e8c98a;
   padding: 6px 11px; background: #2a1e10; border-radius: 6px;
   border-left: 2px solid #6b4a10; display: inline-block;
 }
@@ -526,7 +558,14 @@ const pollutionCompare = computed(() => {
 .model-guide a:hover { border-color:var(--c-accent); background:var(--c-surface-2); }
 .model-guide a>span { color:var(--c-accent); font-size:12px; font-variant-numeric:tabular-nums; }
 .model-guide b { display:block; font-size:12px; font-weight:600; }
-.model-guide small { display:block; margin-top:3px; font-size:11px; color:var(--c-sub); }
+.model-guide small { display:block; margin-top:3px; font-size:12px; color:var(--c-sub); }
+.step-status { font-style:normal; margin-left:8px; padding:1px 6px; border:1px solid var(--c-border); border-radius:9px; font-size:10px; color:var(--c-sub); }
+.step-status[data-state="ready"] { color:var(--c-accent); border-color:#34566a; }
+.step-status[data-state="done"] { color:#73d5be; border-color:#2d635a; }
+.step-status[data-state="running"] { color:var(--sev-mild); border-color:#655539; }
+.step-status[data-state="blocked"] { color:var(--c-muted); }
+.step-status[data-state="failed"] { color:#ffb3c1; border-color:#794354; }
+.param-note { margin:0 0 8px; color:var(--c-sub); font-size:11px; line-height:1.6; }
 .section-number { font-size:11px; letter-spacing:.05em; font-weight:500; color:var(--c-accent); }
 .form-section { min-width:0; margin:0 0 20px; padding:0; border:0; }
 .form-section legend { padding:0; margin-bottom:12px; font-size:12px; font-weight:600; color:var(--c-ink); }
