@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-27",
+  "scope": "临时Git副本打包与解压验证；不是正式发布revision，也不是异机安装或现场准确率验收",
+  "package": {
+    "passed": true,
+    "files": 536,
+    "temporary_zip_sha256": "a0f8bec7d4f1cf316df7dd52490759ade641e0dc48152d54bb7da76d511accfe",
+    "temporary_git_revision": "72c1bedf1ffc962629b54d39776df856f2076880（临时副本，不是正式发布）",
+    "sample_entries": [
+      "data/samples/README.md",
+      "data/samples/S01_仿真_正常背景.csv",
+      "data/samples/S02_仿真_单源持续排放.csv",
+      "data/samples/S03_仿真_双源持续排放.csv",
+      "data/samples/S04_仿真_单源两次间歇排放.csv",
+      "data/samples/S05_仿真_双源氨氮与有机物耗氧.csv",
+      "data/samples/S06_仿真_正常水体加仪器异常与缺测.csv",
+      "data/samples/manifest.json"
+    ]
+  },
+  "delivery_verify": {
+    "passed": true,
+    "rows": 180,
+    "unchanged_model_arrays": 24,
+    "independent_process_restore": true,
+    "import_creates_new_id": true,
+    "projects": 2,
+    "sample_list_count": 6,
+    "sample_load_rows": 1801,
+    "sample_identity": "synthetic",
+    "sample_detection_ok": true,
+    "requests_httpx_external_requests_forbidden": true
+  },
+  "limitations": [
+    "临时Git副本提交不是正式发布提交；正式提交后需重跑打包",
+    "复用本机依赖；未验证新机器安装或异机运行",
+    "RAG索引和模型缓存不随交付包提供",
+    "未调用真实DeepSeek或外部地图服务；示例为synthetic"
+  ]
+}

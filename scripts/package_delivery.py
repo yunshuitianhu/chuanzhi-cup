@@ -27,6 +27,41 @@ def source_allowed(name: str) -> bool:
     return not name.startswith(RUNTIME_PREFIXES)
 
 
+def check_sample_entries(entries: dict) -> None:
+    """交付包的示例清单/文件/哈希必须与源码一致，不能只带空目录。"""
+    manifest_name = 'data/samples/manifest.json'
+    readme_name = 'data/samples/README.md'
+    if manifest_name not in entries or readme_name not in entries:
+        raise ValueError('交付包缺少 data/samples 清单或说明')
+    try:
+        payload = json.loads(entries[manifest_name])
+    except (ValueError, TypeError) as exc:
+        raise ValueError('交付包示例清单不是有效 JSON') from exc
+    if (not isinstance(payload, dict) or payload.get('manifest_version') != 1
+            or payload.get('data_kind') != 'synthetic'
+            or not isinstance(payload.get('samples'), list)):
+        raise ValueError('交付包示例清单字段无效')
+    seen = set()
+    for item in payload['samples']:
+        if not isinstance(item, dict):
+            raise ValueError('交付包示例条目无效')
+        ident = item.get('id')
+        filename = item.get('file')
+        if (not isinstance(ident, str) or not ident or ident in seen
+                or not isinstance(filename, str) or '仿真' not in filename
+                or not filename.endswith('.csv') or '/' in filename or '\\' in filename):
+            raise ValueError('交付包示例编号或文件名无效')
+        seen.add(ident)
+        name = 'data/samples/' + filename
+        raw = entries.get(name)
+        if not isinstance(raw, bytes):
+            raise ValueError(f'交付包缺少示例文件 {filename}')
+        if len(raw) != item.get('size_bytes') or sha256(raw).hexdigest() != item.get('sha256'):
+            raise ValueError(f'交付包示例文件哈希或大小不一致: {filename}')
+    if not seen:
+        raise ValueError('交付包示例清单为空')
+
+
 def write_bundle(source: bytes, dist: Path, output: Path, revision: str) -> dict:
     check_frontend(dist)
     entries = {}
@@ -37,6 +72,7 @@ def write_bundle(source: bytes, dist: Path, output: Path, revision: str) -> dict
             if stat.S_ISLNK(info.external_attr >> 16):
                 raise ValueError('源码归档含符号链接，请人工检查交付内容')
             entries[info.filename] = archive.read(info)
+    check_sample_entries(entries)
     manifest = json.loads((dist / '.vite' / 'manifest.json').read_text(encoding='utf-8'))
     assets = {'index.html', '.vite/manifest.json'}
     for entry in manifest.values():

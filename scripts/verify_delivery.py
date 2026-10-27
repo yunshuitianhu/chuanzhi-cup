@@ -149,9 +149,29 @@ def worker(output: Path,phase: str):
             reexport=client.post(f"/api/projects/{imported.json()['current']['id']}/export",headers=headers,json={})
             reexport.raise_for_status()
             (output/'reexport.wqproj').write_bytes(reexport.content)
+            # 内置示例必须在无 Key/禁止外部请求的交付副本中可列出、载入和筛查。
+            sample_sid=client.get('/api/session').json()['session_id']
+            sample_headers={'X-Session-Id':sample_sid}
+            try:
+                listed=client.get('/api/data/samples',headers=sample_headers); listed.raise_for_status()
+                sample_count=len(listed.json()['samples'])
+                sample_session=STORE.get(sample_sid)
+                loaded=client.post('/api/data/samples/S01/load',headers=sample_headers,json={
+                    'project_id':None,'analysis_revision':sample_session.analysis_revision,
+                    'results_revision':sample_session.results_revision,'detect':True,'river_form':None})
+                loaded.raise_for_status(); sample_data=loaded.json()
+                assert sample_data['rows']==1801
+                assert sample_data['data_identity']['kind']=='synthetic'
+                assert sample_data['detection']['ok'] is True
+                assert sample_data['video_frames']==0
+            finally:
+                STORE.drop(sample_sid)
             (output/'restore.json').write_text(json.dumps(dict(passed=True,rows=180,
                 unchanged_model_arrays=len(record['expected']['model_arrays']),
                 independent_process_restore=True,import_creates_new_id=True,projects=2,
+                sample_list_count=sample_count,sample_load_rows=sample_data['rows'],
+                sample_identity=sample_data['data_identity']['kind'],
+                sample_detection_ok=sample_data['detection']['ok'],
                 requests_httpx_external_requests_forbidden=True),indent=2),encoding='utf-8')
 
 

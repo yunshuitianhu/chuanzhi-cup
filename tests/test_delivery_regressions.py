@@ -110,6 +110,9 @@ class DeliveryTests(unittest.TestCase):
             archive.writestr('.env.example','placeholder')
             archive.writestr('.rag_index/chroma.sqlite3','runtime')
             archive.writestr('data/projects/private.wqproj','user project')
+            for path in sorted((Path(__file__).resolve().parents[1]/'data'/'samples').iterdir()):
+                if path.is_file():
+                    archive.writestr('data/samples/'+path.name,path.read_bytes())
         output=Path(self.temp.name)/'delivery.zip'
         write_bundle(source.getvalue(),self.dist,output,'test-revision')
         with zipfile.ZipFile(output) as archive:
@@ -119,9 +122,22 @@ class DeliveryTests(unittest.TestCase):
             self.assertIn('.env.example',names)
             self.assertNotIn('.rag_index/chroma.sqlite3',names)
             self.assertNotIn('data/projects/private.wqproj',names)
+            self.assertIn('data/samples/manifest.json',names)
+            self.assertIn('data/samples/README.md',names)
+            self.assertTrue(any(name.startswith('data/samples/S01_') and name.endswith('.csv') for name in names))
             self.assertEqual(json.loads(archive.read('delivery-manifest.json'))['revision'],'test-revision')
         with self.assertRaises(FileExistsError):
             write_bundle(source.getvalue(),self.dist,output,'test-revision')
+
+    def test_bundle_requires_sample_manifest_and_hashes(self):
+        source=BytesIO()
+        with zipfile.ZipFile(source,'w') as archive:
+            archive.writestr('README.md','source')
+            archive.writestr('data/samples/README.md','samples')
+        output=Path(self.temp.name)/'missing-samples.zip'
+        with self.assertRaisesRegex(ValueError,'缺少 data/samples'):
+            write_bundle(source.getvalue(),self.dist,output,'test-revision')
+        self.assertFalse(output.exists())
 
     def test_bundle_rejects_tracked_secret_file(self):
         source=BytesIO()
