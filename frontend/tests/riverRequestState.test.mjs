@@ -20,7 +20,9 @@ async function mount(method){
   let resolve,sent
   const promise=new Promise(done=>{resolve=done})
   globalThis.__riverApi={projects:async()=>({model:null,river_ui:{}}),[method]:payload=>{sent=payload;return promise}}
-  globalThis.__riverStore=reactive({workspaceRevision:1,switchingProject:false,riverForm:null,status:{analysis_revision:1,has_data:false}})
+  globalThis.__riverStore=reactive({workspaceRevision:1,switchingProject:false,riverForm:null,
+    refreshCount:0,status:{analysis_revision:1,has_data:false},
+    async refreshStatus(){this.refreshCount++}})
   // A fresh dependency URL prevents sharing stubs between independent mounts.
   const uniqueCode=code.replaceAll(fixtureURL,fixtureURL+`#instance-${++instance}`)
   const {default:Component}=await import('data:text/javascript;base64,'+Buffer.from(uniqueCode).toString('base64'))
@@ -64,5 +66,16 @@ test('与水动力无关的污染负荷编辑不丢弃水动力响应',async()=>
     const pending=view.state.runHydro();view.state.form.load_kg=123;await nextTick()
     view.resolve({marker:'hydro'});await pending
     assert.equal(view.state.hydroResult.marker,'hydro')
+  }finally{view.app.unmount()}
+})
+
+for(const [method,action] of [
+  ['riverInit','runInit'],['riverHydro','runHydro'],['riverPollution','runPollution'],
+])test(`${action} 成功后同步工作台状态，避免旧 results_revision`,async()=>{
+  const view=await mount(method)
+  try {
+    const pending=view.state[action]()
+    view.resolve({marker:'success'});await pending
+    assert.equal(view.store.refreshCount,1)
   }finally{view.app.unmount()}
 })

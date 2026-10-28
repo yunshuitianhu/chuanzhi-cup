@@ -71,6 +71,14 @@ function captureRequest(keys) {
     && workspace === store.workspaceRevision && !store.switchingProject
   return { current, matches: () => current() && snapshot === JSON.stringify(keys.map(k => form.value[k])) }
 }
+/** 模型动作会让后端撤销旧报告并推进 results_revision；成功后就地同步工作台。 */
+async function refreshModelStatus() {
+  try {
+    await store.refreshStatus()
+  } catch (e) {
+    toastErr(`模型结果已完成，但工作台状态同步失败：${e.message}。请刷新页面核对报告与版本。`)
+  }
+}
 onBeforeUnmount(() => { disposed = true })
 onMounted(async () => {
   const workspaceRevision = store.workspaceRevision
@@ -171,6 +179,7 @@ async function runInit() {
     initResult.value = result
     changedNotice.value = ''; failedStep.value = ''; runNotice.value = ''
     toastOk('模型初始化完成')
+    await refreshModelStatus()
   } catch (e) {
     if (request.current()) { failedStep.value='init'; runNotice.value=`初始化失败：${e.message}。请检查河段范围、断面数和参数来源后重试。` }
   } finally {
@@ -195,6 +204,7 @@ async function runHydro() {
     hydroResult.value = result
     changedNotice.value = ''; failedStep.value = ''; runNotice.value = ''
     toastOk('水动力模拟完成')
+    await refreshModelStatus()
   } catch (e) {
     if (request.current()) { failedStep.value='hydro'; runNotice.value=`水动力模拟失败：${e.message}。请核对流量、水位、时长和断面设置后重试。` }
   } finally {
@@ -222,6 +232,7 @@ async function runPollution() {
     pollutionResult.value = result
     changedNotice.value = ''; failedStep.value = ''; runNotice.value = ''
     toastOk('污染事件模拟完成')
+    await refreshModelStatus()
   } catch (e) {
     if (request.current()) { failedStep.value='pollution'; runNotice.value=`污染模拟失败：${e.message}。请核对排放量、桩号、时段和网格细分后重试。` }
   } finally {
