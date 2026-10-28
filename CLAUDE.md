@@ -26,9 +26,9 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 - N01—N03 内置六组仿真示例、一键载入、契约/打包已完成本机受控验收（N03 的 S-T13/S-T21/S-T26 未单独自动化）；
 - N04-A 能力矩阵与 N04-B 受控矩阵已完成；N05-A 安装路径已核实，N05-B 异机安装待队友执行；N05-C 本地检索已真实验证，但 LLM 综合回答/无关拒答/超时未验；
 - N06 河道引导、N07 字号为部分/浏览器验收；N08 只完成少量低风险项；
-- 最近记录：640 项 Python（干净 CI venv）、362 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
+- 最近记录：641 项 Python（干净 CI venv）、362 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
 - 外部核验 R01—R03 已修复：项目发布失败回滚、示例资源 503 边界、打包未跟踪文件门禁；
-- 新交付 ZIP 为 `work/delivery_20261028_r2.zip`：revision `4cc2a1a`、580 文件、SHA-256 `7577e578…`；旧包 revision `b075bd0` 仅作历史记录；`work/` 被忽略，ZIP 需单独发送。
+- 新交付 ZIP 为 `work/delivery_20261028_r2.zip`：revision `4cc2a1a`、580 文件、SHA-256 `7577e578…`；旧包 revision `b075bd0` 仅作历史记录；`work/` 被忽略，ZIP 需单独发送。**r2 内示例仍是 V1；`data/samples` 已更新为 V2，需重新打包。**
 
 **先读**：
 
@@ -65,7 +65,8 @@ uvicorn backend.main:app --reload --port 8002    # 仅 API 开发（接口文档
 streamlit run app.py                             # 原 Streamlit 版（保留作对照/快速自检）
 python -m water_quality_mcp.server               # MCP Server（stdio）
 python scripts/build_rag_index.py                # 重建 RAG 索引（缺模型缓存时可能下载数百 MB）
-python scripts/prepare_sample_data.py            # 从 仿真数据/ 重新生成示例 CSV；默认不覆盖不同内容
+python scripts/prepare_sample_data.py            # 从工作簿源重新生成示例 CSV；默认不覆盖不同内容
+python scripts/materialize_sample_workbooks.py   # 把 V2 生成器载荷写成工作簿，供 --source-dir 使用
 ```
 
 Windows 入口：`start_web.cmd` / `start_web.cmd --check --port 5199`。指定解释器：
@@ -96,7 +97,7 @@ npm run check                    # typecheck + node --test + build（推荐门�
 ### 测试与门禁
 
 ```bash
-# Python 全量（当前 640 项；tests 不是 package，不要用 python -m unittest tests.xxx）
+# Python 全量（当前 641 项；tests 不是 package，不要用 python -m unittest tests.xxx）
 python -m unittest discover -s tests -p "test_*.py"
 
 # 单个 unittest 文件
@@ -179,7 +180,7 @@ backend/web.py             内存快照 index/assets；四页入口；未知路�
 - `backend/deps.py` — 会话依赖；`get_exclusive_session` 用非阻塞 `operation_lock` 防止并发覆盖。
 - `backend/data_service.py` — 上传与示例共用的 `parse_monitoring` / `apply_monitoring`；
   候选数据先解析，成功后才应用到会话。
-- `backend/sample_catalog.py` + `data/samples/` — 只按 `manifest.json` 白名单读取示例；
+- `backend/sample_catalog.py` + `data/samples/` — 只按 `manifest.json` 白名单读取 V2 示例；
   校验文件名、CSV 后缀、“仿真”、实际字节数、SHA-256、路径逃逸；清单/CSV 走 `_read_bounded`
   （2MB/20MB 上限），权限/消失/超限统一为 503 资源错误，不返回空列表。
 - `backend/routers/data.py` — 上传/视频/状态 + `GET /api/data/samples`、`POST /api/data/samples/{id}/load`；
@@ -327,9 +328,12 @@ HEC-RAS 非恒定流其实可用，`hecras_bridge.py` 注释的“7.0 格式不�
 
 **11. 示例 CSV 与 manifest 是字节级契约，不能用加载器结果重新生成**
 
-`data/samples/*.csv` 必须从原始 Excel 的监测工作表直接导出，**不能先 `load_data` 再导出**——加载器会插值、
+`data/samples/*.csv` 必须从工作簿的监测工作表直接导出，**不能先 `load_data` 再导出**——加载器会插值、
 清洗、补坐标，抹掉 S06 的缺测。manifest 记录实际字节的 SHA-256/大小/行数；`.gitattributes` 将 CSV 标记为 binary。
 不要手改 CSV 或 manifest；需要重生成时跑 `scripts/prepare_sample_data.py`，它默认不覆盖不同内容。
+当前 `data/samples` 是 **V2 卫星水面定线**（`v2-…`）：V1 静态地图线横穿城区，已停用；V2 由
+`scripts/generate_synthetic_monitoring.py` 的 `ROUTES` 生成，`tests/test_sample_catalog_regressions.py`
+检查每个坐标点到 V2 路线小于 10 米。改路线或样本时先跑该回归，不要退回 V1 对角线。
 示例身份固定为 `synthetic`，`sample_meta` 随项目保存，不要改客户端传入的身份。
 
 **12. 示例载入/项目发布：候选写入不能提前改绑定**
@@ -396,6 +400,7 @@ RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单�
 - `docs/N05异机安装与基础运行验收.md` — N05-A 安装边界、I01—I19 队友验收清单与交接话术。
 - `docs/N05本地RAG与离线检索验收.md` — RG01—RG10 实际/未运行状态与离线检索结果。
 - `docs/N06-N07用户走查与交互验收.md` — 已有证据与待真实用户/读屏器执行的清单，未完成。
+- `docs/仿真示例V2路线与坐标修复_20261028.md` — V1/V2 路线诊断、V2 重新生成与新哈希。
 - `docs/validation/delivery_r2_20261028.json` — 新包 revision/文件数/哈希、独立审计与无 Key 副本结果。
 - `docs/任务队列.md` — Q/N 任务状态与日期记录。
 - `docs/内置仿真示例与一键载入实施记录_20261027.md` — N01—N08 实施与证据。

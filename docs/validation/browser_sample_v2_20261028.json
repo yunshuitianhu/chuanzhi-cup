@@ -1,0 +1,70 @@
+{
+  "url": "http://127.0.0.1:5184/chat",
+  "checks": {
+    "empty_sample_list": {
+      "count": 6,
+      "titles": [
+        "S01 仿真正常背景",
+        "S02 仿真单源持续排放",
+        "S03 仿真双源持续排放",
+        "S04 仿真单源两次间歇排放",
+        "S05 仿真双源氨氮与有机物耗氧",
+        "S06 仿真仪器异常与缺测"
+      ],
+      "labels": [
+        "仿真 · 1801 条 · 仅监测表",
+        "仿真 · 1801 条 · 仅监测表",
+        "仿真 · 1801 条 · 仅监测表",
+        "仿真 · 1801 条 · 仅监测表",
+        "仿真 · 1801 条 · 仅监测表",
+        "仿真 · 1801 条 · 仅监测表"
+      ],
+      "intro": "没有数据也可以先体验图表、质控和阈值筛查；载入会先保存当前项目，在独立演示项目中打开。基础示例和筛查不需要模型 Key；AI 解读与报告需另行配置。",
+      "uploadVisible": true,
+      "videoPills": 0,
+      "pass": true
+    },
+    "load_s01": {
+      "report": "已载入 S01 仿真正常背景：1801 条记录；尚未运行筛查。",
+      "rows": "走航数据1801 条 | 视频帧0 帧 | 示例S01 · v2-788eafa6e29d | 时段10-21 09:00 ~ 11:30",
+      "identity": "仿真数据（非现场实测）",
+      "video": "视频帧0 帧",
+      "project": "仿真示例 S01 仿真正常背景",
+      "sampleButtons": 6,
+      "pass": true
+    },
+    "load_s02_with_detection": {
+      "report": "已载入 S02 仿真单源持续排放：1801 条记录；筛查完成：967 个预警点、2 个聚类",
+      "detectionError": "",
+      "rows": "走航数据1801 条 | 视频帧0 帧 | 示例S02 · v2-72a33adb3318 | 时段10-22 09:00 ~ 11:30",
+      "identity": "仿真数据（非现场实测）",
+      "pass": true
+    },
+    "project_switch": {
+      "project_count": 5,
+      "names": [
+        "仿真示例 S02 仿真单源持续排放",
+        "仿真示例 S01 仿真正常背景",
+        "仿真示例 S01 仿真正常背景",
+        "仿真示例 S01 仿真正常背景",
+        "仿真示例 S01 仿真正常背景"
+      ],
+      "reopened": {
+        "rows": "走航数据1801 条 | 视频帧0 帧 | 示例S01 · v2-788eafa6e29d | 时段10-21 09:00 ~ 11:30",
+        "file": "已加载：S01_仿真_正常背景.csv"
+      },
+      "pass": true
+    },
+    "no_external_requests": {
+      "urls": [],
+      "pass": true
+    }
+  },
+  "screenshots": [
+    "work\\browser_sample_v2_20261028\\samples_empty_1280x800.png",
+    "work\\browser_sample_v2_20261028\\samples_loaded_s01_1280x800.png",
+    "work\\browser_sample_v2_20261028\\samples_detected_s02_1280x800.png"
+  ],
+  "external_requests": [],
+  "passed": true
+}
