@@ -37,6 +37,7 @@ let map = null
 let layerGroup = null
 let selectionGroup = null
 let baseLayer = null, resizeObserver = null, disposed = false, loadVersion = 0, sourceVersion = 0
+let heatLayer = null, heatPoints = null, heatRadiusKey = null, heatOpacityKey = null
 const provider = ref(store.config.keys.starcloud ? 'starcloud' : store.config.keys.amap ? 'amap' : 'esri')
 const baseState = ref('loading'), baseMessage = ref('正在加载底图…'), fallbackReason = ref('')
 const tried = new Set()
@@ -154,13 +155,33 @@ function renderSimulation(fit) {
   if (fit) map.fitBounds(L.latLngBounds(coordinates),{padding:[35,35],maxZoom:17})
 }
 
+function syncHeat(d) {
+  if (!showHeat.value || !d?.heat?.length) {
+    if (heatLayer?.canvas) heatLayer.canvas.style.display = 'none'
+    return
+  }
+  if (!heatLayer || heatPoints !== d.heat || heatRadiusKey !== heatRadius.value || heatOpacityKey !== heatOpacity.value) {
+    if (heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer)
+    heatLayer = severityLayer(d.heat, {radius:heatRadius.value, opacity:heatOpacity.value})
+    heatPoints = d.heat; heatRadiusKey = heatRadius.value; heatOpacityKey = heatOpacity.value
+  }
+  if (!map.hasLayer(heatLayer)) heatLayer.addTo(map)
+  if (heatLayer.canvas) heatLayer.canvas.style.display = ''
+}
+
 function render(fit = false) {
   if (!map || !layerGroup) return
   layerGroup.clearLayers()
   selectionGroup.clearLayers()
-  if (props.simulation) { renderSimulation(fit); return }
+  if (props.simulation) {
+    if (heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer)
+    renderSimulation(fit); return
+  }
   const d = displayed.value
-  if (!d) return
+  if (!d) {
+    if (heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer)
+    return
+  }
 
   // 轨迹
   if (d.track?.length) {
@@ -172,10 +193,8 @@ function render(fit = false) {
     if (fit) map.fitBounds(line.getBounds(), { padding: [24, 24], maxZoom:17 })
   }
 
-  // 邻域平均严重程度；密集采样不累加成更严重的颜色。
-  if (showHeat.value && d.heat?.length) {
-    severityLayer(d.heat, {radius:heatRadius.value, opacity:heatOpacity.value}).addTo(layerGroup)
-  }
+  // 邻域平均严重程度；开关只增删缓存图层，不重复生成 1805 点栅格。
+  syncHeat(d)
 
   // 聚类热点
   for (const c of (showClusters.value ? d.clusters || [] : [])) {
