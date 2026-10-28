@@ -25,7 +25,7 @@ from water_quality_mcp.src.water_quality_mcp.analysis import (
     calc_black_score_vectorized,
     quality_report,
 )
-from water_quality_mcp.src.water_quality_mcp.data_quality import observed_mask
+from water_quality_mcp.src.water_quality_mcp.data_quality import coordinate_mask, observed_mask
 from ..map_samples import map_samples
 
 from ..deps import get_session
@@ -144,7 +144,9 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
 
     if not {'latitude', 'longitude'} <= set(df.columns):
         raise HTTPException(400, '缺少经纬度，无法绘制溯源地图')
-    coords = df.loc[df.latitude.between(-90,90) & df.longitude.between(-180,180), ['latitude','longitude']]
+    # 填充坐标不是原始定位：轨迹、热力、聚类和采样点都只使用有效GPS。
+    located = coordinate_mask(df)
+    coords = df.loc[located, ['latitude','longitude']].apply(pd.to_numeric, errors='coerce')
     if coords.empty:
         raise HTTPException(400, '没有有效经纬度，无法绘制溯源地图')
     track = [[_clean(r.latitude), _clean(r.longitude)] for r in coords.itertuples()]
@@ -154,13 +156,17 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
         if cid == -1:
             continue
         c = black[black["cluster_id"] == cid]
+        located_c = c.loc[coordinate_mask(c)] if {'latitude','longitude'} <= set(c.columns) else c.iloc[0:0]
+        if located_c.empty:
+            continue
         avg = float(c["black_score"].mean())
         raw_avg = float(c.get('nemerow_raw',c['black_score']).mean())
         _, sev_label, sev_color = get_severity_info(raw_avg, session.analysis_config)
-        clat, clon, radius = get_cluster_extent(c)
+        clat, clon, radius = get_cluster_extent(located_c)
         clusters.append({
             "id": int(cid),
             "count": int(len(c)),
+            "located_count": int(len(located_c)),
             "center": [_clean(clat), _clean(clon)],
             "radius_m": _clean(radius),
             "avg_score": _clean(avg),
@@ -172,7 +178,8 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
         })
 
     top5 = []
-    for i, (_, r) in enumerate((black.nlargest(5, "black_score") if len(black) else black).iterrows(), 1):
+    located_black = black.loc[coordinate_mask(black)] if len(black) else black
+    for i, (_, r) in enumerate((located_black.nlargest(5, "black_score") if len(located_black) else located_black).iterrows(), 1):
         _, label, color = get_severity_info(float(r.get('nemerow_raw',r['black_score'])), session.analysis_config)
         top5.append({
             "rank": i,
@@ -191,22 +198,23 @@ def trace_map(session: Session = Depends(get_session)) -> dict:
 
     # 使用原始综合污染指数，不用时空增强评分或点密度代替严重程度。
     valid = (observed_mask(df, 'ammonia_nitrogen') & observed_mask(df, 'dissolved_oxygen')
-             & df.latitude.between(-90, 90) & df.longitude.between(-180, 180))
+             & located)
     observed = df.loc[valid]
     scores = calc_black_score_vectorized(observed, session.analysis_config)
     heat = [[float(row.latitude), float(row.longitude), float(score)]
             for row, score in zip(observed.itertuples(), scores) if np.isfinite(score)]
 
-    center = [_clean(df["latitude"].mean()), _clean(df["longitude"].mean())]
+    center = [_clean(coords["latitude"].mean()), _clean(coords["longitude"].mean())]
     qc = quality_report(df, session.analysis_config)
     return {"center": center, "track": track, "clusters": clusters,
             "top5": top5, "heat": heat, "samples": map_samples(df, session.analysis_config, qc),
             'data_quality': qc.summary,
             "heat_metric": "原始综合污染指数；邻域加权平均，颜色表示严重程度，不表示采样密度",
+            'coordinate_note': '轨迹、热力、聚类与Top5仅使用原始有效GPS；无GPS预警点保留在点级记录和报告中，不参与地图定位。',
             "target_water_class": session.target_water_class,
             "bounds": {
-                "lat": [_clean(df["latitude"].min()), _clean(df["latitude"].max())],
-                "lon": [_clean(df["longitude"].min()), _clean(df["longitude"].max())],
+                "lat": [_clean(coords["latitude"].min()), _clean(coords["latitude"].max())],
+                "lon": [_clean(coords["longitude"].min()), _clean(coords["longitude"].max())],
             }}
 
 

@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from water_quality_mcp.src.water_quality_mcp.analysis import calc_black_score_vectorized, get_severity_info, quality_report
-from water_quality_mcp.src.water_quality_mcp.data_quality import observed_mask
+from water_quality_mcp.src.water_quality_mcp.data_quality import coordinate_mask, observed_mask
 
 METRICS = ('ammonia_nitrogen', 'dissolved_oxygen', 'cod', 'turbidity', 'ph')
 
@@ -32,8 +32,12 @@ def map_samples(df, config, quality=None):
     scores = np.full(len(df), np.nan)
     if measured.any():
         scores[measured] = calc_black_score_vectorized(df.iloc[np.flatnonzero(measured)], config)
+    located = coordinate_mask(df).to_numpy(dtype=bool)
     result = []
     for pos, row in enumerate(df.itertuples(index=False)):
+        # id 保持原始行位置；缺GPS的填充坐标不生成地图采样点。
+        if not located[pos]:
+            continue
         lat, lon = finite(getattr(row, 'latitude', None)), finite(getattr(row, 'longitude', None))
         if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180):
             continue

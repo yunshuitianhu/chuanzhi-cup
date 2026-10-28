@@ -255,12 +255,15 @@ def get_cluster_summary(cluster_df, cid, config=None):
     _, nemerow_label, _ = get_severity_info(avg_score, config)
     # 目标水质标签
     target_class = config.target_water_class if config else "V"
+    located = (cluster_df.loc[coordinate_mask(cluster_df)]
+               if {'latitude','longitude'} <= set(cluster_df.columns) else cluster_df.iloc[0:0])
     info = {
         "cluster_id": int(cid),
         "count": len(cluster_df),
+        "located_count": int(len(located)),
         '需质控复核点数': int(cluster_df['__qc_flag'].eq(3).sum()) if '__qc_flag' in cluster_df else None,
-        "center_lat": round(float(cluster_df['latitude'].mean()), 6),
-        "center_lon": round(float(cluster_df['longitude'].mean()), 6),
+        "center_lat": round(float(located['latitude'].mean()), 6) if len(located) else None,
+        "center_lon": round(float(located['longitude'].mean()), 6) if len(located) else None,
         "内梅罗指数_均值": avg_score,
         "时空增强评分_均值": round(float(cluster_df['black_score'].mean()), 2),
         "内梅罗等级": nemerow_label,
@@ -316,12 +319,12 @@ def get_cluster_summary(cluster_df, cid, config=None):
                 else:
                     info['沿航迹指数变化'] = '无明显变化'
 
-    if 'latitude' in cluster_df.columns and 'longitude' in cluster_df.columns:
-        lats, lons = cluster_df['latitude'].values, cluster_df['longitude'].values
+    if len(located) and {'latitude', 'longitude'} <= set(located.columns):
+        lats, lons = located['latitude'].values, located['longitude'].values
         farthest = int(np.argmax(_haversine_distance_m(lats[0],lons[0],lats,lons)))
         spatial_span = np.max(_haversine_distance_m(lats[farthest],lons[farthest],lats,lons))
         info["空间跨度_m"] = round(float(spatial_span), 1)
-        info["空间跨度口径"] = '两次最远点距离估计，不是河道长度或污染影响范围。'
+        info["空间跨度口径"] = '两次最远点距离估计，不是河道长度或污染影响范围；仅使用原始有效GPS。'
 
     # 综合指数不是任一单项污染物的超标倍数。
     if 'black_score' in cluster_df.columns:
@@ -942,12 +945,14 @@ def build_comprehensive_summary(state, river_state=None, config=None):
             })
         sections["黑臭检测"]["Top5最严重点位"] = top5_list
 
-        # 空间范围
-        if len(clusters_out) > 0:
-            densest = max(clusters_out, key=lambda x: x['count'])
+        # 空间范围：旧项目可能含缺GPS的聚类；没有原始定位时不构造中心。
+        located_clusters = [c for c in clusters_out
+                            if c.get('center_lat') is not None and c.get('center_lon') is not None]
+        if located_clusters:
+            densest = max(located_clusters, key=lambda x: x['count'])
             sections["空间分析"]["最密集聚类中心"] = {
                 "经纬度": f"{densest['center_lat']:.6f}, {densest['center_lon']:.6f}",
-                "点数": densest['count'],
+                "点数": densest.get('located_count', densest['count']),
                 "内梅罗等级": densest.get('内梅罗等级', ''),
                 "黑臭等级": densest.get('黑臭等级', ''),
             }

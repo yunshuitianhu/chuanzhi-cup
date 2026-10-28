@@ -456,10 +456,14 @@ def tool_generate_trace_map(amap_key=None, cloud_token=None):
     import folium
     from folium.plugins import HeatMap
     from water_quality_mcp.src.water_quality_mcp.analysis import get_severity_info, get_cluster_extent
+    from water_quality_mcp.src.water_quality_mcp.data_quality import coordinate_mask
     df = st.session_state.df; black = st.session_state.black_spots
     if df is None or black is None: return "数据或黑点未就绪"
-    coords = df[['latitude','longitude']].dropna().values
-    m = folium.Map(location=[df['latitude'].mean(), df['longitude'].mean()], zoom_start=15, tiles=None)
+    located = coordinate_mask(df)
+    coords = df.loc[located, ['latitude','longitude']].apply(
+        pd.to_numeric, errors='coerce').dropna().values
+    if len(coords) == 0: return "没有原始有效GPS记录，无法生成溯源地图"
+    m = folium.Map(location=[coords[:,0].mean(), coords[:,1].mean()], zoom_start=15, tiles=None)
     # —— 底图（多源 LayerControl 切换，应对部分服务器在国内不可达）——
     folium.TileLayer(
         tiles='https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
@@ -503,10 +507,12 @@ def tool_generate_trace_map(amap_key=None, cloud_token=None):
     folium.PolyLine(coords, weight=2, color='blue', opacity=0.5).add_to(m)
     folium.map.Marker(coords[0], icon=folium.DivIcon(html='<div style="color:green;font-weight:bold;">起点</div>')).add_to(m)
     folium.map.Marker(coords[-1], icon=folium.DivIcon(html='<div style="color:red;font-weight:bold;">终点</div>')).add_to(m)
-    # 热力图
-    HeatMap(black[['latitude','longitude']].values, radius=20, blur=10).add_to(m)
-    # 采样点（每30个）
-    sample = df.iloc[::30]
+    # 热力图：只使用原始有效GPS的预警点
+    located_black = black.loc[coordinate_mask(black)]
+    if len(located_black):
+        HeatMap(located_black[['latitude','longitude']].values, radius=20, blur=10).add_to(m)
+    # 采样点（每30个；缺GPS的填充坐标不绘制）
+    sample = df.loc[located].iloc[::30]
     for _, row in sample.iterrows():
         nh3 = f"{row['ammonia_nitrogen']:.1f}" if pd.notna(row.get('ammonia_nitrogen')) else '--'
         do = f"{row['dissolved_oxygen']:.1f}" if pd.notna(row.get('dissolved_oxygen')) else '--'
@@ -519,10 +525,12 @@ def tool_generate_trace_map(amap_key=None, cloud_token=None):
     for cid in sorted(black['cluster_id'].unique()):
         if cid == -1: continue
         cluster = black[black['cluster_id'] == cid]
+        located_cluster = cluster.loc[coordinate_mask(cluster)]
+        if not len(located_cluster): continue
         avg_score = float(cluster['black_score'].mean())
         _, sev_label, sev_color = get_severity_info(avg_score)
-        # 聚类范围虚线圆
-        clat, clon, extent_r = get_cluster_extent(cluster)
+        # 聚类范围虚线圆（中心只用原始有效GPS）
+        clat, clon, extent_r = get_cluster_extent(located_cluster)
         folium.Circle([clat, clon], radius=extent_r, color=sev_color, weight=1.5, fill=True,
                       fill_opacity=0.06, dash_array='5,5').add_to(m)
         # 聚类中心实心圆

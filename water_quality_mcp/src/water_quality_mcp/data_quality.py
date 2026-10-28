@@ -31,6 +31,11 @@ def coordinate_mask(df):
 
 def coordinate_text(row):
     try:
+        # 加载器会为缺失GPS填前后值；这些值只能用于绘图连续性，不能当作定位。
+        if '__observed_coordinates' in row:
+            flag = row['__observed_coordinates']
+            if pd.isna(flag) or not bool(flag):
+                return None
         lat, lon = float(row['latitude']), float(row['longitude'])
         if np.isfinite(lat) and np.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180:
             return f'{lat:.6f}, {lon:.6f}'

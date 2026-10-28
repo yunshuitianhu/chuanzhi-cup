@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, model_validator
 
 from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
+from water_quality_mcp.src.water_quality_mcp.data_quality import coordinate_mask
 from water_quality_mcp.src.water_quality_mcp.geo_tools import reverse_geocode
 from water_quality_mcp.src.water_quality_mcp.trace_engine import multi_source_trace
 
@@ -41,6 +42,7 @@ def _default_center(session: Session) -> tuple[float, float] | None:
     if black is None or len(black) == 0:
         return None
     valid = black[black["cluster_id"] != -1]
+    valid = valid.loc[coordinate_mask(valid)]
     if len(valid) == 0:
         return None
     cid = valid["cluster_id"].value_counts().idxmax()
@@ -52,7 +54,8 @@ def _track_center(session: Session) -> tuple[float, float] | None:
     """取真实有效记录，不用弯曲河段的经纬度均值构造岸上查询点。"""
     if session.df is None or not {'latitude', 'longitude'} <= set(session.df.columns):
         return None
-    coords = session.df[['latitude', 'longitude']].apply(pd.to_numeric, errors='coerce')
+    coords = session.df.loc[coordinate_mask(session.df), ['latitude', 'longitude']].apply(
+        pd.to_numeric, errors='coerce')
     valid = coords[coords.latitude.between(-90, 90) & coords.longitude.between(-180, 180)]
     if valid.empty:
         return None

@@ -5,6 +5,8 @@ from scipy.sparse import csr_matrix
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import BallTree, sort_graph_by_row_values
 
+from .data_quality import coordinate_mask
+
 EARTH_RADIUS_M = 6371000.
 DETECTION_VERSION = 'screening-support-v2'
 MAX_NEIGHBOR_EDGES = 2_000_000
@@ -77,7 +79,10 @@ def spatial_support(df, pi, window_m=50, min_points=3, max_gap_min=5):
         return factors
     lat = pd.to_numeric(df.latitude, errors='coerce').to_numpy(dtype=float)
     lon = pd.to_numeric(df.longitude, errors='coerce').to_numpy(dtype=float)
-    valid = (pi > 1) & np.isfinite(pi) & np.isfinite(lat) & np.isfinite(lon) & (abs(lat)<=90) & (abs(lon)<=180)
+    # 填充坐标不是定位观测；缺GPS处必须断开空间支持度。
+    observed_coord = coordinate_mask(df).to_numpy(dtype=bool)
+    valid = ((pi > 1) & np.isfinite(pi) & observed_coord
+             & np.isfinite(lat) & np.isfinite(lon) & (abs(lat)<=90) & (abs(lon)<=180))
     adjacent = valid[:-1] & valid[1:] & (haversine_m(lat[:-1],lon[:-1],lat[1:],lon[1:]) <= 2*window_m)
     if '__sample_sequence' in df:
         adjacent &= np.diff(df['__sample_sequence'].to_numpy()) == 1
@@ -115,8 +120,11 @@ def cluster_black_samples(black, config):
     if not {'latitude','longitude'} <= set(black) or not len(black):
         return labels, meta
     coords = black[['latitude','longitude']].apply(pd.to_numeric,errors='coerce')
-    valid = coords.latitude.between(-90,90) & coords.longitude.between(-180,180)
-    positions = np.flatnonzero(valid)
+    # 只让原始有效GPS参与聚类；缺GPS的预警点保留为点级结果（cluster_id=-1）。
+    valid = coordinate_mask(black)
+    positions = np.flatnonzero(valid.to_numpy(dtype=bool))
+    if len(positions) == 0:
+        return labels, meta
     keys = coords.iloc[positions].reset_index(drop=True)
     times = time_seconds(black)[positions]
     has_time = 'datetime' in black
