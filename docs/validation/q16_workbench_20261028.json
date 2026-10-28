@@ -83,10 +83,28 @@
     "check_ci": "passed (secret check 9/9)"
   },
   "limitations": [
-    "真实模型只执行一轮自动分析；未重复点击失败重试以控制收费调用",
-    "本轮治理案例检索因干净环境缺可选依赖失败，因此状态为部分完成，不是完整成功报告",
-    "390px 为浏览器视口模拟，不是真机软键盘或读屏器验收",
-    "工作台不新增独立状态存储；仍以会话/项目/revision 为准",
-    "Q17 性能画像与真实用户走查仍未完成"
-  ]
+    "Q16 success path used full environment with copied index; clean CI environment remains RAG-unavailable by design",
+    "Failure retry was executed once and remained partial because the optional RAG dependencies are absent; no success-on-retry claim",
+    "390px is viewport simulation, not real device/screen reader",
+    "Q17 performance and Q11 materials remain open"
+  ],
+  "rag_success": {
+    "server": "5188 (full shared environment, isolated RAG index copy)",
+    "sample": "S01 V2, 1801 rows, synthetic",
+    "elapsed_s": 29,
+    "tool_calls": 12,
+    "status": "本轮已完成",
+    "report_generated": true,
+    "rag_citation": "报告引用真实证据ID：黑臭水体/济南小清河黑臭水体综合治理案例.md_3",
+    "draft_cards": 3,
+    "screenshot": "docs/validation/q16_rag_success_1280.png"
+  },
+  "failure_retry": {
+    "server": "5187 (clean CI environment, missing chromadb/sentence_transformers)",
+    "first_run": "部分完成，报告生成，RAG 检索失败未恢复",
+    "retry": "点击“从当前数据重新执行上一请求”，第二次运行再次部分完成；状态与重试入口保持可见",
+    "screenshot": "docs/validation/q16_failure_retry_1280.png",
+    "note": "失败原因是环境缺可选依赖，不是数据损坏；未把重试写成成功"
+  },
+  "status": "passed_with_environment_caveat"
 }
