@@ -30,7 +30,7 @@ from .loaders import extract_video, load_data
 from .national_station import get_national_station_data
 from .report import generate_report
 from .rag_engine import search_treatment_cases
-from .state import WaterQualityState, _get_river_state
+from .state import WaterQualityState, _get_river_state, reset_river_state
 from .trace_engine import multi_source_trace
 
 # 独立启动（python -m water_quality_mcp.server）时也能读到项目根目录的 .env。
@@ -48,7 +48,8 @@ def tool_load_data(file_bytes: str, filename: str) -> str:
     """加载并清洗走航监测数据 (CSV/Excel)。传入 base64 编码的文件内容和文件名。"""
     df, report = load_data(file_bytes, filename)
     if df is not None:
-        state.df = df
+        state.replace_data(df, filename)
+        reset_river_state()
     return report
 
 
@@ -155,7 +156,7 @@ def tool_search_treatment_cases(query: str, top_k: int = 5) -> str:
 def tool_extract_video(file_bytes: str, interval: int = 5) -> str:
     """从视频文件中按间隔抽帧。传入 base64 编码的视频文件。"""
     frames, report = extract_video(file_bytes, interval)
-    state.video_frames = frames
+    state.replace_video(frames)
     return report
 
 

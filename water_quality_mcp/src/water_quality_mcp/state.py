@@ -28,6 +28,24 @@ class WaterQualityState:
     def has_video_frames(self) -> bool:
         return len(self.video_frames) > 0
 
+    def replace_data(self, df: pd.DataFrame, filename: str = '') -> None:
+        """换一份监测数据后，旧数据派生的结果全部失效。
+
+        解析失败时调用方不调用本方法，保留旧状态；成功时统一在这里清理，
+        避免各入口各自维护一份不一致的失效清单。
+        """
+        self.df = df
+        self.data_filename = filename
+        self.black_spots = None
+        self.video_frames = []
+        self.cross_validation_result = None
+        self.national_station_result = None
+
+    def replace_video(self, frames: list[dict]) -> None:
+        """视频替换只失效依赖旧视频的交叉印证，监测数据与黑点保持不变。"""
+        self.video_frames = list(frames or [])
+        self.cross_validation_result = None
+
 
 # 在模块级别导入 RiverModelState (延迟以避免循环)
 _RIVER_STATE = None
@@ -40,3 +58,9 @@ def _get_river_state():
         from river_model.state import RiverModelState
         _RIVER_STATE = RiverModelState()
     return _RIVER_STATE
+
+
+def reset_river_state():
+    """监测数据被替换后丢弃旧河道模型，避免旧几何/结果与新数据混用。"""
+    global _RIVER_STATE
+    _RIVER_STATE = None
