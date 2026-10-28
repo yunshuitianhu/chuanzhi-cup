@@ -228,6 +228,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
 
     final_text = ""
     evidence_traces = []
+    scrub = _scrubber()
     citation_sources = dict(question_context.get('catalog',{})) if question_context else {}
     turn = 0
     stream = None
@@ -253,7 +254,8 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         result, is_err = execute_tool(name, args, session, api_key, evidence_traces=evidence_traces)
         check()
         evidence_traces.append(capture_tool(name, args, result, tool_started_at))
-        model_result = truncate(name, result)
+        # 工具原文可能含请求 URL/凭据（例如网络异常文本）；进入模型上下文前统一脱敏。
+        model_result = scrub(truncate(name, result))
         if name == 'search_treatment_cases':
             merge_catalog(citation_sources, result_catalog(model_result))
         if name == 'generate_final_report' and not is_err:
@@ -307,6 +309,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
             notice = '已读取图像，准备发送给模型。'
         if internal_refresh and not is_err:
             notice = '分析结果已更新，已重新取得综合摘要。'
+        notice = scrub(notice)
         run.finish_tool(step_id,step_status,notice)
         if auto and name not in ANALYSIS_CARD_TOOLS:
             session.analysis_steps[name] = step_status

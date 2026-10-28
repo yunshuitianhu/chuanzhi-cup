@@ -175,5 +175,7 @@ def get_satellite_image(lat, lon, zoom=16, cloud_token=None):
             }, ensure_ascii=False)
         else:
             return json.dumps({"error": f"HTTP {resp.status_code}，缩放级别 {zoom} 可能超出覆盖范围"}, ensure_ascii=False)
-    except Exception as e:
-        return json.dumps({"error": f"卫星影像请求异常: {e}"}, ensure_ascii=False)
+    except Exception:
+        # 请求异常文本可能含完整 URL（其中带 token）；只返回固定分类，
+        # 不把凭据或 URL 带进工具结果和后续模型上下文。
+        return json.dumps({"error": "卫星影像请求异常：网络连接或服务不可达"}, ensure_ascii=False)
