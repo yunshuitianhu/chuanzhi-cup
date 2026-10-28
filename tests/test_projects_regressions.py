@@ -19,6 +19,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from fastapi.testclient import TestClient
 from backend.main import app
+from backend import projects as projects_module
 from backend.session import Session, STORE, SessionStore
 from backend.projects import repository, ProjectRepository
 from backend.project_codec import dump_project, load_project, ProjectError, MAX_PACKAGE
@@ -236,6 +237,60 @@ class ProjectApiTests(unittest.TestCase):
         self.assertEqual(response.status_code,503)
         self.assertEqual(repository().info(pid),before)
         self.assertEqual(self.session.df.loc[4,'ammonia_nitrogen'],42.)
+
+    def test_blank_project_publish_failure_keeps_original_binding(self):
+        pid=self.create()
+        with patch('backend.projects.prepare_snapshot',side_effect=OSError('controlled materialize failure')):
+            response=self.client.post('/api/projects',headers=self.headers,
+                json={'name':'新空项目','from_current':False})
+        self.assertEqual(response.status_code,503)
+        self.assertEqual(self.session.project_id,pid)
+        self.assertEqual(repository()._binding(self.sid),pid)
+        self.assertEqual(len(repository().list()),1)
+        restored=SessionStore().get(self.sid)
+        self.assertEqual(restored.project_id,pid)
+        pd.testing.assert_frame_equal(restored.df,self.session.df)
+
+    def test_import_publish_failure_keeps_original_binding(self):
+        pid=self.create()
+        exported=self.client.post(f'/api/projects/{pid}/export',headers=self.headers,json={})
+        self.assertEqual(exported.status_code,200)
+        real_prepare=projects_module.prepare_snapshot
+        calls={'n':0}
+        def fail_second(snapshot):
+            calls['n']+=1
+            if calls['n']==2:
+                raise OSError('controlled materialize failure')
+            return real_prepare(snapshot)
+        with patch('backend.projects.prepare_snapshot',side_effect=fail_second):
+            response=self.client.post('/api/projects/import',headers=self.headers,
+                files={'file':('portable.wqproj',exported.content)})
+        self.assertEqual(response.status_code,503)
+        self.assertEqual(self.session.project_id,pid)
+        self.assertEqual(repository()._binding(self.sid),pid)
+        self.assertEqual(len(repository().list()),1)
+        self.assertEqual(SessionStore().get(self.sid).project_id,pid)
+
+    def test_open_publish_failure_restores_original_binding(self):
+        a=self.create('河流A')
+        b=self.create('河流B',False)
+        self.assertEqual(self.session.project_id,b)
+        with patch('backend.projects.publish_snapshot',side_effect=OSError('controlled publish failure')):
+            response=self.client.post(f'/api/projects/{a}/open',headers=self.headers,json={})
+        self.assertEqual(response.status_code,503)
+        self.assertEqual(self.session.project_id,b)
+        self.assertEqual(repository()._binding(self.sid),b)
+        self.assertEqual(len(repository().list()),2)
+        self.assertEqual(SessionStore().get(self.sid).project_id,b)
+
+    def test_candidate_cleanup_only_removes_unbound_new_project(self):
+        pid=self.create()
+        self.assertFalse(repository().discard_candidate(pid))
+        self.assertEqual(repository()._binding(self.sid),pid)
+        self.assertEqual(len(repository().list()),1)
+        candidate=repository().write(Session(id='candidate'),'候选项目',new=True,bind_session=False)
+        self.assertTrue(repository().discard_candidate(candidate['id']))
+        self.assertEqual([project['id'] for project in repository().list()],[pid])
 
     def test_busy_session_rejects_project_save_switch_and_import(self):
         pid=self.create()

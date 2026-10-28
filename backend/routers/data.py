@@ -18,7 +18,7 @@ from water_quality_mcp.src.water_quality_mcp.evidence import EVIDENCE_VERSION
 from ..deps import get_session, get_exclusive_session
 from ..session import Session
 from .. import data_service, sample_catalog
-from ..projects import repository, apply_snapshot
+from ..projects import repository
 from ..project_codec import _scrubber
 from .projects import shelve, current_state, capture_form, storage_errors
 
@@ -112,9 +112,8 @@ async def load_sample(sample_id: str, payload: SampleLoadRequest,
         blank = Session(id=session.id)
         blank.target_water_class = session.target_water_class
         data_service.apply_monitoring(blank, df, item['file'])
-        info = repository().write(blank, f"仿真示例 {item['title']}", new=True)
-        _, snapshot = repository().read(info['id'])
-        apply_snapshot(session, info, snapshot)
+        info = repository().write(blank, f"仿真示例 {item['title']}", new=True, bind_session=False)
+        repository().activate_new(session, info)
 
     detection = {'requested': bool(payload.detect), 'ok': False}
     if payload.detect:

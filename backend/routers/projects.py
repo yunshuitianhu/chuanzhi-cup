@@ -108,9 +108,8 @@ def create_project(payload:CreateRequest,session:Session=Depends(get_exclusive_s
         else:
             shelve(session)
             blank=Session(id=session.id)
-            info=repository().write(blank,payload.name,new=True)
-            _,snapshot=repository().read(info['id'])
-            apply_snapshot(session,info,snapshot)
+            info=repository().write(blank,payload.name,new=True,bind_session=False)
+            repository().activate_new(session,info)
         return current_state(session)
 
 
@@ -144,9 +143,8 @@ async def import_project(file:UploadFile=File(...),river_form:str=Form('null'),
             setattr(candidate,key,value)
         # 先物化导入附件，后续重新打包不会丢失图片/动画。
         apply_snapshot(candidate,{'id':'0'*32,'revision':0},snapshot)
-        info=repository().write(candidate,snapshot.name,new=True)
-        _,saved=repository().read(info['id'])
-        apply_snapshot(session,info,saved)
+        info=repository().write(candidate,snapshot.name,new=True,bind_session=False)
+        repository().activate_new(session,info)
         return current_state(session)
 
 
@@ -161,8 +159,7 @@ def open_project(project_id:str,payload:SaveRequest,session:Session=Depends(get_
         shelve(session)
         # 旧项目保存期间目标可能在另一会话被更新，读取最新已保存版本。
         info,snapshot=repository().read(project_id)
-        apply_snapshot(session,info,snapshot)
-        repository().bind(session.id,project_id)
+        repository().activate(session,info,snapshot)
         return current_state(session)
 
 

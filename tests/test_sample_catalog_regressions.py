@@ -10,6 +10,7 @@ from copy import deepcopy
 import json
 import os
 from pathlib import Path
+import sqlite3
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -18,7 +19,8 @@ import pandas as pd
 from fastapi.testclient import TestClient
 
 from backend.main import app
-from backend.session import STORE
+from backend.session import STORE, SessionStore
+from backend.projects import repository
 from backend import sample_catalog
 from scripts.package_delivery import source_allowed
 from water_quality_mcp.src.water_quality_mcp.loaders import load_data
@@ -301,6 +303,64 @@ class SampleApiTests(unittest.TestCase):
             self.assertEqual(other_session.project_id, '')
         finally:
             STORE.drop(other)
+
+    def assert_restores_sample(self, sample_id, project_id):
+        restored = SessionStore().get(self.sid)
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored.project_id, project_id)
+        self.assertEqual(restored.df.attrs['sample_meta']['id'], sample_id)
+
+    def test_snapshot_read_failure_keeps_memory_binding_and_restore_target(self):
+        self.assertEqual(self.load('S01').status_code, 200)
+        first_id = self.session.project_id
+        with patch('backend.projects.ProjectRepository.read',
+                   side_effect=OSError('controlled snapshot read failure')):
+            response = self.load('S02')
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(self.session.project_id, first_id)
+        self.assertEqual(self.session.df.attrs['sample_meta']['id'], 'S01')
+        self.assertEqual(repository()._binding(self.sid), first_id)
+        self.assertEqual(len(repository().list()), 1)
+        self.assert_restores_sample('S01', first_id)
+
+    def test_materialization_failure_keeps_memory_binding_and_restore_target(self):
+        self.assertEqual(self.load('S01').status_code, 200)
+        first_id = self.session.project_id
+        with patch('backend.projects.prepare_snapshot',
+                   side_effect=OSError('controlled materialize failure')):
+            response = self.load('S02')
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(self.session.project_id, first_id)
+        self.assertEqual(self.session.df.attrs['sample_meta']['id'], 'S01')
+        self.assertEqual(repository()._binding(self.sid), first_id)
+        self.assertEqual(len(repository().list()), 1)
+        self.assert_restores_sample('S01', first_id)
+
+    def test_publish_failure_restores_previous_binding(self):
+        self.assertEqual(self.load('S01').status_code, 200)
+        first_id = self.session.project_id
+        with patch('backend.projects.publish_snapshot',
+                   side_effect=OSError('controlled publish failure')):
+            response = self.load('S02')
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(self.session.project_id, first_id)
+        self.assertEqual(self.session.df.attrs['sample_meta']['id'], 'S01')
+        self.assertEqual(repository()._binding(self.sid), first_id)
+        self.assertEqual(len(repository().list()), 1)
+        self.assert_restores_sample('S01', first_id)
+
+    def test_binding_failure_keeps_previous_binding_and_memory(self):
+        self.assertEqual(self.load('S01').status_code, 200)
+        first_id = self.session.project_id
+        with patch('backend.projects.ProjectRepository._set_binding',
+                   side_effect=sqlite3.OperationalError('controlled bind failure')):
+            response = self.load('S02')
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(self.session.project_id, first_id)
+        self.assertEqual(self.session.df.attrs['sample_meta']['id'], 'S01')
+        self.assertEqual(repository()._binding(self.sid), first_id)
+        self.assertEqual(len(repository().list()), 1)
+        self.assert_restores_sample('S01', first_id)
 
     def test_new_manifest_id_is_loadable_without_frontend_branch(self):
         with TemporaryDirectory() as temporary:

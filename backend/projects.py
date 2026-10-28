@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from functools import lru_cache
+import logging
 import os
 from pathlib import Path
 import re
@@ -10,6 +11,8 @@ import uuid
 
 from . import PROJECT_ROOT
 from .project_codec import ProjectError, dump_project, load_project, STATE_FIELDS
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectConflict(ProjectError):
@@ -103,7 +106,13 @@ class ProjectRepository:
         info,raw=self.raw(project_id)
         return info,load_project(raw)
 
-    def write(self,session,name=None,new=False):
+    def write(self,session,name=None,new=False,bind_session=True):
+        """写入项目快照。
+
+        bind_session=False 只创建项目，不改变当前会话的持久绑定；调用方完成
+        快照回读/物化后再用 activate() 发布，避免“写入成功、应用失败”时
+        绑定已指向新项目而内存仍是旧项目。
+        """
         project_id=uuid.uuid4().hex if new else _id(session.project_id)
         old=None if new else self.info(project_id)
         expected=session.project_revision
@@ -134,8 +143,9 @@ class ProjectRepository:
                     if changed!=1:
                         raise ProjectConflict('项目已在另一个会话中更新，请另存为新项目以保留当前修改')
                 db.execute('INSERT INTO revisions VALUES (?,?,?,?)',(project_id,revision,relative,now))
-                db.execute('INSERT INTO bindings VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET project_id=excluded.project_id',
-                    (session.id,project_id))
+                if bind_session:
+                    db.execute('INSERT INTO bindings VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET project_id=excluded.project_id',
+                        (session.id,project_id))
         except Exception:
             temporary.unlink(missing_ok=True)
             path.unlink(missing_ok=True)
@@ -145,10 +155,77 @@ class ProjectRepository:
         session.restore_error=''
         return self.info(project_id)
 
-    def bind(self,session_id,project_id):
+    def _binding(self,session_id):
         with self.connection() as db:
-            db.execute('INSERT INTO bindings VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET project_id=excluded.project_id',
-                (session_id,project_id))
+            row=db.execute('SELECT project_id FROM bindings WHERE session_id=?',(session_id,)).fetchone()
+        return None if row is None else row['project_id']
+
+    def _set_binding(self,session_id,project_id):
+        with self.connection() as db:
+            if project_id is None:
+                db.execute('DELETE FROM bindings WHERE session_id=?',(session_id,))
+            else:
+                db.execute('INSERT INTO bindings VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET project_id=excluded.project_id',
+                    (session_id,project_id))
+
+    def bind(self,session_id,project_id):
+        self._set_binding(session_id,project_id)
+
+    def activate(self,session,info,snapshot):
+        """把已持久化的项目发布到会话。
+
+        先将快照附件物化到独立目录（可能失败的磁盘 I/O 都在此），再切换
+        持久绑定，最后只改内存。物化失败不碰会话和绑定；绑定失败不改内存；
+        内存发布失败时恢复原绑定，使内存、数据库绑定和重启恢复目标一致。
+        """
+        directory,restored=prepare_snapshot(snapshot)
+        previous=self._binding(session.id)
+        self._set_binding(session.id,info['id'])
+        try:
+            publish_snapshot(session,info,snapshot,directory,restored)
+        except Exception:
+            try:
+                self._set_binding(session.id,previous)
+            except Exception as exc:
+                logger.warning('项目发布失败后恢复绑定失败（%s）',type(exc).__name__)
+            raise
+
+    def activate_new(self,session,info):
+        """回读并发布本次新建的项目；失败时清理未绑定的候选对象。"""
+        try:
+            _,snapshot=self.read(info['id'])
+            self.activate(session,info,snapshot)
+        except Exception:
+            try:
+                self.discard_candidate(info['id'])
+            except Exception as exc:
+                logger.warning('清理候选项目失败（%s）',type(exc).__name__)
+            raise
+
+    def discard_candidate(self,project_id):
+        """删除本次请求新建且未被任何会话绑定的候选项目。
+
+        只处理 revision==1 且 bindings 无引用的对象；旧项目、用户快照和
+        历史版本永远不会进入删除路径。
+        """
+        project_id=_id(project_id)
+        with self.connection() as db:
+            row=db.execute('SELECT revision,snapshot FROM projects WHERE id=?',(project_id,)).fetchone()
+            if row is None or row['revision']!=1:
+                return False
+            if db.execute('SELECT 1 FROM bindings WHERE project_id=?',(project_id,)).fetchone():
+                return False
+            db.execute('DELETE FROM revisions WHERE project_id=?',(project_id,))
+            db.execute('DELETE FROM projects WHERE id=?',(project_id,))
+        relative=row['snapshot']
+        if re.fullmatch(r'[0-9a-f]{32}/[0-9a-f]{32}\.wqproj',relative):
+            path=self.root/relative
+            try:
+                path.unlink(missing_ok=True)
+                path.parent.rmdir()
+            except OSError:
+                pass
+        return True
 
     def restore(self,session_id):
         from .session import Session
@@ -162,8 +239,8 @@ class ProjectRepository:
         return session
 
 
-def apply_snapshot(session,info,snapshot):
-    # 先物化到独立目录，再替换会话字段，失败时旧内存状态保持完整。
+def prepare_snapshot(snapshot):
+    """物化附件并生成脱离快照对象的会话字段；不修改任何会话。"""
     directory=Path(runtime_directory())
     for filename,raw in snapshot.artifacts.items():
         (directory/filename).write_bytes(raw)
@@ -177,8 +254,13 @@ def apply_snapshot(session,info,snapshot):
         if isinstance(value,list):
             return [relocate(v) for v in value]
         return value
-    revision=session.analysis_revision
     restored={k:relocate(v) for k,v in snapshot.state.items()}
+    return directory,restored
+
+
+def publish_snapshot(session,info,snapshot,directory,restored):
+    """把已物化的快照发布到会话；此函数只改内存，不做磁盘 I/O。"""
+    revision=session.analysis_revision
     for key in STATE_FIELDS:
         setattr(session,key,restored[key])
     session._media_bytes=dict(getattr(snapshot,'media',{}) or {})
@@ -196,6 +278,12 @@ def apply_snapshot(session,info,snapshot):
     if session.analysis_status=='running':
         session.analysis_status='cancelled'
         session.analysis_done=False
+
+
+def apply_snapshot(session,info,snapshot):
+    # 先物化到独立目录，再替换会话字段，失败时旧内存状态保持完整。
+    directory,restored=prepare_snapshot(snapshot)
+    publish_snapshot(session,info,snapshot,directory,restored)
 
 
 @lru_cache(maxsize=8)
