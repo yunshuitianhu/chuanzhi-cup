@@ -36,6 +36,35 @@ const composerEl = ref(null)
 const canAttach = computed(()=>!running.value && !store.loading && store.ready && !store.switchingProject)
 const selectedKind = computed(()=>store.questionContext?.kind || (store.textQuestions?.pendingMain ? 'text_quote' : ''))
 const aiConfigured = computed(()=>!store.config?.keys || store.config.keys.deepseek!==false)
+const workbench = computed(()=>{
+  const status=store.status||{}
+  const hasData=!!status.has_data
+  const context=store.questionContext
+  const pending=store.textQuestions?.pendingMain
+  const draft=(store.chatDraft||'').trim()
+  const run=store.agentRun
+  const screened=!!(status.analysis_done || status.has_detection)
+  const dataText=hasData ? `${status.rows??0} 条记录${status.data_identity?.kind==='synthetic'?' · 仿真':''}` : '未载入数据'
+  const questionText=context?.title ? `已选：${context.title}` : pending?.title ? `选文：${pending.title}` : draft ? `草稿：${draft.slice(0,32)}` : '未提出'
+  let progressText='尚未分析'
+  if(run?.busy) progressText=run.stage||'分析进行中'
+  else if(run?.status==='failed') progressText='上轮失败'
+  else if(run?.status==='partial') progressText='上轮部分完成'
+  else if(run?.status==='cancelled') progressText='上轮已停止'
+  else if(run?.status==='succeeded') progressText='本轮已完成'
+  else if(status.analysis_done) progressText='已有分析结果'
+  else if(status.has_detection) progressText='已完成基础筛查'
+  const evidenceText=!hasData ? '等待数据' : screened ? `${status.black_spot_count??0} 个预警点` : '尚未筛查'
+  const nextText=!hasData ? '先载入示例' : screened ? '核对证据并安排复测' : '开始分析'
+  return {hasData,screened,dataText,questionText,progressText,evidenceText,nextText}
+})
+function focusComposer(){ nextTick(()=>composerEl.value?.focus()) }
+function scrollToProgress(){ document.getElementById('agent-progress')?.scrollIntoView({block:'nearest'}) }
+async function openInvestigationBoard(){
+  investigationVisited.value=true
+  await nextTick()
+  if(investigationDetails.value){ investigationDetails.value.open=true; investigationDetails.value.scrollIntoView({block:'start'}) }
+}
 function ensureAi(){
   if(aiConfigured.value){aiNotice.value='';return true}
   aiNotice.value='未配置 DeepSeek Key：可先载入内置示例、查看图表和运行基础筛查；AI 问答与报告需在服务端配置 Key 并重启后端后重试。'
@@ -344,6 +373,33 @@ async function submit(text,auto) {
       <button v-if="store.questionContext && ['video_frame','image_asset','text_quote'].includes(store.questionContext.kind)" type="button" class="info-toggle side-ask" :disabled="running || store.loading" @click="openSide">侧边追问</button>
       <button type="button" class="info-toggle" :aria-expanded="analysisExpanded" aria-controls="chat-analysis-info" @click="toggleAnalysis">{{ analysisExpanded ? '收起分析信息' : '展开分析信息' }}</button>
     </div>
+    <section class="workbench" aria-label="研判工作台状态">
+      <div class="wb-cell">
+        <span class="wb-label">数据</span>
+        <strong class="wb-value">{{workbench.dataText}}</strong>
+        <a class="wb-action" href="#data-samples">数据与示例</a>
+      </div>
+      <div class="wb-cell">
+        <span class="wb-label">当前问题</span>
+        <strong class="wb-value" :title="workbench.questionText">{{workbench.questionText}}</strong>
+        <button type="button" class="wb-action" @click="focusComposer">{{store.questionContext ? '换个问题' : '输入问题'}}</button>
+      </div>
+      <div class="wb-cell">
+        <span class="wb-label">分析进度</span>
+        <strong class="wb-value" :title="workbench.progressText">{{workbench.progressText}}</strong>
+        <button v-if="running" type="button" class="wb-action" @click="scrollToProgress">查看进度</button>
+        <button v-else-if="workbench.hasData && !workbench.screened" type="button" class="wb-action"
+          :disabled="!store.ready || store.loading" @click="autoAnalyze">开始自动分析</button>
+        <a v-else-if="workbench.hasData" class="wb-action" href="/charts">查看图表</a>
+        <span v-else class="wb-wait">等待数据</span>
+      </div>
+      <div class="wb-cell">
+        <span class="wb-label">证据 · 下一步</span>
+        <strong class="wb-value" :title="workbench.evidenceText">{{workbench.evidenceText}}</strong>
+        <a v-if="!workbench.hasData" class="wb-action" href="#data-samples">载入示例</a>
+        <button v-else type="button" class="wb-action" @click="openInvestigationBoard">{{workbench.nextText}}</button>
+      </div>
+    </section>
     <div v-if="!analysisExpanded && collapsedContext" class="context-line" aria-label="当前选择">
       <span class="context-kind">{{ collapsedContext.label }}</span>
       <span class="context-name" :title="collapsedContext.title">{{ collapsedContext.title }}</span>
@@ -366,7 +422,7 @@ async function submit(text,auto) {
       <p v-if="store.status.analysis_status === 'stale'" class="tip warning">检测或视频结果已更新，下方为历史对话；重新分析后可生成当前报告。</p>
       <p v-else-if="store.status.detection_outdated" class="tip warning">历史检测使用旧版证据口径，请重新分析。下方文字尚未按当前数据和走航时空限制复核。</p>
     </div></div>
-    <AgentProgress :run="store.agentRun" :elapsed="elapsed" :connection-error="store.agentConnectionError" @stop="stop" @sync="refreshRun" />
+    <div id="agent-progress"><AgentProgress :run="store.agentRun" :elapsed="elapsed" :connection-error="store.agentConnectionError" @stop="stop" @sync="refreshRun" /></div>
     <button v-if="lastRequest && !running && store.agentRun?.status!=='succeeded'" class="retry" @click="retryLast">从当前数据重新执行上一请求</button>
     <div class="conversation">
       <div ref="scroller" class="stream" role="region" aria-label="分析对话与报告" tabindex="0"
@@ -408,6 +464,16 @@ async function submit(text,auto) {
 .chat-summary{flex-shrink:0;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;min-height:28px;padding:1px 0 2px;color:var(--c-sub);font-size:12px;overflow-wrap:anywhere}
 .chat-summary .project-tag{max-width:min(42ch,60%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .summary-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.workbench{flex-shrink:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:2px 0 8px}
+.wb-cell{min-width:0;display:flex;flex-direction:column;gap:3px;padding:8px 10px;border:1px solid var(--c-border-soft);border-radius:var(--radius-sm);background:var(--c-surface-2)}
+.wb-label{font-size:12px;color:var(--c-muted);letter-spacing:.04em}
+.wb-value{font-size:13px;font-weight:600;color:var(--c-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb-action{align-self:flex-start;border:0;background:transparent;color:var(--c-accent);font:inherit;font-size:12px;padding:2px 0;min-height:24px;text-decoration:none;cursor:pointer}
+.wb-action:hover:not(:disabled){text-decoration:underline}
+.wb-action:disabled{opacity:.45;cursor:not-allowed}
+.wb-wait{align-self:flex-start;font-size:12px;color:var(--c-muted);padding:2px 0;min-height:24px;line-height:24px}
+@media(max-width:900px){.workbench{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.workbench{gap:6px;margin-bottom:6px}.wb-cell{padding:7px 8px}}
 .vision-chip{color:var(--c-accent);border:1px solid var(--c-border);border-radius:12px;padding:1px 8px;font-size:12px;white-space:nowrap}
 .info-toggle{margin-left:auto;flex-shrink:0;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-ink);border-radius:20px;padding:3px 10px;font:inherit;font-size:12px;min-height:26px;white-space:nowrap}
 .info-toggle+.info-toggle{margin-left:0}

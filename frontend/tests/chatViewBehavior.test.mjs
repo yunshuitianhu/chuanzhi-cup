@@ -277,6 +277,25 @@ test('没有监测表时仍可明确询问已选资料片段',async()=>{
   }finally{v.close()}
 })
 
+test('工作台状态串起数据、当前问题、分析进度和下一步',async()=>{
+  const v=await mount()
+  try{
+    v.store.status={has_data:false,rows:0,has_detection:false,black_spot_count:0}
+    await v.settle()
+    assert.equal(v.state.workbench.dataText,'未载入数据')
+    assert.equal(v.state.workbench.progressText,'尚未分析')
+    assert.equal(v.state.workbench.evidenceText,'等待数据')
+    v.store.status={has_data:true,rows:1801,has_detection:true,black_spot_count:0,data_identity:{kind:'synthetic'}}
+    v.state.input='待发送的问题'
+    await v.settle()
+    assert.equal(v.state.workbench.dataText,'1801 条记录 · 仿真')
+    assert.match(v.state.workbench.questionText,/待发送的问题/)
+    assert.equal(v.state.workbench.progressText,'已完成基础筛查')
+    assert.equal(v.state.workbench.evidenceText,'0 个预警点')
+    assert.equal(v.state.workbench.nextText,'核对证据并安排复测')
+  }finally{v.close()}
+})
+
 test('服务失败后保留原问题、引用和重试入口，不把输入清空',async()=>{
   const v=await mount()
   try{v.store.questionContext=selectedContext('image_asset');v.state.input='服务失败后仍要保留的问题'

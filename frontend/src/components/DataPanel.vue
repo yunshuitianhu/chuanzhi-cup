@@ -138,7 +138,7 @@ async function load() {
   <section class="panel">
     <h3 class="panel-title">数据与示例</h3>
 
-    <section class="sample-section" :class="{prominent:!store.status.has_data}" aria-label="内置仿真示例">
+    <section id="data-samples" class="sample-section" :class="{prominent:!store.status.has_data}" aria-label="内置仿真示例">
       <div class="sample-head">
         <div><strong>试用仿真示例</strong><span class="sample-tag">仅监测表 · 仿真</span></div>
         <button v-if="store.sampleCatalogError || sampleError" type="button" class="sample-retry" :disabled="store.loading" @click="reloadSamples">重新读取目录</button>
