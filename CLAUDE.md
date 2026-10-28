@@ -24,8 +24,9 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 2026-10-28 的交付状态（以实际命令和 `docs/` 记录为准，不要只引用本节）：
 
 - N01—N03 内置六组仿真示例、一键载入、契约/打包已完成本机受控验收（N03 的 S-T13/S-T21/S-T26 未单独自动化）；
-- N04/N05 配置说明与 Windows 环境为部分完成；N06 河道引导、N07 字号为部分/浏览器验收；N08 只完成少量低风险项；
-- 最近记录：622 项 Python（干净 CI venv）、361 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
+- N04-A 能力矩阵与 N04-B 受控矩阵已完成；N05-A 安装路径已核实，N05-B 异机安装待队友执行；N05-C 本地检索已真实验证，但 LLM 综合回答/无关拒答/超时未验；
+- N06 河道引导、N07 字号为部分/浏览器验收；N08 只完成少量低风险项；
+- 最近记录：640 项 Python（干净 CI venv）、362 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
 - 外部核验 R01—R03 已修复：项目发布失败回滚、示例资源 503 边界、打包未跟踪文件门禁；
 - 新交付 ZIP 为 `work/delivery_20261028_r2.zip`：revision `4cc2a1a`、580 文件、SHA-256 `7577e578…`；旧包 revision `b075bd0` 仅作历史记录；`work/` 被忽略，ZIP 需单独发送。
 
@@ -95,7 +96,7 @@ npm run check                    # typecheck + node --test + build（推荐门�
 ### 测试与门禁
 
 ```bash
-# Python 全量（当前 622 项；tests 不是 package，不要用 python -m unittest tests.xxx）
+# Python 全量（当前 640 项；tests 不是 package，不要用 python -m unittest tests.xxx）
 python -m unittest discover -s tests -p "test_*.py"
 
 # 单个 unittest 文件
@@ -111,7 +112,7 @@ python tests/密钥泄漏检查.py          # 密钥不入库 + .env 优先级
 python tests/river_model_验收算例.py  # 含 1 项已知缺陷（潮汐质量不守恒）
 
 # 前端
-npm --prefix frontend run check       # 361 项 + TS/SFC + 构建
+npm --prefix frontend run check       # 362 项 + TS/SFC + 构建
 cd frontend && node --test tests/keyState.test.mjs   # 单个前端测试
 
 # 跨平台离线门禁（含全量 unittest、字段/泛化/后端/密钥检查）
@@ -391,6 +392,10 @@ RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单�
 
 - `docs/交付说明_20261028.md` — 交付物/安装/验收/限制。
 - `docs/交付核验修复记录_20261028.md` — R01—R03 根因、发布顺序、503 边界、打包门禁与残余风险。
+- `docs/N04配置组合与服务失败验收.md` — N04-A 能力矩阵、C01—C08/F01—F12 受控结果与 N04-C 待外部条件。
+- `docs/N05异机安装与基础运行验收.md` — N05-A 安装边界、I01—I19 队友验收清单与交接话术。
+- `docs/N05本地RAG与离线检索验收.md` — RG01—RG10 实际/未运行状态与离线检索结果。
+- `docs/N06-N07用户走查与交互验收.md` — 已有证据与待真实用户/读屏器执行的清单，未完成。
 - `docs/validation/delivery_r2_20261028.json` — 新包 revision/文件数/哈希、独立审计与无 Key 副本结果。
 - `docs/任务队列.md` — Q/N 任务状态与日期记录。
 - `docs/内置仿真示例与一键载入实施记录_20261027.md` — N01—N08 实施与证据。
