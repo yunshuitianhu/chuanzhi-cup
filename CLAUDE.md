@@ -26,7 +26,7 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 - N01—N03 内置六组仿真示例、一键载入、契约/打包已完成本机受控验收（N03 的 S-T13/S-T21/S-T26 未单独自动化）；
 - N04-A 能力矩阵与 N04-B 受控矩阵已完成；N05-A 安装路径已核实，N05-B 异机安装待队友执行；N05-C 本地检索已真实验证，但 LLM 综合回答/无关拒答/超时未验；
 - N06 河道引导、N07 的导航/字号为部分浏览器验收；全站字号已统一 +2px，键盘/读屏未做；N08 只完成少量低风险项；
-- 最近记录：641 项 Python（干净 CI venv）、363 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
+- 最近记录：655 项 Python（干净 CI venv）、366 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
 - Q16 工作台四项状态已完成；RAG 成功路径 29s/12 工具、失败重试已实际执行（重试仍部分完成）；
 - Q17 已完成本机受控性能与体验验收（四页/长历史/示例图表/热力开关，17 项可读性）；Q18 为下一项 P1，尚未开始；
 - 外部核验 R01—R03 已修复：项目发布失败回滚、示例资源 503 边界、打包未跟踪文件门禁；
@@ -103,7 +103,7 @@ npm run check                    # typecheck + node --test + build（推荐门�
 ### 测试与门禁
 
 ```bash
-# Python 全量（当前 641 项；tests 不是 package，不要用 python -m unittest tests.xxx）
+# Python 全量（当前 655 项；tests 不是 package，不要用 python -m unittest tests.xxx）
 python -m unittest discover -s tests -p "test_*.py"
 
 # 单个 unittest 文件
@@ -119,7 +119,7 @@ python tests/密钥泄漏检查.py          # 密钥不入库 + .env 优先级
 python tests/river_model_验收算例.py  # 含 1 项已知缺陷（潮汐质量不守恒）
 
 # 前端
-npm --prefix frontend run check       # 363 项 + TS/SFC + 构建
+npm --prefix frontend run check       # 366 项 + TS/SFC + 构建
 cd frontend && node --test tests/keyState.test.mjs   # 单个前端测试
 
 # 跨平台离线门禁（含全量 unittest、字段/泛化/后端/密钥检查）
@@ -405,6 +405,7 @@ RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单�
 
 - `docs/交付说明_20261028.md` — 交付物/安装/验收/限制。
 - `docs/交付核验修复记录_20261028.md` — R01—R03 根因、发布顺序、503 边界、打包门禁与残余风险。
+- `docs/代码审查修复记录_20261028.md` — 2026-10-28 全仓审查 6 项问题的根因、修复、回归与残余。
 - `docs/N04配置组合与服务失败验收.md` — N04-A 能力矩阵、C01—C08/F01—F12 受控结果与 N04-C 待外部条件。
 - `docs/N05异机安装与基础运行验收.md` — N05-A 安装边界、I01—I19 队友验收清单与交接话术。
 - `docs/N05本地RAG与离线检索验收.md` — RG01—RG10 实际/未运行状态与离线检索结果。
