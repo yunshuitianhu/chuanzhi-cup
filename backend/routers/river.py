@@ -25,6 +25,7 @@ from water_quality_mcp.src.water_quality_mcp.config import resolve_api_key
 from ..deps import get_session, get_exclusive_session
 from ..session import Session
 from ..cruise_alignment import AlignmentRequest
+from .. import model_state
 
 router = APIRouter(prefix="/river", tags=["river"])
 
@@ -222,7 +223,13 @@ def init_model(payload: InitRequest | None = None,
         kwargs["cloud_token"] = resolve_api_key("CLOUD_TOKEN")
 
     session.river_ui = {'form':session.river_ui.get('form',{})}
-    result = _json(tool_river_init(session.get_river_state(), **kwargs))
+    st = session.get_river_state()
+    before = model_state.snapshot(st)
+    try:
+        result = _json(tool_river_init(st, **kwargs))
+    except HTTPException:
+        model_state.invalidate_if_changed(session, before, st)
+        raise
     session.river_ui['init'] = result
     session.invalidate_report()
     session.results_revision += 1
@@ -242,7 +249,12 @@ def hydro(payload: HydroRequest | None = None,
 
     session.river_ui.pop('hydro',None)
     session.river_ui.pop('pollution',None)
-    result = _json(tool_river_hydro_simulation(st, **payload.model_dump(exclude_none=True)))
+    before = model_state.snapshot(st)
+    try:
+        result = _json(tool_river_hydro_simulation(st, **payload.model_dump(exclude_none=True)))
+    except HTTPException:
+        model_state.invalidate_if_changed(session, before, st)
+        raise
     session.river_ui['hydro'] = result
     session.invalidate_report()
     session.results_revision += 1
@@ -268,8 +280,13 @@ def pollution(payload: PollutionRequest | None = None,
     kwargs = payload.model_dump(exclude_none=True)
     kwargs.setdefault('chainage_m', float((st.hydro_result.chainage[0] + st.hydro_result.chainage[-1]) / 2))
     session.river_ui.pop('pollution',None)
-    result = _json(tool_river_pollution_event(st, **kwargs, target_water_class=session.target_water_class,
-                                            monitoring_data=session.df, alignment_config=session.river_ui.get('alignment')))
+    before = model_state.snapshot(st)
+    try:
+        result = _json(tool_river_pollution_event(st, **kwargs, target_water_class=session.target_water_class,
+                                                monitoring_data=session.df, alignment_config=session.river_ui.get('alignment')))
+    except HTTPException:
+        model_state.invalidate_if_changed(session, before, st)
+        raise
     session.river_ui['pollution'] = result
     session.invalidate_report()
     session.results_revision += 1

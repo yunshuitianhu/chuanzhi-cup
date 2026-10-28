@@ -21,6 +21,7 @@ import math
 
 from river_model.tool_specs import RIVER_TOOL_SPECS
 from ..analysis_cards import Proposal, get_catalog, submit_cards
+from .. import model_state
 
 from water_quality_mcp.src.water_quality_mcp.analysis import (
     build_comprehensive_summary,
@@ -329,6 +330,7 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 tool_river_init, tool_river_pollution_event,
             )
             st = session.get_river_state()
+            before = model_state.snapshot(st)
             fn = {
                 "init_river_model": tool_river_init,
                 "run_hydrodynamic_simulation": tool_river_hydro_simulation,
@@ -362,13 +364,25 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
                 for key in ({'init':('init','hydro','pollution'),'hydro':('hydro','pollution'),
                              'pollution':('pollution',)}[ui_key]):
                     session.river_ui.pop(key,None)
-            raw = fn(st, **kwargs)
+            try:
+                raw = fn(st, **kwargs)
+            except Exception:
+                if ui_key:
+                    model_state.invalidate_if_changed(session, before, st)
+                raise
             if ui_key:
-                result = json.loads(raw)
+                try:
+                    result = json.loads(raw)
+                except (TypeError, ValueError):
+                    model_state.invalidate_if_changed(session, before, st)
+                    raise
                 if 'error' not in result:
                     session.river_ui[ui_key] = result
                     session.invalidate_report()
                     session.results_revision += 1
+                else:
+                    # 工具在失败前已清除旧水质/水动力时，报告不能继续标记完成。
+                    model_state.invalidate_if_changed(session, before, st)
             return raw, False
 
         return f"未知工具: {name}", True
