@@ -1,0 +1,77 @@
+{
+  "date": "2026-10-28",
+  "build_commit": "1f97faa",
+  "purpose": "Q17 整体性能与体验验收：生产构建、四页加载、长历史、示例图表、地图热力开关；3 次本机观察的中位数",
+  "environment": {
+    "os": "Windows 11 Home China 10.0.26200",
+    "browser": "Playwright Chromium (headless)",
+    "viewport": "1280x900",
+    "server": "scripts/serve_web.py, isolated project home, clean CI venv",
+    "data": "S01 V2, 1801 rows, synthetic",
+    "long_history": "Playwright route fixture: 24 messages, 38,643 characters, explicitly synthetic"
+  },
+  "method": {
+    "runs": 3,
+    "route_load": "new browser context per route, networkidle + 500 ms",
+    "long_history": "history endpoint replaced with synthetic fixture; all other APIs real",
+    "sample_charts": "real S01 load + charts page + 1.8 s settle",
+    "heat_toggle": "click label twice, wait two requestAnimationFrame calls",
+    "metrics": "navigation timing, resource transfer/decoded bytes, DOM nodes, longtask entries, scroll height, scroll position",
+    "note": "Numbers are observations on one machine/build/data; not thresholds, FPS, or cross-device guarantees"
+  },
+  "route_load_median": {
+    "chat": {"nav_ms": 141.5, "dom_nodes": 271, "long_task_total_ms": 55, "transfer_bytes": 468215},
+    "charts": {"nav_ms": 70.9, "dom_nodes": 228, "long_task_total_ms": 55, "transfer_bytes": 1222064},
+    "river": {"nav_ms": 66.8, "dom_nodes": 372, "long_task_total_ms": 55, "transfer_bytes": 1014363},
+    "tech": {"nav_ms": 70.2, "dom_nodes": 487, "long_task_total_ms": 53, "transfer_bytes": 1026190}
+  },
+  "long_history_median": {
+    "dom_nodes": 4363,
+    "rows": 24,
+    "assistant_rows": 12,
+    "stream_scroll_height_px": 74156,
+    "stream_client_height_px": 398,
+    "long_task_count": 2,
+    "long_task_total_ms": 104,
+    "long_task_max_ms": 53,
+    "scroll_top_after_up": 0
+  },
+  "sample_charts_median": {
+    "charts_dom_nodes": 505,
+    "charts_long_task_total_ms": 164,
+    "charts_long_task_max_ms": 90
+  },
+  "heat_toggle": {
+    "before_optimization_ms": {"off_median": 71.2, "on_median": 115.1},
+    "after_optimization_ms": {"off_median": 63.4, "on_median": 64.5},
+    "change": "heat layer cached; hide/show via canvas display instead of remove/re-add and re-rasterize",
+    "note": "Each timing includes two requestAnimationFrame waits (roughly one to two frames); compare before/after, not as pure JS work"
+  },
+  "node_benchmark": {
+    "file": "docs/validation/q17_benchmark_ui_20261028.json",
+    "heat_raster_median_ms": 50.7354,
+    "three_immediate_redraws_median_ms": 154.4701,
+    "three_scheduled_requests_median_ms": 51.0056,
+    "report_markdown_5300_chars_median_ms": 1.7494,
+    "scope": "synthetic screen-space CPU workload; not FPS or field accuracy"
+  },
+  "console_errors": {
+    "route_load": 0,
+    "long_history": 0,
+    "sample_charts": 0
+  },
+  "overall_acceptance": {
+    "four_routes": "chat/charts/river/tech loaded; no console errors in observations",
+    "q16_workbench": "four-state strip present; RAG success and failure retry documented separately",
+    "readability": "17 checks passed at 320/390/768/1280 and 200%; no horizontal overflow",
+    "q13_q15": "existing context, side thread, cards and investigation tests remain green",
+    "status": "Q17 local controlled performance/profile acceptance; real-user, screen-reader, real-device and field performance remain unverified"
+  },
+  "limitations": [
+    "Long history is a synthetic route fixture, not a real model report or real project history.",
+    "External map tiles and network affect chart/map load; not a controlled network benchmark.",
+    "3 runs are enough for median/max here, but not stable p95 or cross-device percentiles.",
+    "Charts still show 90 ms max long task after optimization; recorded, not hidden.",
+    "No real screen reader, physical touch device, Safari, Firefox, low-end hardware or field data."
+  ]
+}

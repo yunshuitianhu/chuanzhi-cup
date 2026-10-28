@@ -27,7 +27,8 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 - N04-A 能力矩阵与 N04-B 受控矩阵已完成；N05-A 安装路径已核实，N05-B 异机安装待队友执行；N05-C 本地检索已真实验证，但 LLM 综合回答/无关拒答/超时未验；
 - N06 河道引导、N07 的导航/字号为部分浏览器验收；全站字号已统一 +2px，键盘/读屏未做；N08 只完成少量低风险项；
 - 最近记录：641 项 Python（干净 CI venv）、363 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
-- Q16 工作台四项状态已完成；RAG 成功路径 29s/12 工具、失败重试已实际执行（重试仍部分完成）；Q17 整体性能与体验验收为当前任务；
+- Q16 工作台四项状态已完成；RAG 成功路径 29s/12 工具、失败重试已实际执行（重试仍部分完成）；
+- Q17 已完成本机受控性能与体验验收（四页/长历史/示例图表/热力开关，17 项可读性）；Q18 为下一项 P1，尚未开始；
 - 外部核验 R01—R03 已修复：项目发布失败回滚、示例资源 503 边界、打包未跟踪文件门禁；
 - 新交付 ZIP 为 `work/delivery_20261028_r2.zip`：revision `4cc2a1a`、580 文件、SHA-256 `7577e578…`；旧包 revision `b075bd0` 仅作历史记录；`work/` 被忽略，ZIP 需单独发送。**r2 内示例仍是 V1；`data/samples` 已更新为 V2，需重新打包。**
 
@@ -155,6 +156,8 @@ python tests/browser_sample_acceptance.py --url http://127.0.0.1:5183/chat
 python tests/browser_readability_acceptance.py --url http://127.0.0.1:5183/chat \
   --out docs/validation/readability_<日期> --report browser_readability_<日期>.json
 python tests/browser_river_guide_acceptance.py --url http://127.0.0.1:5183/river
+python tests/browser_performance_acceptance.py --url http://127.0.0.1:5183/chat \
+  --out work/q17_performance --report q17_performance.json
 ```
 
 浏览器脚本需要 Playwright/Chromium；不要把 5180/用户默认项目目录当作隔离环境。
@@ -407,8 +410,9 @@ RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单�
 - `docs/N05本地RAG与离线检索验收.md` — RG01—RG10 实际/未运行状态与离线检索结果。
 - `docs/N06-N07用户走查与交互验收.md` — 已有证据与待真实用户/读屏器执行的清单，未完成。
 - `docs/仿真示例V2路线与坐标修复_20261028.md` — V1/V2 路线诊断、V2 重新生成与新哈希。
-- `docs/Q16协同研判工作台验收.md` — 工作台四项状态、RAG 成功路径与失败重试；Q17 性能项仍未完成。
+- `docs/Q16协同研判工作台验收.md` — 工作台四项状态、RAG 成功路径与失败重试；Q17 性能验收已补。
 - `docs/全站字号增大验收_20261028.md` — 全站 +2px 字号、移动导航两行与四宽度可读性证据。
+- `docs/Q17整体性能与体验验收_20261028.md` — 四页加载、长历史、示例图表、热力开关与 Q16 整合。
 - `docs/项目情况汇报与Codex交接_20261028.md` — Codex 失忆后的恢复入口：状态、命令、坑与下一步。
 - `docs/validation/delivery_r2_20261028.json` — 新包 revision/文件数/哈希、独立审计与无 Key 副本结果。
 - `docs/任务队列.md` — Q/N 任务状态与日期记录。
