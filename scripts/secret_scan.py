@@ -13,11 +13,13 @@ HASH64 = re.compile(r'[0-9a-f]{64}\Z')
 HASH32 = re.compile(r'[0-9a-f]{32}\Z')
 VISION_KEYS = {'asset_revision', 'video_revision', 'asset_id'}
 TEXT_BODY_KEYS = {'answer', 'content', 'text', 'response', 'message'}
-# 验证记录中模型正文引用的已知内容哈希（data_version），不是凭证。
+# 已独立核实来源的内容哈希（data_version、交付包摘要），不是凭证。
 # 仅按完整值豁免；新增项必须能说明来源，且 .env 真实值仍由第 2 项检查。
 KNOWN_TEXT_HASHES = {
     'c5acfb7e952f3bdb0e4c9c01a57b2a12d9fca1f3d53a961fbceaf5139dcb7c1b':
         'response_quality_20261027 回答中引用的 data_version',
+    '7577e57813350d10281144d9c1751e37d2e92a16c353364681b334192a3602e2':
+        'work/delivery_20261028_r2.zip 的 SHA-256；2026-10-28 对实际 ZIP 重新计算核实',
 }
 
 
