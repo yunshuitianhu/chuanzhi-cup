@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-28",
+  "purpose": "R01-R03 核验修复后的重建交付包；在无 .env 的全新解压副本中用两个独立进程验收",
+  "package": {
+    "file": "work/delivery_20261028_r2.zip",
+    "revision": "4cc2a1a696b2ece5d8cae2b231493c5c75ede6b5",
+    "files": 580,
+    "size_bytes": 7251150,
+    "sha256": "7577e57813350d10281144d9c1751e37d2e92a16c353364681b334192a3602e2"
+  },
+  "audit": {
+    "duplicate_paths": 0,
+    "private_or_runtime_paths": [],
+    "unsafe_or_traversal_paths": [],
+    "recorded_files": 579,
+    "missing_or_hash_mismatch": 0,
+    "unrecorded_business_files": 0,
+    "sample_entries": 8,
+    "sample_csv_entries": 6,
+    "has_fix_record": true,
+    "has_resource_test": true
+  },
+  "delivery_verify": {
+    "passed": true,
+    "rows": 180,
+    "unchanged_model_arrays": 24,
+    "independent_process_restore": true,
+    "import_creates_new_id": true,
+    "projects": 2,
+    "sample_list_count": 6,
+    "sample_load_rows": 1801,
+    "sample_identity": "synthetic",
+    "sample_detection_ok": true,
+    "requests_httpx_external_requests_forbidden": true,
+    "env_file_present": false,
+    "mcp_file_present": false
+  },
+  "code_gates": {
+    "python_tests": 622,
+    "check_ci": "passed (secret check 9/9)",
+    "frontend_tests": 361,
+    "frontend_build": "passed",
+    "contract_exports": 22
+  },
+  "limitations": [
+    "复用本机依赖；不是异机安装或真实队友电脑验收",
+    "未调用真实 DeepSeek、地图服务或语义 RAG",
+    "R01-R03 故障注入是受控条件，不代表真实磁盘损坏或权限故障",
+    "N04-N07 的异机、真实服务与完整交互验收仍未完成"
+  ]
+}
