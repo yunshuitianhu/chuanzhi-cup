@@ -65,8 +65,11 @@ uvicorn backend.main:app --reload --port 8002    # 仅 API 开发（接口文档
 streamlit run app.py                             # 原 Streamlit 版（保留作对照/快速自检）
 python -m water_quality_mcp.server               # MCP Server（stdio）
 python scripts/build_rag_index.py                # 重建 RAG 索引（缺模型缓存时可能下载数百 MB）
-python scripts/prepare_sample_data.py            # 从工作簿源重新生成示例 CSV；默认不覆盖不同内容
-python scripts/materialize_sample_workbooks.py   # 把 V2 生成器载荷写成工作簿，供 --source-dir 使用
+python scripts/prepare_sample_data.py            # 从工作簿源导出示例 CSV；默认源是 V1，勿用 --force 覆盖当前 V2
+# V2 重建（不要覆盖 仿真数据/）：generate_synthetic_monitoring.py
+#   → materialize_sample_workbooks.py（需 --input/--output）
+#   → prepare_sample_data.py --source-dir <V2工作簿> --version-prefix v2 --force
+# 完整命令与限制见 docs/仿真示例V2路线与坐标修复_20261028.md
 ```
 
 Windows 入口：`start_web.cmd` / `start_web.cmd --check --port 5199`。指定解释器：
@@ -138,6 +141,7 @@ python scripts/verify_delivery.py --output-dir <新的空目录>
 
 打包器使用 `git archive HEAD`，拒绝未提交源码、未跟踪文件（`work/` 等运行目录除外）和被跟踪的本机配置；
 不包含 `.env`、用户项目、模型缓存、`.rag_index/`、原始 `仿真数据/`。包内 `delivery-manifest.json` 记录实际 revision。
+现有 `work/delivery_20261028_r2.zip` 生成于 V2 样本之前，包内仍是 V1；当前源码的新包必须重新构建并核对 manifest 中的 V2 版本。
 
 ### 浏览器验收
 
