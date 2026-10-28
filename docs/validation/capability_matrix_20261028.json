@@ -33,7 +33,7 @@
     "F06": {"status": "passed_existing", "actual": "国控失败保留上次结果；离线目录与实时读数分开", "tests": ["test_third_review_regressions.py", "test_portability_regressions.py"]},
     "F07": {"status": "passed_existing", "actual": "高德/星图缺 Key 或上游失败单独提示；轨迹/表格/趋势仍可用；可切换底图", "tests": ["test_maps_regressions.py", "frontend/tests/amapLayer.test.mjs"]},
     "F08": {"status": "passed_existing", "actual": "SSE 缺少终止帧不判成功；停止/重试可用", "tests": ["frontend/tests/agentStream.test.mjs", "test_agent_flow_regressions.py"]},
-    "F09": {"status": "passed", "actual": "失败后原问题恢复到输入框，引用/附件保留，重试入口可用", "tests": ["frontend:服务失败后保留原问题、引用和重试入口", "frontend:上下文409保留原问题"]},
+    "F09": {"status": "passed", "actual": "失败后原问题恢复到输入框，引用上下文保留，重试入口可用；附件字节保留由既有媒体回归覆盖", "tests": ["frontend:服务失败后保留原问题、引用和重试入口", "frontend:上下文409保留原问题"]},
     "F10": {"status": "passed_existing", "actual": "项目/版本切换后迟到结果不进入新项目", "tests": ["frontend/tests/projectStore.test.mjs", "frontend/tests/questionContextStore.test.mjs"]},
     "F11": {"status": "passed_existing", "actual": "无视频步骤跳过，监测分析继续", "tests": ["test_web_regressions.py", "test_agent_progress_regressions.py"]},
     "F12": {"status": "passed_existing", "actual": "图片发送/读取失败不声称已看图；图片字节不写入历史", "tests": ["test_vision_media_regressions.py"]}
