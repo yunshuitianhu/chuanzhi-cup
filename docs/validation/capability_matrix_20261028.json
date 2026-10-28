@@ -10,7 +10,7 @@
   "tests": {
     "capability_matrix": "tests/test_capability_matrix_regressions.py",
     "python_full": {"count": 641, "result": "OK"},
-    "frontend_full": {"count": 362, "result": "passed"},
+    "frontend_full": {"count": 363, "result": "passed"},
     "contracts": 22,
     "check_ci": "passed (secret check 9/9)"
   },

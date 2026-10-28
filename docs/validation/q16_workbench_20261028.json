@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-28",
+  "purpose": "Q16 协同研判工作台实现与本机单轮真实流程验收",
+  "build": {
+    "frontend": "production build served by scripts/serve_web.py on port 5187",
+    "python": "3.14.0, clean CI venv for local services",
+    "sample": "S01 V2, 1801 rows, synthetic"
+  },
+  "workbench_states": {
+    "empty": {
+      "data": "未载入数据",
+      "question": "未提出",
+      "progress": "尚未分析",
+      "evidence": "等待数据",
+      "actions": [
+        "数据与示例",
+        "输入问题",
+        "等待数据",
+        "载入示例"
+      ]
+    },
+    "loaded_s01": {
+      "data": "1801 条记录 · 仿真",
+      "question": "未提出",
+      "progress": "已完成基础筛查",
+      "evidence": "0 个预警点",
+      "actions": [
+        "数据与示例",
+        "输入问题",
+        "查看图表",
+        "核对证据并安排复测"
+      ]
+    },
+    "auto_analysis_partial": {
+      "data": "1801 条记录 · 仿真",
+      "question": "未提出（自动分析使用内部请求，不伪造用户问题）",
+      "progress": "上轮部分完成",
+      "evidence": "0 个预警点",
+      "run": {
+        "elapsed_s": 26,
+        "tool_calls": 11,
+        "unresolved_failures": 1,
+        "report_generated": true,
+        "failure_scope": "治理案例检索失败：当前干净环境缺少 chromadb/sentence_transformers；报告已生成，未恢复该失败",
+        "draft_cards": "4 张待确认研判卡片（草稿，未写入排查板）"
+      },
+      "actions": [
+        "数据与示例",
+        "输入问题",
+        "查看图表",
+        "核对证据并安排复测"
+      ],
+      "retry_entry": "从当前数据重新执行上一请求（可见；未重复执行以避免无意义收费调用）"
+    }
+  },
+  "layout": {
+    "desktop_1280": {
+      "overflow_x": 0,
+      "screenshot": "docs/validation/q16_workbench_loaded_1280.png"
+    },
+    "mobile_390": {
+      "overflow_x": 0,
+      "drawer_load_flow": true,
+      "screenshot": "docs/validation/q16_workbench_loaded_390.png"
+    },
+    "auto_analysis_screenshot": "docs/validation/q16_auto_analysis_partial_1280.png",
+    "actions": {
+      "investigation_board_opens": true,
+      "board_mounted": true
+    }
+  },
+  "tests": {
+    "frontend": {
+      "count": 363,
+      "result": "passed",
+      "new": "工作台状态串起数据、当前问题、分析进度和下一步"
+    },
+    "python": {
+      "count": 641,
+      "result": "OK"
+    },
+    "contracts": 22,
+    "check_ci": "passed (secret check 9/9)"
+  },
+  "limitations": [
+    "真实模型只执行一轮自动分析；未重复点击失败重试以控制收费调用",
+    "本轮治理案例检索因干净环境缺可选依赖失败，因此状态为部分完成，不是完整成功报告",
+    "390px 为浏览器视口模拟，不是真机软键盘或读屏器验收",
+    "工作台不新增独立状态存储；仍以会话/项目/revision 为准",
+    "Q17 性能画像与真实用户走查仍未完成"
+  ]
+}
