@@ -40,7 +40,7 @@ Q08已增加核心类型检查及Windows/Ubuntu CI工作流，本机干净副本
 
 DeepSeek 的 Key 只需在启用 AI 功能时配置；模型名和 BASE_URL 固定在代码中，换 Key 不会切换供应商。基础安装与可选 RAG 的依赖、模型缓存和索引是分开的：首次实际语义检索或构建索引且缺缓存时，可能下载数百 MB 模型；只复制 Chroma 数据库不等于完整离线 RAG。
 
-Windows 使用 Python 3.12 为已验证推荐。需要指定解释器时，在 CMD 执行：
+Python 3.11 及以上；本机 2026-10-28 已在 Python 3.14.0 上完成 603 项回归、前端构建、干净 venv 基础依赖安装和交付副本验收。3.12 是早期锁定环境记录，当前机器未保留该解释器。需要指定解释器时，在 CMD 执行：
 
 ```bat
 set "WQ_PYTHON=C:\实际安装目录\python.exe"
@@ -157,8 +157,8 @@ python scripts/validate_inverse_robustness.py
 
 | 项 | 版本 |
 |---|---|
-| Python | 推荐3.12；当前锁定依赖与交付检查使用3.12，至少3.11 |
-| Node.js | 构建前端使用Node.js 22或24；已构建版本运行时无需Node.js服务 |
+| Python | 至少3.11；本机以3.14.0验证，3.12为早期锁定记录 |
+| Node.js | 本机以24.15.0实际构建；22未在本轮复验；已构建版本运行时无需Node.js服务 |
 | 网络 | 需可访问 `api.deepseek.com` |
 
 ## 安装

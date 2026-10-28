@@ -52,7 +52,7 @@ def check_port(port: int) -> None:
 
 def preflight(port: int):
     if sys.version_info < (3, 11):
-        raise RuntimeError('请使用Python 3.11或更新版本；当前锁定依赖在Python 3.12环境验证。')
+        raise RuntimeError('请使用Python 3.11或更新版本；本机已在Python 3.14.0完成回归和交付副本验收。')
     check_frontend(ROOT / 'frontend' / 'dist')
     try:
         importlib.import_module('uvicorn')
