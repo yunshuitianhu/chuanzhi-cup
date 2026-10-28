@@ -18,6 +18,25 @@ RUNTIME_PREFIXES = ('.rag_index/', 'work/', 'data/projects/', '仿真数据/')
 PRIVATE_NAMES = {'.env', '.mcp.json', 'secrets.toml'}
 
 
+def worktree_problems(changed: list[str], untracked: list[str]) -> list[str]:
+    """打包前的工作区门禁：未提交源码和未跟踪文件都不能被静默漏掉。
+
+    git archive 只打包已提交文件；git diff HEAD 不枚举未跟踪文件。两项
+    必须同时检查。运行目录（work、用户项目、向量索引、原始仿真资料）按
+    既有策略排除，不因本检查误进交付包。
+    """
+    problems = []
+    dirty = [name for name in changed if name and not name.startswith(RUNTIME_PREFIXES)]
+    if dirty:
+        problems.append('存在未提交源码修改，请验证并提交后再打包')
+    pending = [name for name in untracked if name and not name.startswith(RUNTIME_PREFIXES)]
+    if pending:
+        shown = '、'.join(sorted(pending)[:10])
+        more = f' 等 {len(pending)} 个' if len(pending) > 10 else ''
+        problems.append(f'存在未跟踪文件，请提交、移出工作区或加入忽略规则后再打包：{shown}{more}')
+    return problems
+
+
 def source_allowed(name: str) -> bool:
     path = PurePosixPath(name)
     if path.is_absolute() or '..' in path.parts or '\\' in name:
@@ -102,8 +121,11 @@ def main():
     if args.output.suffix.lower() != '.zip':
         parser.error('--output必须是新的.zip文件路径')
     changed=subprocess.check_output(['git','diff','--name-only','-z','HEAD'],cwd=ROOT).decode('utf-8').split('\0')
-    if any(name and not name.startswith(RUNTIME_PREFIXES) for name in changed):
-        parser.error('存在未提交源码修改，请验证并提交后再打包；运行缓存不纳入交付')
+    untracked=subprocess.check_output(
+        ['git','ls-files','--others','--exclude-standard','-z'],cwd=ROOT).decode('utf-8').split('\0')
+    problems=worktree_problems(changed,untracked)
+    if problems:
+        parser.error('；'.join(problems))
     revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     source=subprocess.check_output(['git','archive','--format=zip','HEAD'],cwd=ROOT)
     result=write_bundle(source,ROOT/'frontend/dist',args.output,revision)

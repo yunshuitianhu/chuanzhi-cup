@@ -15,7 +15,7 @@ from backend.main import app as api_app
 from backend.session import STORE
 from backend.web import create_app
 from scripts.serve_web import check_frontend, check_port
-from scripts.package_delivery import write_bundle
+from scripts.package_delivery import write_bundle, worktree_problems
 from scripts.verify_delivery import fingerprint
 
 
@@ -134,6 +134,21 @@ class DeliveryTests(unittest.TestCase):
             self.assertEqual(json.loads(archive.read('delivery-manifest.json'))['revision'],'test-revision')
         with self.assertRaises(FileExistsError):
             write_bundle(source.getvalue(),self.dist,output,'test-revision')
+
+    def test_packaging_blocks_uncommitted_and_untracked_source_but_ignores_runtime_paths(self):
+        self.assertEqual(worktree_problems([], []), [])
+        dirty = worktree_problems(['backend/new.py'], [])
+        self.assertEqual(len(dirty), 1)
+        self.assertIn('未提交源码', dirty[0])
+        pending = worktree_problems([], ['scripts/new_feature.py'])
+        self.assertEqual(len(pending), 1)
+        self.assertIn('未跟踪文件', pending[0])
+        self.assertIn('scripts/new_feature.py', pending[0])
+        for name in ('work/tmp.zip', 'data/projects/x/projects.sqlite3',
+                     '.rag_index/chroma.sqlite3', '仿真数据/a.xlsx'):
+            self.assertEqual(worktree_problems([name], [name]), [], name)
+        many = worktree_problems([], [f'src/{index}.py' for index in range(12)])
+        self.assertIn('等 12 个', many[0])
 
     def test_bundle_requires_sample_manifest_and_hashes(self):
         source=BytesIO()
