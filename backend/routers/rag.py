@@ -82,7 +82,7 @@ def status(session: Session = Depends(get_session)) -> dict:
         'retrieval_verified': verified, 'state': state, 'notice': notice,
         'missing_dependencies': missing, 'has_index': has_index, 'chunks': chunks,
         'source_documents': doc_count, 'collection': COLLECTION_NAME,
-        'embedding_model': core.configured_embedding_model(), 'index_dir': INDEX_DIR, 'error': error}
+        'embedding_model': core.configured_embedding_model(), 'error': error}
 
 
 

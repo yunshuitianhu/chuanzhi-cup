@@ -102,6 +102,13 @@ export interface DataStatus {
   time_range?: string[]; detection_algorithm_version?: string | null; detection_outdated?: boolean
   sample_meta?: JsonObject | null
 }
+export interface RagStatus {
+  available: boolean; index_ready: boolean; stage: string
+  retrieval_verified: boolean; state: string; notice: string
+  missing_dependencies: string[]; has_index: boolean; chunks: number | null
+  source_documents: number; collection: string; embedding_model: string
+  error: string | null
+}
 export interface Preview { columns: string[]; rows: JsonObject[]; total: number }
 export interface BlackSpots { result: JsonObject; cluster_fields: string[] }
 export interface AnalysisResults {

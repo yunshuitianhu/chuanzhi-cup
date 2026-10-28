@@ -48,6 +48,7 @@ def export(output):
         response('Config','/api/config')
         response('SampleList','/api/data/samples')
         response('DataStatus','/api/data/status')
+        response('RagStatus','/api/rag/status')
         response('ProjectState','/api/projects')
         response('AgentRun','/api/agent/run')
         session = STORE.get(sid)
