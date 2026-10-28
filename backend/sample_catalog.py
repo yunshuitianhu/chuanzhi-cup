@@ -16,6 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_DIR = PROJECT_ROOT / 'data' / 'samples'
 MANIFEST_PATH = SAMPLE_DIR / 'manifest.json'
 MAX_SAMPLE_BYTES = 20 * 1024 * 1024
+MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,32}$')
 SHA_RE = re.compile(r'^[0-9a-f]{64}$')
 
@@ -46,6 +47,22 @@ class SampleResourceError(SampleCatalogError):
 
 def _fail(message: str):
     raise SampleResourceError(message)
+
+
+def _read_bounded(path: Path, limit: int, label: str) -> bytes:
+    """有界读取；OSError 统一转为可展示的资源错误，不泄露本机路径。"""
+    try:
+        with path.open('rb') as file:
+            return file.read(limit + 1)
+    except OSError as exc:
+        raise SampleResourceError(f'{label}无法读取；请检查 data/samples 资源或目录权限') from exc
+
+
+def _require_regular_file(candidate: Path, directory: Path, message: str) -> Path:
+    path = candidate.resolve()
+    if candidate.is_symlink() or not path.is_relative_to(directory) or not path.is_file():
+        _fail(message)
+    return path
 
 
 def _text(value, key, limit, *, required=True):
@@ -80,16 +97,24 @@ def _validate_sample(item: Any, seen: set[str]) -> dict:
             or not filename.lower().endswith('.csv') or '仿真' not in filename):
         _fail(f'示例 {ident} 的文件名必须是含“仿真”的普通 CSV')
     directory = SAMPLE_DIR.resolve()
-    path = (directory / filename).resolve()
-    if not path.is_relative_to(directory) or path.is_symlink() or not path.is_file():
-        _fail(f'示例 {ident} 的资源文件不存在或路径无效')
     size = item['size_bytes']
     if type(size) is not int or not 0 < size <= MAX_SAMPLE_BYTES:
         _fail(f'示例 {ident} 的 size_bytes 无效')
     digest = item['sha256']
     if not isinstance(digest, str) or not SHA_RE.fullmatch(digest):
         _fail(f'示例 {ident} 的 sha256 无效')
-    actual = path.read_bytes()
+    path = _require_regular_file(directory / filename, directory,
+                                 f'示例 {ident} 的资源文件不存在或路径无效')
+    try:
+        actual_size = path.stat().st_size
+    except OSError as exc:
+        raise SampleResourceError(f'示例 {ident} 的资源无法读取；请检查 data/samples 资源或目录权限') from exc
+    # 先按实际大小拦截超限文件，再用有界读取复核，避免只信任清单声明值。
+    if actual_size > MAX_SAMPLE_BYTES:
+        _fail(f'示例 {ident} 的实际文件超过大小上限')
+    if actual_size != size:
+        _fail(f'示例 {ident} 的实际大小与清单不一致')
+    actual = _read_bounded(path, size, f'示例 {ident} 的资源')
     if len(actual) != size:
         _fail(f'示例 {ident} 的实际大小与清单不一致')
     if sha256(actual).hexdigest() != digest:
@@ -119,10 +144,12 @@ def _validate_sample(item: Any, seen: set[str]) -> dict:
 
 
 def load_manifest() -> dict:
+    raw = _read_bounded(MANIFEST_PATH, MAX_MANIFEST_BYTES, '内置示例清单')
+    if len(raw) > MAX_MANIFEST_BYTES:
+        raise SampleResourceError('内置示例清单超过大小上限；请检查 data/samples/manifest.json')
     try:
-        raw = MANIFEST_PATH.read_bytes()
         payload = json.loads(raw)
-    except (OSError, ValueError, TypeError) as exc:
+    except (ValueError, TypeError) as exc:
         raise SampleResourceError('内置示例清单不可用；请检查 data/samples/manifest.json') from exc
     if not isinstance(payload, dict) or set(payload) != TOP_KEYS:
         _fail('内置示例清单字段不完整或包含未知字段')
@@ -156,11 +183,10 @@ def get_sample(sample_id: str) -> tuple[dict, bytes]:
     item = next((entry for entry in manifest['samples'] if entry['id'] == sample_id), None)
     if item is None:
         raise SampleNotFound('没有该示例')
-    path = (SAMPLE_DIR.resolve() / item['file']).resolve()
-    try:
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise SampleResourceError('示例文件无法读取；请检查 data/samples 资源') from exc
+    directory = SAMPLE_DIR.resolve()
+    path = _require_regular_file(directory / item['file'], directory,
+                                 '示例文件不存在或路径无效；请检查 data/samples 资源')
+    raw = _read_bounded(path, item['size_bytes'], '示例文件')
     if len(raw) != item['size_bytes'] or sha256(raw).hexdigest() != item['sha256']:
         raise SampleResourceError('示例文件大小或哈希校验失败；请重新准备示例数据')
     return item, raw
