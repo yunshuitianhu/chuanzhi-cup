@@ -30,7 +30,7 @@ os.chdir(PROJ)
 # 注意：环境里存在指向 D:\aiRAG 的 editable 安装，短路径 water_quality_mcp.X
 # 会解析到那份代码而非本项目，故此处必须用全路径。
 sys.path.insert(0, PROJ)
-from scripts.secret_scan import metadata_hash_spans
+from scripts.secret_scan import is_known_text_hash, metadata_hash_spans
 
 results = []
 
@@ -121,14 +121,16 @@ for f in tracked:
         data = open(f, "rb").read()
     except OSError:
         continue
-    hash_spans = metadata_hash_spans(f, data)
-    for label, pat in (("sk-密钥", PAT_SK), ("32位hex", PAT_HEX32), ("64位hex", PAT_HEX64)):
+    hash_spans = {64: metadata_hash_spans(f, data),
+                  32: metadata_hash_spans(f, data, width=32)}
+    for label, pat, width in (("sk-密钥", PAT_SK, 0), ("32位hex", PAT_HEX32, 32),
+                              ("64位hex", PAT_HEX64, 64)):
         for m in pat.finditer(data):
-            if label == '64位hex' and m.span() in hash_spans:
-                continue  # 仅受限元数据字段；正文同值、32位值和真实.env值仍检查。
+            if width and m.span() in hash_spans[width]:
+                continue  # 仅受限元数据字段；正文同值、非声明字段和真实.env值仍检查。
             hits = m.group(0).decode("ascii", "ignore")
-            # 跳过明显的非密钥：全同字符、连续序列等
-            if len(set(hits)) <= 3:
+            # 跳过明显的非密钥：全同字符、连续序列等；以及已核实的内容哈希。
+            if len(set(hits)) <= 3 or is_known_text_hash(hits):
                 continue
             suspects.append((f, label, hits[:8] + "..."))
 

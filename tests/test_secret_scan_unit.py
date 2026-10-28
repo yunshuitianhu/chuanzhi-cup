@@ -1,6 +1,6 @@
 import json
 import unittest
-from scripts.secret_scan import metadata_hash_spans
+from scripts.secret_scan import is_known_text_hash, metadata_hash_spans
 
 HASH = '0123456789abcdef' * 4
 
@@ -29,6 +29,30 @@ class SecretMetadataTests(unittest.TestCase):
 
     def test_32_character_values_are_never_exempt(self):
         self.assertFalse(metadata_hash_spans('docs/validation/a.json',self.raw({'sha256':HASH[:32]})))
+
+    def test_sample_manifest_sha256_is_metadata(self):
+        raw=self.raw({'samples':[{'id':'S01','sha256':HASH}]})
+        self.assertEqual(len(metadata_hash_spans('data/samples/manifest.json',raw)),1)
+
+    def test_vision_evidence_hashes_are_metadata(self):
+        raw=self.raw({'tests':[{'vision':{'images':[{'sha256':HASH,
+            'asset_id':HASH[:32],'asset_revision':HASH,'video_revision':HASH}]}}]})
+        self.assertEqual(len(metadata_hash_spans('docs/validation/a.json',raw)),3)
+        self.assertEqual(len(metadata_hash_spans('docs/validation/a.json',raw,width=32)),1)
+
+    def test_asset_id_outside_vision_is_not_exempt(self):
+        raw=self.raw({'asset_id':HASH[:32]})
+        self.assertFalse(metadata_hash_spans('docs/validation/a.json',raw,width=32))
+        self.assertFalse(metadata_hash_spans('data/samples/manifest.json',raw,width=32))
+
+    def test_image_sha256_metadata_is_exempt_but_answer_text_is_not(self):
+        raw=self.raw({'tests':[{'product_chat':{'image_sha256':HASH}},
+                               {'answer':'data_version: '+HASH}]})
+        self.assertEqual(len(metadata_hash_spans('docs/validation/a.json',raw)),1)
+
+    def test_only_known_text_hash_is_allowlisted(self):
+        self.assertTrue(is_known_text_hash('c5acfb7e952f3bdb0e4c9c01a57b2a12d9fca1f3d53a961fbceaf5139dcb7c1b'))
+        self.assertFalse(is_known_text_hash(HASH))
 
     def test_escaped_json_inside_model_text_is_not_metadata(self):
         raw = self.raw({'answer':json.dumps({'sha256':HASH})})
