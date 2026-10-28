@@ -39,7 +39,7 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 | `docs/Windows安装与运行环境验证_20261028.md` | 实际 Python/Node、干净 venv、启动器、带空格路径 |
 | `docs/代码审计与修改方案.md`、`docs/代码审计-第二轮发现.md` | 已确认缺陷、证据等级、修改方案 |
 
-> 根目录的 `AGENTS.md` 是未跟踪的旧副本，不作为本项目指令；以本文件和 `docs/` 为准。
+> 根目录的 `AGENTS.md` 是已被 `.gitignore` 忽略的旧副本，不作为本项目指令；以本文件和 `docs/` 为准。
 
 ## 常用命令
 
@@ -179,11 +179,15 @@ backend/web.py             内存快照 index/assets；四页入口；未知路�
 - `backend/data_service.py` — 上传与示例共用的 `parse_monitoring` / `apply_monitoring`；
   候选数据先解析，成功后才应用到会话。
 - `backend/sample_catalog.py` + `data/samples/` — 只按 `manifest.json` 白名单读取示例；
-  校验文件名、CSV 后缀、“仿真”、字节数、SHA-256、路径逃逸；清单/文件损坏返回 503，不返回空列表。
+  校验文件名、CSV 后缀、“仿真”、实际字节数、SHA-256、路径逃逸；清单/CSV 走 `_read_bounded`
+  （2MB/20MB 上限），权限/消失/超限统一为 503 资源错误，不返回空列表。
 - `backend/routers/data.py` — 上传/视频/状态 + `GET /api/data/samples`、`POST /api/data/samples/{id}/load`；
-  载入先保存当前项目，再创建独立演示项目；`detect=true` 的筛查失败不回滚已载入数据；`df.attrs['sample_meta']` 随项目保存。
+  载入先保存当前项目，再以候选方式创建独立演示项目（不提前改绑定）；`detect=true` 的筛查失败不回滚已载入数据；
+  `df.attrs['sample_meta']` 随项目保存。
 - `backend/projects.py` + `backend/project_codec.py` — SQLite 项目索引 + 版本化 `.wqproj` 快照；
   当前 `schema_version=4`，包含 `media_assets`/`media/<asset_id>`；schema 1—3 可读并补空附件。
+  新项目发布走 `write(..., bind_session=False)` → `activate_new` → `prepare_snapshot`/`bind`/`publish_snapshot`；
+  失败恢复旧绑定，`discard_candidate` 只删本次未绑定候选。
 - `backend/media_assets.py` + `backend/routers/media.py` — 图片真实解码、规范化、哈希、按会话隔离；
   `backend/vision.py` 把选帧/附件加载成多模态 `image_url`，图片字节不写入 SSE/历史/`full_messages`。
 - `backend/project_data.py` — 只读业务数据目录/分页/统计，供 `read_project_data` 等工具使用。
@@ -327,11 +331,14 @@ HEC-RAS 非恒定流其实可用，`hecras_bridge.py` 注释的“7.0 格式不�
 不要手改 CSV 或 manifest；需要重生成时跑 `scripts/prepare_sample_data.py`，它默认不覆盖不同内容。
 示例身份固定为 `synthetic`，`sample_meta` 随项目保存，不要改客户端传入的身份。
 
-**12. 示例载入的顺序：先校验，再保存，再切独立演示项目**
+**12. 示例载入/项目发布：候选写入不能提前改绑定**
 
-`POST /api/data/samples/{id}/load` 先解析候选 CSV，成功后才保存当前项目并创建独立演示项目；
-不要改成“先清空会话、再找文件”。筛查失败只标记“数据已载入、检测未完成”，不回滚数据；S01 零热点是有效结果。
-载入/检测不要暗中触发收费 AI、实时 POI 或联网分析。
+`POST /api/data/samples/{id}/load` 先解析候选 CSV 并保存当前项目，再用
+`write(..., new=True, bind_session=False)` 创建候选；`activate_new` 回读并物化快照后才 `bind` + 发布内存。
+任何一步失败都要恢复旧绑定，并只清理本次创建且未被绑定的候选（`discard_candidate`）。不要改回
+“`write(new=True)` 直接绑定、之后再读快照/调 `apply_snapshot`”——那样失败后内存仍是旧项目，重启却会打开新项目。
+空项目创建（`from_current=false`）、导入和打开共用同一发布路径；筛查失败只标记“数据已载入、检测未完成”，
+不回滚数据；S01 零热点是有效结果。载入/检测不要暗中触发收费 AI、实时 POI 或联网分析。
 
 **13. 交付打包只认已提交源码**
 
@@ -362,6 +369,12 @@ HEC-RAS 非恒定流其实可用，`hecras_bridge.py` 注释的“7.0 格式不�
 
 RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单元数据。新增接口时不要返回项目根、`.env` 路径、
 调用栈、完整文件正文或隐藏真值。错误信息要可操作但不泄露路径/凭证。
+
+**18. 示例资源读取必须有界，OSError 必须转 503**
+
+`sample_catalog._read_bounded` 最多读 `limit+1` 字节；清单上限 2MB、CSV 上限 20MB，先用 `stat()` 检查实际大小，
+再比较声明大小/SHA-256。不要用无界 `Path.read_bytes()` 读取清单或 CSV，也不要把 `OSError` 泄漏成 500。
+校验和调用方解析必须使用同一份返回字节；新增资源类型时沿用这套边界。
 
 ## 与苗圃杯原项目的关系
 
