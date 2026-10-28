@@ -25,8 +25,9 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 
 - N01—N03 内置六组仿真示例、一键载入、契约/打包已完成本机受控验收（N03 的 S-T13/S-T21/S-T26 未单独自动化）；
 - N04/N05 配置说明与 Windows 环境为部分完成；N06 河道引导、N07 字号为部分/浏览器验收；N08 只完成少量低风险项；
-- 最近记录：609 项 Python（干净 CI venv）、361 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
-- 交付 ZIP 由 revision `b075bd0` 生成，位于 gitignored 的 `work/`，需单独发送；源码 HEAD 之后只多文档提交。
+- 最近记录：622 项 Python（干净 CI venv）、361 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
+- 外部核验 R01—R03 已修复：项目发布失败回滚、示例资源 503 边界、打包未跟踪文件门禁；
+- 新交付 ZIP 为 `work/delivery_20261028_r2.zip`（R01—R03 修复后重建）；旧包 revision `b075bd0` 仅作历史记录；`work/` 被忽略，ZIP 需单独发送。
 
 **先读**：
 
@@ -94,7 +95,7 @@ npm run check                    # typecheck + node --test + build（推荐门�
 ### 测试与门禁
 
 ```bash
-# Python 全量（当前 609 项；tests 不是 package，不要用 python -m unittest tests.xxx）
+# Python 全量（当前 622 项；tests 不是 package，不要用 python -m unittest tests.xxx）
 python -m unittest discover -s tests -p "test_*.py"
 
 # 单个 unittest 文件
@@ -133,8 +134,8 @@ python scripts/package_delivery.py --output work/delivery_<日期>.zip
 python scripts/verify_delivery.py --output-dir <新的空目录>
 ```
 
-打包器使用 `git archive HEAD`，拒绝未提交源码和被跟踪的本机配置；不包含 `.env`、用户项目、
-模型缓存、`.rag_index/`、原始 `仿真数据/`。包内 `delivery-manifest.json` 记录实际 revision。
+打包器使用 `git archive HEAD`，拒绝未提交源码、未跟踪文件（`work/` 等运行目录除外）和被跟踪的本机配置；
+不包含 `.env`、用户项目、模型缓存、`.rag_index/`、原始 `仿真数据/`。包内 `delivery-manifest.json` 记录实际 revision。
 
 ### 浏览器验收
 
@@ -334,8 +335,8 @@ HEC-RAS 非恒定流其实可用，`hecras_bridge.py` 注释的“7.0 格式不�
 
 **13. 交付打包只认已提交源码**
 
-`scripts/package_delivery.py` 用 `git archive HEAD`，拒绝未提交源码和被跟踪的本机配置；
-`work/` 在 `.gitignore` 中，ZIP 需单独发送。包内 `delivery-manifest.json` 记录 revision；ZIP 哈希不写入包内文件
+`scripts/package_delivery.py` 用 `git archive HEAD`，拒绝未提交源码、未跟踪文件（`work/`、用户项目、
+`.rag_index/`、`仿真数据/` 等运行目录除外）和被跟踪的本机配置；`work/` 在 `.gitignore` 中，ZIP 需单独发送。包内 `delivery-manifest.json` 记录 revision；ZIP 哈希不写入包内文件
 （会自引用）。解压到新的空目录、确认无 `.env`/`.mcp.json` 后跑 `scripts/verify_delivery.py`。
 不要拿未提交工作区代码冒充某个 revision。
 
@@ -376,6 +377,7 @@ RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单�
 ## 文档索引
 
 - `docs/交付说明_20261028.md` — 交付物/安装/验收/限制。
+- `docs/交付核验修复记录_20261028.md` — R01—R03 根因、发布顺序、503 边界、打包门禁与残余风险。
 - `docs/任务队列.md` — Q/N 任务状态与日期记录。
 - `docs/内置仿真示例与一键载入实施记录_20261027.md` — N01—N08 实施与证据。
 - `docs/Windows安装与运行环境验证_20261028.md` — 干净 venv/启动器/带空格路径。
