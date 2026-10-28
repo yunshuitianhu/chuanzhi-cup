@@ -3,7 +3,7 @@
   "scope": "已提交源码生成的正式交付包，并在无 .env 的独立解压副本中做两阶段进程验收；复用本机依赖，不是异机安装、真实模型或现场准确率验收",
   "package": {
     "passed": true,
-    "files": 555,
+    "files": 577,
     "manifest_note": "实际源码 revision 由包内 delivery-manifest.json 记录；ZIP 文件数与 SHA-256 记录在仓库实施记录中，避免包内文件自引用自身哈希",
     "sample_entries": [
       "data/samples/README.md",
