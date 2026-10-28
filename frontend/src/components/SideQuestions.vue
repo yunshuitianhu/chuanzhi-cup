@@ -196,22 +196,22 @@ button { min-height:36px; transition:border-color var(--duration-fast),backgroun
 button:hover:not(:disabled) { border-color:var(--c-accent); }
 button:disabled { opacity:.45; }
 header > button { flex-shrink:0; }
-.threads { font-size:11px; color:var(--c-sub); display:flex; flex-direction:column; gap:7px; }
+.threads { font-size:12px; color:var(--c-sub); display:flex; flex-direction:column; gap:7px; }
 select { width:100%; min-height:39px; max-width:100%; background:var(--c-bg); }
 .side-history { flex:1; min-height:100px; overflow:auto; overscroll-behavior:contain; padding:2px 3px 8px 0; overflow-wrap:anywhere; }
 .side-message { margin:20px 0; font-size:13px; line-height:1.8; }
 .side-message.user { padding:11px 13px; background:var(--c-surface-2); border-radius:var(--radius-sm); }
 .side-message p { white-space:pre-wrap; margin:5px 0 0; }
-.side-message strong { font-size:11px; font-weight:500; color:var(--c-sub); }
+.side-message strong { font-size:12px; font-weight:500; color:var(--c-sub); }
 .side-message :deep(.report-markdown) { font-size:13px; line-height:1.85; margin-top:7px; }
 .failure { font-size:12px; color:#ffb7a7; margin:0; line-height:1.7; overflow-wrap:anywhere; }
 .side-actions { display:flex; gap:7px; flex-wrap:wrap; }
-.side-actions button { font-size:11px; min-height:32px; }
+.side-actions button { font-size:12px; min-height:32px; }
 .send-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:9px; flex-wrap:wrap; }
 .side-tools { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
-.side-attach { font-size:11px; min-height:30px; padding:4px 9px; background:transparent; color:var(--c-sub); }
+.side-attach { font-size:12px; min-height:30px; padding:4px 9px; background:transparent; color:var(--c-sub); }
 .side-attach:hover:not(:disabled) { border-color:var(--c-accent); color:var(--c-ink); }
-.send-row span { font-size:10px; color:var(--c-sub); }
+.send-row span { font-size:12px; color:var(--c-sub); }
 .send-row button { background:var(--c-accent); border-color:var(--c-accent); color:#081823; font-weight:600; padding-inline:16px; }
 textarea { width:100%; resize:vertical; min-height:88px; max-height:180px; font-size:13px; line-height:1.7; background:var(--c-bg); }
 textarea::placeholder { color:var(--c-sub); opacity:.85; }

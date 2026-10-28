@@ -185,10 +185,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 .case header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .case h4 { margin: 0; font-size: 13px; line-height: 1.5; }
-.sim { border: 1px solid; border-radius: 20px; padding: 1px 9px; font-size: 11px; font-weight: 600; flex-shrink: 0; }
-.tags { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0; font-size: 11px; color: var(--c-sub); }
-.methods { margin: 6px 0 0; font-size: 11px; color: var(--c-sub); line-height: 1.7; }
-details { margin-top: 8px; font-size: 11px; }
+.sim { border: 1px solid; border-radius: 20px; padding: 1px 9px; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.tags { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0; font-size: 12px; color: var(--c-sub); }
+.methods { margin: 6px 0 0; font-size: 12px; color: var(--c-sub); line-height: 1.7; }
+details { margin-top: 8px; font-size: 12px; }
 details summary { cursor: pointer; color: var(--c-sub); }
 .summary { margin: 6px 0 0; color: var(--c-sub); line-height: 1.8; white-space: pre-wrap; }
 </style>

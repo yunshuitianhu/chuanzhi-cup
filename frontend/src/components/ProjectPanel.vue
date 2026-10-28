@@ -84,7 +84,7 @@ button { flex:1; min-width:0; min-height:36px; padding:7px 8px; border:1px solid
 .save-primary { border-color:var(--c-accent); color:var(--c-accent); }
 button:hover:not(:disabled) { border-color:var(--c-accent); background:var(--c-surface); }
 button:disabled { opacity:.45; cursor:default; }
-.note { font-size:11px; line-height:1.8; color:var(--c-sub); margin:6px 0 0; }
+.note { font-size:12px; line-height:1.8; color:var(--c-sub); margin:6px 0 0; }
 .restore-error { font-size:12px; color:#ffb3c1; }
 .project-options { margin-top:16px; }
 .project-help { margin-top:10px; }

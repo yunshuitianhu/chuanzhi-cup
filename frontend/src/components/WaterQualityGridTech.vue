@@ -87,24 +87,24 @@ const benchmarks = [
 .intro b { color: var(--c-ink); }
 .workflow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .step { display: flex; flex-direction: column; gap: 5px; padding: 15px; border: 1px solid var(--c-border); border-radius: 9px; background: var(--c-surface-2); }
-.step-label { font-size: 11px; }
+.step-label { font-size: 12px; }
 .step strong { color: var(--c-ink); font-size: 16px; font-weight: 650; }
-.step span:last-child { font-size: 11px; }
+.step span:last-child { font-size: 12px; }
 .step.featured { border-color: var(--c-accent); }
 .step.featured strong { color: var(--c-accent); }
-.note { margin: 9px 0; font-size: 11px; }
+.note { margin: 9px 0; font-size: 12px; }
 .benchmarks { margin-top: 20px; }
 .benchmark-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .benchmark-heading h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--c-ink); }
-.badge { padding: 2px 8px; border: 1px solid var(--c-border); border-radius: 20px; font-size: 10px; white-space: nowrap; }
+.badge { padding: 2px 8px; border: 1px solid var(--c-border); border-radius: 20px; font-size: 12px; white-space: nowrap; }
 .table-scroll { overflow-x: auto; border: 1px solid var(--c-border); border-radius: 8px; }
 table { width: 100%; min-width: 490px; border-collapse: collapse; text-align: left; font-variant-numeric: tabular-nums; }
-caption { text-align: left; padding: 9px 12px; background: var(--c-surface-2); font-size: 11px; }
+caption { text-align: left; padding: 9px 12px; background: var(--c-surface-2); font-size: 12px; }
 th, td { padding: 9px 12px; border-top: 1px solid var(--c-border); }
-thead th { font-size: 11px; font-weight: 500; }
+thead th { font-size: 12px; font-weight: 500; }
 tbody th { font-weight: 500; color: var(--c-ink); }
 .improved { font-weight: 650; color: var(--c-accent); }
-.conditions { margin-top: 13px; font-size: 11px; }
+.conditions { margin-top: 13px; font-size: 12px; }
 .conditions summary { cursor: pointer; color: var(--c-ink); }
 .conditions p { margin: 8px 0; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; margin-top: 14px; }

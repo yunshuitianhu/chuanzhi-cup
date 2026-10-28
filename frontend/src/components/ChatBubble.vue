@@ -53,9 +53,9 @@ const showSource = ref(false)
 .text{font-size:15px;white-space:pre-wrap;word-break:break-word;line-height:1.9}
 .row.tool .bubble{padding:4px 0;border:0;background:transparent}.row.tool .bubble-head{margin-bottom:2px}.row.tool .text{font-size:12px;color:var(--c-sub)}
 .row.error .bubble{border:1px solid #794354;color:#ffbdc7;background:#301f29}
-.source-toggle{flex-shrink:0;background:transparent;color:var(--c-sub);border:1px solid var(--c-border);border-radius:6px;padding:5px 9px;font-size:11px;min-height:30px}
+.source-toggle{flex-shrink:0;background:transparent;color:var(--c-sub);border:1px solid var(--c-border);border-radius:6px;padding:5px 9px;font-size:12px;min-height:30px}
 .source-toggle:hover{border-color:var(--c-accent);color:var(--c-ink)}
-.vision-note{font-size:11px;color:var(--c-sub);margin:0 0 6px}.vision-note.failed{color:var(--sev-mild)}
+.vision-note{font-size:12px;color:var(--c-sub);margin:0 0 6px}.vision-note.failed{color:var(--sev-mild)}
 @media(max-width:600px){.row{gap:9px}.avatar{width:25px;height:25px;font-size:10px}.bubble{max-width:calc(100% - 34px);padding:11px 12px}.row.user .bubble{max-width:84%}.row.assistant .bubble{max-width:calc(100% - 34px)}.text{font-size:14px}.bubble-head{gap:8px;margin-bottom:10px}}
 
 </style>

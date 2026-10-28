@@ -121,6 +121,6 @@ button:disabled{opacity:.5;cursor:default}.evidence-toggle{color:var(--c-accent)
 .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:7px;margin:12px 0}
 .facts button{text-align:left;display:flex;flex-direction:column;gap:3px}.facts strong{font-size:14px}.facts span{color:var(--c-sub)}
 .records{overflow-x:auto;max-width:100%}table{border-collapse:collapse;min-width:440px;width:100%;font-size:12px}th,td{padding:7px;border-bottom:1px solid var(--c-border);text-align:left;vertical-align:top}td:nth-child(2){min-width:115px}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--c-bg);padding:8px;border-radius:6px;max-height:300px;overflow:auto;font-size:11px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--c-bg);padding:8px;border-radius:6px;max-height:300px;overflow:auto;font-size:12px}
 .tools{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}.tools strong{width:100%}.references{margin:14px 0}a{color:var(--c-accent)}
 </style>

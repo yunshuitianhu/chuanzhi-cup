@@ -194,10 +194,10 @@ watch([() => rawResult.value?.['时间对齐']?.['时间偏移秒'], () => rawRe
   background: var(--c-surface-2); border: 1px solid var(--c-border);
   border-radius: 8px; padding: 10px 13px; display: flex; flex-direction: column; gap: 2px;
 }
-.m-label { font-size: 11px; color: var(--c-sub); }
+.m-label { font-size: 12px; color: var(--c-sub); }
 .m-val { font-size: 22px; font-weight: 700; color: var(--c-accent); }
 .m-val small { font-size: 12px; margin-left: 1px; }
-.m-sub { font-size: 11px; color: var(--c-sub); }
+.m-sub { font-size: 12px; color: var(--c-sub); }
 
 .interp {
   font-size: 12px; color: var(--c-sub); margin: 0 0 12px;

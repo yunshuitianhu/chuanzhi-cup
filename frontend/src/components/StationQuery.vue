@@ -155,14 +155,14 @@ button {
 }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
-.tip { margin: 0 0 12px; font-size: 11px; color: var(--c-sub); }
+.tip { margin: 0 0 12px; font-size: 12px; color: var(--c-sub); }
 
 .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .chip {
-  font-size: 11px; color: var(--c-sub); background: var(--c-surface-2);
+  font-size: 12px; color: var(--c-sub); background: var(--c-surface-2);
   border: 1px solid var(--c-border); padding: 3px 10px; border-radius: 20px;
 }
-.note { font-size: 11px; color: var(--c-sub); margin: 4px 0; }
+.note { font-size: 12px; color: var(--c-sub); margin: 4px 0; }
 
 .table-wrap { max-height: 380px; overflow: auto; border: 1px solid var(--c-border); border-radius: 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -173,5 +173,5 @@ th {
 }
 td { padding: 6px 10px; border-bottom: 1px solid #1a242e; white-space: nowrap; }
 tr:hover td { background: #1a2530; }
-.badge { padding: 1px 8px; border-radius: 20px; color: #fff; font-size: 11px; font-weight: 600; }
+.badge { padding: 1px 8px; border-radius: 20px; color: #fff; font-size: 12px; font-weight: 600; }
 </style>

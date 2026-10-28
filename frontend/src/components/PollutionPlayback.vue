@@ -110,7 +110,7 @@ button,select {padding:7px 11px;border:1px solid var(--c-border);border-radius:6
 button {cursor:pointer;}button:disabled {opacity:.4;cursor:default;}
 .playback-controls>button:first-child {background:#168ac1;color:#fff;}
 .playback-controls strong {margin-left:auto;color:#73d1fb;}
-.player-tag {color:#88cdb0;border:1px solid #386653;padding:4px 8px;border-radius:10px;font-size:11px;}
+.player-tag {color:#88cdb0;border:1px solid #386653;padding:4px 8px;border-radius:10px;font-size:12px;}
 .time-slider {width:100%;accent-color:#29ace5;}
 .player-stats {margin-top:12px;color:var(--c-sub);font-size:12px;gap:20px;}
 .player-stats b {color:var(--c-text);}

@@ -502,7 +502,7 @@ const pollutionCompare = computed(() => {
 .cv-title { font-weight: 700; margin-bottom: 5px; font-size: 14px; }
 .caveat p { margin: 5px 0; }
 .caveat code { background: #3a2a14; padding: 1px 5px; border-radius: 3px; }
-.cv-foot { opacity: .8; font-size: 11px; }
+.cv-foot { opacity: .8; font-size: 12px; }
 
 .empty { padding:13px 16px; margin-bottom:16px; background:var(--c-surface-2); border-radius:var(--radius-sm); color:var(--c-sub); font-size:13px; line-height:1.8; }
 
@@ -539,7 +539,7 @@ const pollutionCompare = computed(() => {
   background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-ink);
   border-radius:var(--radius-sm); min-height:40px; width:100%; padding:8px 11px; font-family:inherit; font-size:14px;
 }
-.warn-text { color: var(--sev-mild); font-size: 10px; }
+.warn-text { color: var(--sev-mild); font-size: 12px; }
 
 .btn-row { display: flex; flex-wrap:wrap; gap: 10px; }
 
@@ -559,14 +559,14 @@ const pollutionCompare = computed(() => {
 .model-guide a>span { color:var(--c-accent); font-size:12px; font-variant-numeric:tabular-nums; }
 .model-guide b { display:block; font-size:12px; font-weight:600; }
 .model-guide small { display:block; margin-top:3px; font-size:12px; color:var(--c-sub); }
-.step-status { font-style:normal; margin-left:8px; padding:1px 6px; border:1px solid var(--c-border); border-radius:9px; font-size:10px; color:var(--c-sub); }
+.step-status { font-style:normal; margin-left:8px; padding:1px 6px; border:1px solid var(--c-border); border-radius:9px; font-size:12px; color:var(--c-sub); }
 .step-status[data-state="ready"] { color:var(--c-accent); border-color:#34566a; }
 .step-status[data-state="done"] { color:#73d5be; border-color:#2d635a; }
 .step-status[data-state="running"] { color:var(--sev-mild); border-color:#655539; }
 .step-status[data-state="blocked"] { color:var(--c-muted); }
 .step-status[data-state="failed"] { color:#ffb3c1; border-color:#794354; }
-.param-note { margin:0 0 8px; color:var(--c-sub); font-size:11px; line-height:1.6; }
-.section-number { font-size:11px; letter-spacing:.05em; font-weight:500; color:var(--c-accent); }
+.param-note { margin:0 0 8px; color:var(--c-sub); font-size:12px; line-height:1.6; }
+.section-number { font-size:12px; letter-spacing:.05em; font-weight:500; color:var(--c-accent); }
 .form-section { min-width:0; margin:0 0 20px; padding:0; border:0; }
 .form-section legend { padding:0; margin-bottom:12px; font-size:12px; font-weight:600; color:var(--c-ink); }
 details.hint { padding:12px 14px; background:var(--c-surface-2); border-radius:var(--radius-sm); margin-bottom:16px; }
