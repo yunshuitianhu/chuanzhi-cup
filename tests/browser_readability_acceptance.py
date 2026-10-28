@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright
 
@@ -64,9 +65,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--url', default='http://127.0.0.1:5180/chat')
     parser.add_argument('--out', default='docs/validation')
+    parser.add_argument('--report', default='browser_readability_20261027.json')
     args = parser.parse_args()
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     report = {'url': args.url, 'checks': [], 'screenshots': []}
+    split = urlsplit(args.url)
+    base = f'{split.scheme}://{split.netloc}'
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={'width': 1280, 'height': 800})
@@ -75,7 +79,7 @@ def main() -> int:
         for width in WIDTHS:
             page.set_viewport_size({'width': width, 'height': 800})
             for name, path in ROUTES:
-                wait_page(page, 'http://127.0.0.1:5180' + path)
+                wait_page(page, base + path)
                 values = measure(page)
                 checks = {
                     'width': width, 'route': path, **values,
@@ -92,7 +96,7 @@ def main() -> int:
                     report['screenshots'].append(str(target))
         # 200% 页面缩放：模拟浏览器放大后的有效宽度，检查主内容仍可见且无页面级横向溢出。
         page.set_viewport_size({'width': 1280, 'height': 800})
-        wait_page(page, 'http://127.0.0.1:5180/chat')
+        wait_page(page, args.url)
         page.evaluate("() => {document.body.style.zoom='2'}")
         page.wait_for_timeout(300)
         zoomed = measure(page)
@@ -103,7 +107,7 @@ def main() -> int:
         report['screenshots'].append(str(out / 'readability_zoom200_chat.png'))
         browser.close()
     report['passed'] = all(item['pass'] for item in report['checks'])
-    (out / 'browser_readability_20261027.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    (out / args.report).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps({'passed': report['passed'], 'checks': len(report['checks']),
                       'failed': [item for item in report['checks'] if not item['pass']],
                       'screenshots': report['screenshots']}, ensure_ascii=False, indent=2))
