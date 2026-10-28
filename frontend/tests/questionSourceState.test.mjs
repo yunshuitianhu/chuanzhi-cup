@@ -33,7 +33,10 @@ async function mount(name,initialProps={},query={}){
  const fixture='data:text/javascript,'+encodeURIComponent('export const useRouter=()=>({push:async p=>globalThis.__q13Source.pushes.push(p)});export const useRoute=()=>globalThis.__q13Source.route;export const useSessionStore=()=>globalThis.__q13Source.store;export const api=globalThis.__q13Source.api;export const toastErr=()=>{};export const toastOk=()=>{};export default {render:()=>null}')+'#'+(++serial)
  const {descriptor}=parse(await readFile(project+'/frontend/src/'+(name.endsWith('View')?'views/':'components/')+name+'.vue','utf8'))
  const code=compileScript(descriptor,{id:'q13-'+name}).content.replace(/from ['"]([^'"]+)['"]/g,(_m,dep)=>{
-  const url=dep==='vue'?vueURL:dep==='../utils/questionContextSelection'?pathToFileURL(project+'/frontend/src/utils/questionContextSelection.js').href:fixture
+  const url=dep==='vue'?vueURL
+   :dep==='../utils/questionContextSelection'?pathToFileURL(project+'/frontend/src/utils/questionContextSelection.js').href
+   :(dep==='../utils/ragStage.js'||dep==='../utils/ragStage')?pathToFileURL(project+'/frontend/src/utils/ragStage.js').href
+   :fixture
   return 'from '+JSON.stringify(url)
  })
  const {default:Component}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))

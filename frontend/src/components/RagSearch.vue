@@ -10,6 +10,7 @@ import { api } from '../api/client'
 import { toastErr, toastOk } from '../composables/useToast'
 import RagCase from './RagCase.vue'
 import {useSessionStore} from '../stores/session'
+import {ragStageText} from '../utils/ragStage.js'
 const store=useSessionStore()
 const locked=computed(()=>loading.value||store.loading||store.chatRunning||store.switchingProject||!store.ready)
 
@@ -90,11 +91,13 @@ async function run(q) {
     <div v-if="status" class="status">
       <template v-if="status.available">
         <span class="ok">● {{status.retrieval_verified ? '检索已验证' : '索引可读，检索待验证'}}</span>
+        <span class="dim">阶段：{{ragStageText(status.stage)}}</span>
         <span class="dim">{{ status.source_documents }} 份资料 · {{ status.chunks }} 个向量块</span>
         <span class="dim">{{ status.embedding_model }}</span>
       </template>
       <template v-else>
         <span class="bad">● 知识库不可用</span>
+        <span class="dim">阶段：{{ragStageText(status.stage)}}</span>
         <span class="dim">{{ status.notice || status.error || '尚未核对索引、依赖与模型，请重新检查。' }}</span>
       </template>
       <span v-if="status.available && status.notice" class="dim">{{status.notice}}</span>

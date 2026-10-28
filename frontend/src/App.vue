@@ -17,6 +17,7 @@ import SideQuestions from './components/SideQuestions.vue'
 import TextSourceReturn from './components/TextSourceReturn.vue'
 import Toast from './components/Toast.vue'
 import { createRouteLoadRecovery } from './utils/routeFailures.js'
+import { keyRows, keyTag } from './utils/keyState.js'
 
 const store = useSessionStore()
 const route = useRoute()
@@ -82,14 +83,7 @@ onBeforeUnmount(() => { media?.removeEventListener('change',syncViewport); docum
 
 onMounted(() => store.bootstrap())
 
-const keySummary = computed(() => {
-  const k = store.config.keys || {}
-  return [
-    { name: 'DeepSeek', ok: !!k.deepseek, required: true },
-    { name: '高德地图', ok: !!k.amap, required: false },
-    { name: '星图地球', ok: !!k.starcloud, required: false },
-  ]
-})
+const keySummary = computed(() => keyRows(store.config.keys, store.config.key_state))
 </script>
 
 <template>
@@ -122,14 +116,14 @@ const keySummary = computed(() => {
         </p>
       </section>
 
-      <details class="service-settings"><summary>外部服务配置<span>{{ keySummary.filter(k=>k.ok).length }}/3 已配置</span></summary><div class="service-body"><h3 class="panel-title">密钥状态</h3>
+      <details class="service-settings"><summary>外部服务配置<span>{{ keySummary.filter(k=>k.ok).length }}/3 已填写</span></summary><div class="service-body"><h3 class="panel-title">密钥状态</h3>
         <div class="key-row" v-for="k in keySummary" :key="k.name">
           <span class="dot" :class="{ ok: k.ok }"></span>
           <span class="key-name">{{ k.name }}</span>
-          <span class="key-tag">{{ k.ok ? '已填写（未验证）' : (k.required ? '未配置（AI功能需要）' : '未配置（可选）') }}</span>
+          <span class="key-tag" :title="k.notice">{{ keyTag(k) }}</span>
         </div>
         <p class="hint">
-          密钥通过后端 <code>.env</code> 配置，前端不接触、不存储密钥。
+          已填写只表示 <code>.env</code> 中存在配置；本进程是否成功调用，以本次请求结果为准。密钥不进入前端、日志或项目包。
         </p>
       </div></details>
 
