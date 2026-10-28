@@ -1,453 +1,388 @@
 # CLAUDE.md
 
-> Q08本机门禁完成（2026-10-23），下一项Q09：TypeScript strict/checkJs渐进覆盖API、SSE、项目/模型恢复和Pinia状态；14个编译期反例、15份真实后端响应契约。未声称所有Vue页面都已迁移。
-> 干净副本新依赖与npm ci验证421项Python（新增6）、93项前端（新增7）、构建和字段/泛化21/HTTP16/密钥9均通过，桌面生产构建同步。旧检查器补全受控成功/降级，限定摘要豁免、临时假配置优先级和中文路径扫描；无新增真实模型或现场准确率验证。
-> Git写权限本轮恢复，Q07三个提交已核对GitHub main一致；Q08实现/CI分别提交f1690f8、845bf9f。本记录写入时远端Windows/Ubuntu工作流仍待推送运行。见`docs/前端类型与持续集成验收.md`与`docs/validation/frontend_ci_acceptance_20261023.json`。下方Git未提交/权限失败均为对应历史阶段记录。
-
-> Q07完成专项验收（2026-10-23），下一项Q08：引用ID/预算/内部报告参考、工具失败partial、旧检索隔离和脱敏错误历史已修复。规则v7保留DO=0、区分质控与污染预警、冲突不撤销已有预警；旧快照按既有机制过期，不补造引用。
-> 415项Python（新增44）、86项前端、构建及字段/泛化/后端/既有密钥检查通过。固定8题3轮27次真实DeepSeek请求均留原文；末轮8份最终回答ID检查通过，Agent复核6项满足要点、2项带问题。不是独立留出、专家审查或现场准确率。
-> 真实RAG/HTTP/SSE的6行仿真完成报告、DO最低0与1条预警及内部参考；浏览器假引用/partial/真实重取、保存及重启恢复通过。原7项目/4绑定及快照保持，验收项目和索引隔离，5177为最终正常SDK预览。S01过度拒答、S04重复索取字段及原生GPS套话矛盾保留，正文仍需复核。Git索引仍拒绝，已准备24文件三组提交脚本，当前未提交/推送。见`docs/Agent证据安全离线修复与待验收项.md`。
-
-> Q06（开发评测2026-10-22，整理完成2026-10-23），下一项Q07：30道固定资料查找题（10开发/20留出），原向量基线在改动前冻结并重现；融合词面与向量、按来源文件合并、问题细节片段与原召回片段各最多一份。无新增重排模型或河流名单。
-> 留出16道正例前5命中87.5%→100%，20个要点片段覆盖45%→90%；24次真实DeepSeek调用中目标事实1/5→3/5，缺资料3/3保留判断。H02/H14仍漏效果片段且answerable标记矛盾；严格引文与Markdown格式匹配分别记录，不能把7/7格式匹配当答案全对。标注及复核为Agent完成，非独立专家或现场精度。
-> 371项Python、86项前端、构建及字段/泛化/后端检查通过；原生HTTP/SSE与5176浏览器实际查询、原文、评测表验收通过。7个保存项目版本/快照保持。证据规则v4使旧证据按既有机制过期；不追补历史引用。Git索引仍拒绝，本轮未提交。见`docs/RAG固定评测与融合检索验收.md`与`evaluation/rag/`。
-
-> Q05（2026-10-22）功能与验收完成，下一项Q06：报告支持记录可加入排查任务，记录假设、支持/反对依据、复测计划与人工复核。绑定项目自动保存，schema 1严格迁移至schema 2；临时纯手工任务切换前暂存。
-> 356项Python、82项前端、构建及字段/泛化/后端/密钥检查通过；浏览器6行仿真副本完成创建、计划、显式复核、V→IV依据变化和5176重启恢复。演示未实施现场复测，不认证责任。原6项目旧快照与数据/分析指纹保留，111离开时自动保存13→14；新增Q05副本v6。
-> 当前5176使用独立新依赖与最终构建。RAG实际检索可返回结果，147条向量记录不等于147个独立案例。验收记录生成时Git索引在写权限获准后仍拒绝，本轮未提交；此前12个提交未推送。见`docs/排查任务闭环验收.md`。
-
-> Q04（2026-10-22）已完成，下一项Q05：新成功回答保存本轮工具快照，统计卡片关联精确支持记录并定位地图；DO=0、插值排除、重复索引与缺失GPS均有检查。数据/规则/配置/分析/模型变化后旧证据禁用当前记录关联，不追补历史回答。
-> 342项Python、76项前端、构建及字段/泛化/后端/密钥检查通过。真实DeepSeek/RAG、6行仿真取证、质控变化失效、另存与服务重启恢复检查通过；原5项目保留，增加“Q04 仿真证据验收（非实测）”v1。
-> 当前5176使用独立构建及最终后端。统计核对不认证正文每句话；RAG接口缺原文URL如实标注，工具原文仅文本展示；仿真不证明当地污染、现场准确率或责任。见`docs/报告证据联动验收.md`。
-
-> Q03（2026-10-22）已完成，当前Q04：独立线程持有会话操作锁直至真实退出；任务ID/轮次/工具状态/耗时、协作停止、断流及刷新恢复接通。未收到结束帧不视为成功，旧请求/版本不能覆盖新任务；进度不入项目包。
-> 330项Python、67项前端、构建及字段/泛化/后端/密钥检查通过。真实HTTP/DeepSeek摘要工具、停止/断流/重试及浏览器停止刷新检查通过。非完整自动报告/现场精度验收；当前调用仍需收尾。
-> 旧5174服务停止被自动审批拒绝（需未开放的沙箱审批），保留原构建；新版5175从独立构建目录运行。5个项目和2个绑定保留，1805行及147/3帧恢复。详见`docs/智能体任务进度与停止验收.md`。
-
-> 任务队列与交付入口（2026-10-22）：`docs/任务队列.md`按Q01~Q12顺序验收。Q01/Q02已完成，下一项Q03。
-> `python scripts/serve_web.py`或Windows `start_web.cmd`使用一个本地5174端口提供构建后的Vue与原API；检查构建清单、依赖、目录写权限及端口，不终止其它程序。开发双服务入口仍可用。
-> 页面增加启动阶段与重连，失败不一律归因网络。317项Python、58项前端、构建及字段/泛化/后端/密钥检查通过；实际浏览器河道页可见控件。
-> 5个保存项目及2个绑定数量不变，原绑定1805行及147/3帧恢复。只验本机启动，外部可达/RAG缓存/异机安装不由预检保证；详见`docs/统一启动与故障诊断.md`。
-> 交付包由Git HEAD加构建清单资源生成，拒绝未提交源码和被跟踪的本机配置；不带向量缓存、用户项目。解压副本两次独立进程验证180行公式仿真、检测、手工正演、保存恢复与导入新ID，24模型数组及附件内容一致，320项Python/58项前端通过。
-> 首次迁移验收错误比较绝对附件路径，修为当前目录合法性+附件哈希并复验。依赖复用本机环境，未验异机安装；无密钥/无索引降级不等于实际RAG、DeepSeek或现场准确率验收。详见`docs/交付包与隔离迁移验收.md`。
-
-> 走航时空配准与Agent流程（2026-10-21）：河道页新增显式WGS84参考线、时区/绝对T=0及逐点对照；返航不累计成河长，歧义/缺测/重复/越界等排除并说明，配置随项目保存并重算。
-> 地图优先参考线，问题轨迹禁用累计航程叠加。自动几何遇明显返航拒绝，取消GPS航程的河长95%置信度，来源标为未配准建议。
-> Agent校验流式结束状态，自动复跑清旧上下文，有视频须完成视觉与交叉印证，过期摘要须重取；报告独立上下文上限并要求完整stop。
-> 311项Python、56项前端、构建/SSR、字段/泛化/后端/密钥及参数路径检查通过。六份V2位置误差95分位约1.34~1.39m，仅受控仿真；两种数据及原视频13帧实际DeepSeek/RAG流程完成。
-> 实际报告曾把2.3km首末间距称接近，补距离事实与v3规则后视频复验按2319.45m描述。视频偏移仍未核实，38.5%一致率不是准确率；正文仍需人工复核。
-> 更新前保存2绑定项目；终端中断被自动审批拒绝，最新服务改用8004/5174，旧实例保留，未做浏览器视觉或异机验收。见`docs/走航时空配准与智能体流程验收.md`。
-
-> 单源反演新网格验收（2026-10-20）：默认397水质节点拟合、793节点复核；候选源映射水质网格，加入整站留出、增量响应增益与校准依据检查及累计计算预算。
-> 关闭硝化时采用严格线性负荷响应；有反应仍走完整耦合优化。缺校准/留出/分辨能力时拒绝接受估计，条件拟合不当作来源结论。
-> 3组独立解析跨河段（600/1800/5400m）负荷误差约1.26%/1.06%/1.14%；12组噪声、9组拒绝情景及1组已知盲点复现符合预设条件。
-> 错误校准假设仍可通过留出并产生52.34%负荷误差，不能声称25组均成功溯源。原生硝化耗氧耦合辅助路径检查通过，非独立解析真值。
-> 282项Python回归、56项前端、构建、组件SSR、字段/泛化/密钥检查通过；5173健康正常。技术展示增加离线验证快照，与当前上传数据无关。见`docs/独立网格单源反演与拒绝机制验证.md`。
-> 真实反演仍未开放；下一步核实走航时空配准与参数依据、重验Agent证据链和跨机器交付。Git保护与原有未提交运行产物保持。
-
-> 独立水质网格（2026-10-20）：Web/API/Agent默认每个水动力区间细分4倍，可选1/2/4/8；100个水动力断面可对应397或793个水质节点。
-> 线性插值A/Q并保留原断面，源取最近水质节点并记录偏移；旧项目恢复1倍，内核旧CLI默认1倍，未增加实测几何信息。
-> 三组100断面解析对照，4倍分布误差约6.16%/5.45%/3.36%，原网格约19.86%/18.10%/12.24%；这是受控数值误差，不是现场准确率。
-> 267项Python、56项前端、构建及字段/泛化/接口/密钥检查通过；真实原生API、793节点项目导出恢复、旧内核六数组和质量账本对照通过。
-> 增加显式计算量及输出上界，超限拒绝不静默粗化；6h/1km/50断面受控4倍约9.55s，8倍约34.27s，非性能保证。
-> 旧完整独立正演/敏感性复跑通过。未做在线浏览器验收或重启；Git保护边界不变，提供新定向提交清单。
-> 见`docs/水质独立网格与分辨率改进记录.md`。下一步限定单源反演须使用新网格重新验证，不将旧CLI验收冒充新Web精度。
-
-> 正演独立验证（2026-10-20）：新增可离线复跑的解析Green函数、高斯解、独立Radau/DOP853与条件敏感性基准。
-> 修复复氧系数配置被忽略；默认参数一组对照与旧内核六数组/账本一致。实际子步、断面分辨率与弥散信息进入API、摘要、保存和河道页。
-> 260项Python、54项前端及构建通过；3/6/12 km三组最细601节点分布误差约4.04%/3.61%/2.22%，不是现场准确率。
-> 网页仍最多100断面；不能将离线加密精度冒充网页默认精度。当前迎风格式有数值弥散，反应参数小响应受网格误差限制。
-> 原预览服务本轮检查未运行，未做在线视觉验收；原依赖目录拒绝读取，重建隔离验证环境。Git仍需普通终端提交；上一阶段三提交已核实。
-> 见`docs/恒定流正演独立基准与敏感性验证.md`；下一步先解决受网页规模限制的分辨率，再做受限单源反演，不开放真实多源归因。
-
-> 传感器质控（2026-10-19）：新增氨氮/DO离线突刺、近恒值及采样复核，保留清洗前读数，质量标记不抵消预警。
-> 图表复核清单、地图点查、检测摘要、Agent和报告贯通；阈值可按项目修改和保存，旧项目不补造原值。
-> 254项Python、52项前端、构建、字段/泛化/密钥检查通过。六份V2及原样例预警数与簇数保持；S06标记24条需复核、36条缺测。
-> 原样例47条需复核并非已确认仪器故障；无人工标签不报现场准确率。S04/S06实际DeepSeek报告与5173代理验收通过，未做浏览器视觉验收。
-> 两个绑定项目保存后服务已更新，未换用户数据。Git写入限制仍在；后续做正演独立基准与限定单源反演。见`docs/传感器质控与复核状态验证记录.md`。
-
-> 推理证据修复（2026-10-19）：Vue/FastAPI贯穿仿真/未核验身份并随项目保存，修正走航时间趋势、GPS/热点混淆、指数命名与缺测统计。
-> 仿真报告排除真实企业归因，未匹配站点原值不进入报告直接比较；正演设定源不当反演结果。报告增加确定性事实抬头和截断拒绝。
-> 226项Python、49项前端、构建、字段与泛化检查通过；六份V2与1805行原样例筛查数量保持。两份实际DeepSeek报告包含RAG参考且finish_reason=stop。
-> 对齐ChromaDB 1.5.8与sentence-transformers 5.5.1；RAG缺依赖/索引失败明确降级。原3.14解释器受环境拒绝，本轮用3.12隔离运行时验证。
-> .git写入在授权后仍被拒绝，尚无本轮提交；原有脏文件保留。传感器异常识别、正反演扩展未完成。见`docs/推理证据边界与报告修复记录.md`。
-
-> 路线与查询修复（2026-10-18）：V1人工地图线存在水面配准问题，停用于地图验证。三处卫星水面重定线并重算六份V2，旧计数不适用。
-> 无黑点也可查周边：有效热点→实际轨迹代表记录，或手动成对坐标；返回中心来源和背景资料说明。弹窗加宽并限制高度。
-> 202项Python回归、49项前端检查、构建及字段检查通过。test1备份后换S01 V2，保存版本3；无热点自动/手动线上查询200。
-> 见`docs/仿真路线配准与无黑点周边查询修复.md`。此前报告语义和仪器异常问题未在本次修复；未做真实浏览器视觉验收。
-
-> 多河段仿真（2026-10-18）：新增脚本生成3处地图选点、6组各1801条的受控走航数据，源真值独立保存。
-> 水质求解器支持脚本用多排放事件与空源对照；旧单源接口等价、质量守恒等5项新增检查通过。
-> 196项Python回归、21项泛化检查通过；6份Excel实际导入/筛查通过。异常负例仍有24个仪器预警，未宣称现场准确率。
-> 见`docs/多河段仿真数据与多源排放验证记录.md`。网页未开放多源反演，热点数不能当源数。
-
-> 查缺补漏（2026-10-18）：视频替换改为只撤销视频相关结果；保留检测、模型和历史，侧栏支持仅加载视频。
-> 新增只读结果恢复接口，检测/交叉印证刷新可恢复；运行时结果标记与请求版本避免旧缓存/迟到响应混入。
-> 修复常数相关性及NaN/Infinity输入的500，时间参数支持小数秒；比例明确以传感器筛查为参照，旧报告标记待更新。
-> 191项Python回归、45项前端检查、构建、字段/密钥/泛化检查通过。111项目版本10，147帧真实匹配成功，62个模型数组不变。
-> 见`docs/查缺补漏与结果恢复记录.md`。前端可直接`npm test`运行全部测试，未做真实浏览器视觉验收。
-
-> 检测算法校验（2026-10-18）：修复严重度权重覆盖、按采样密度冒充持续性、返航跨度抵消和经纬度平面聚类。
-> 新算法使用观测时长支持、米制球面距离与时间邻域；重复记录不增加独立证据，原始指数与排序评分分别标注。
-> 178项Python回归、36项前端检查、构建、字段/密钥/泛化检查通过；真实样例1230个预警点不变，7→10簇来自时间邻域。
-> 用户111更新并保存为版本8，1805行/147帧保留，现有50断面模型三组分播放哈希不变。没有现场标签，不能声称准确率提升。
-> 见`docs/检测算法校验与时空支持修复记录.md`；DO/pH指数口径及浊度经验参考仍需后续标准化审查。
-
-> 原版交互恢复（2026-10-18）：地图返回全部有效采样记录，色带点查含弹窗、详情和重合位置时间选择。
-> 图表页/河道页新增原生恒定流扩散播放器，时间轴、沿程浓度、卫星地图同步；不读取固定样本，不缩放GPS适配模型。
-> 149项回归、34项前端检查及构建通过；真实Excel+实际模型31帧/12断面及保存恢复通过，未验旧HTML导出或浏览器视觉效果。
-> 用户111仍1805条/147帧，当前无模拟结果时明确提示先运行。见`docs/原版交互与污染扩散恢复记录.md`。
-
-> 卫星地图显示（2026-10-18）：已配置CLOUD_TOKEN时优先星图官方XYZ影像，同源代理保管Token。
-> 热力显示默认半径26px、1px栅格、中心清晰与边缘渐隐；固定色阶增强饱和度，不累加采样密度。
-> 缩小图例，增加色带宽度/强度调节与全屏。133项回归、26项前端检查及构建通过；4张真实卫星瓦片返回200。
-> 查看用户旧视频关键帧和独立算法绘图，未进行真实浏览器视觉验收。见`docs/卫星底图与热力带改进记录.md`。
-
-> 底图与页面显示（2026-10-18）：高德官方静态底图由后端代理，显示层统一转GCJ-02，原始数据保持WGS-84。
-> 增加失败提示、重试和备用来源；地图请求不创建会话。河道页去掉惰性原生template容器，恢复已有控件。
-> 127项回归、24项前端检查和构建通过；真实高德图片经5173代理返回200，用户111项目1805条/147帧恢复通过。
-> 未进行浏览器视觉验收。见`docs/底图与河道页修复记录.md`。
-
-> 项目存储（2026-10-18）：新增SQLite目录和版本化`.wqproj`快照；保存后重启可恢复，切换前保存，
-> 导入建立新ID。默认`data/projects/`，可用`WQ_PROJECT_HOME`调整；该目录不入Git。
-> 临时会话仍需另存，运行中任务仍限单worker。处理后的表、标记、模型和视频抽帧可迁移，
-> 不打包原始整段视频/Excel或密钥。117项回归、13项前端检查、22项真实样例检查通过；
-> 真实HTTP14类检查及多轮重启复测通过。见`docs/项目保存与迁移说明.md`。
-
-> 后续修复（2026-10-18）：热力图按≥8显示上限截顶后作有限支撑高斯平滑，2px栅格与高质量画布缩放。
-> 反演残差过大或不能区分相差20%的负荷时拒绝给出估计；歧义、触界同样返回空估计。
-> 98项回归、6项热力图检查、3个跨河段算例及30例压力实验完成。
-> 压力实验包含未解决的仪器增益混淆负例，不能把整体检查通过解释为30例均正确识别来源。
-> 仅CLI实验，未开放真实数据反演。见 `docs/热力图平滑与反演稳健性记录.md`。
-
-> 当前交付方向（2026-10-18）：用户明确停止采用 HEC-RAS；旧桥接、验证脚本和 HDF 测试归档
-> 到 `research/legacy_hecras/`，不恢复自动调用。Web 只允许恒定流。使用 `RiverConfig` 和手工参数，
-> 不用雅瑶参数兜底、不读取固定样本代替当前会话；已知地名不等于物理参数已率定。
-> 地图按严重程度绘制渐变，国控状态取本次查询证据。合成单源反演仅提供 CLI 验证，未上线真实反演。
-> 见 `docs/可移植与泛化改进记录.md`；下方 HEC 历史说明不再适用。
-
-> 正演时间与走航匹配（2026-10-18）：见 `docs/走航时空匹配与延迟排放改进记录.md`。
-> 已支持延迟排放、按交集注入负荷、分钟输出和逐点时空观测算子；剖面禁止越界。
-> 88 项回归及 12 项真实 Excel 驱动检查通过。源项仍取最近断面，时间和 GPS 桩号映射需核实。
-> HEC-RAS 本次 COM 复测仍拒绝访问，潮汐与真实河道反演尚未验收。
-
-> 正演第一阶段（2026-10-17）：见 `docs/正演模型第一阶段改进记录.md`。已加入氧限制硝化、
-> NO3-N 输移及氮氧核算，76 项回归通过。HEC-RAS 新非恒定流适配仅完成离线契约验证；
-> 本进程实机 COM 创建被拒绝，未开放 Web 潮汐路径或反演。纯 Python 潮汐结果禁止用于水质。
-
-> 真实样例修复（2026-10-17）：见 `docs/真实样例修复记录.md`。DO 摘要保留最小值 0；
-> 下游未达阈值返回 null；输出清单只包含本次实际生成的文件，动画读取当前会话轨迹。
-> 56 项回归和 27 项真实样例检查通过。视频偏移仍需确认，视觉方法与潮汐模型局限未解除。
-
-> 第二轮更新（2026-10-17）：见 `docs/第二轮修复记录.md`。加载与检测要求有效氨氮/DO，
-> 插值与原始观测分开；DO=0 保留。模型依赖结果按运行版本失效，Web 请求已类型化。
-> 水质实际输移使用 `river_model/transport.py` 的守恒面通量，源项按单元体积注入；
-> COD 未独立实现，不能当作 CBOD；自动分析须校验必需步骤。潮汐水动力缺陷仍未修复。
-
-> 状态更新（2026-10-17）：Web 改进与实测结果见 `docs/首轮改进记录.md`。
-> 前端默认代理已改为 8002；smoke 路径与静默跳过问题已修复；高德坐标转换和
-> 反向流 CFL 已接通；六个河道工具定义共用 `river_model/tool_specs.py`。
-> 下文关于这些事项的旧描述仅保留作历史背景，以当前代码和改进记录为准。
-
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目性质
 
 备赛**传智杯全国高校 AI Web 开发挑战赛**（主题方向：AI 数据分析与可视化 / RAG 知识问答系统）。
 
-Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源助手》（作者本人独立开发，见 README 的来源声明）。**本次参赛的新增工作**是：Vue 3 前端重写、FastAPI 后端层、以及对既有内核的缺陷修复。
+Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源助手》（作者本人独立开发，见 README 的来源声明）。
+**本次参赛的新增工作**是：Vue 3 前端重写、FastAPI 后端层、以及既有内核的缺陷修复与示例/交付能力。
 
 **作品提交截止 2026-11-18。**
 
 ## 铁律
 
-- **严禁造假。** 不得编造测试结果、不得伪造或补造 Git 提交历史、不得在文档中写入未经核实的数字。赛道规则明确要求"保留完整细粒度的 Git 提交历史，禁止一次性提交全部功能"，官网会核查原创性与开发过程可复现性。
+- **严禁造假。** 不得编造测试结果、不得伪造或补造 Git 提交历史、不得在文档中写入未经核实的数字。
+  赛道规则要求保留完整、细粒度的 Git 提交历史，禁止一次性提交全部功能；官网会核查原创性与开发过程可复现性。
 - **改代码前必须有 90% 把握不引入新 bug 和不兼容。** 没把握的只提出来、标注风险，不动代码。
 - 每改一处单独提交，并跑对应验证。改动后要能解释每一处输出差异；解释不了的差异就是引入的 bug。
+- 不得把仿真数据写成现场实测，不得把热点数量写成污染源数量，不得把参数估计写成概率或责任认定。
+
+## 当前状态与入口
+
+2026-10-28 的交付状态（以实际命令和 `docs/` 记录为准，不要只引用本节）：
+
+- N01—N03 内置六组仿真示例、一键载入、契约/打包已完成本机受控验收（N03 的 S-T13/S-T21/S-T26 未单独自动化）；
+- N04/N05 配置说明与 Windows 环境为部分完成；N06 河道引导、N07 字号为部分/浏览器验收；N08 只完成少量低风险项；
+- 最近记录：609 项 Python（干净 CI venv）、361 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
+- 交付 ZIP 由 revision `b075bd0` 生成，位于 gitignored 的 `work/`，需单独发送；源码 HEAD 之后只多文档提交。
+
+**先读**：
+
+| 文档 | 用途 |
+| --- | --- |
+| `docs/交付说明_20261028.md` | 交付物、安装运行、能力边界、验收清单、未验证项 |
+| `docs/任务队列.md` | Q01—Q17 与 N01—N08 的逐项状态、日期、限制 |
+| `docs/内置仿真示例与一键载入实施记录_20261027.md` | 示例/载入/契约/打包的实现范围、命令、提交号 |
+| `docs/Windows安装与运行环境验证_20261028.md` | 实际 Python/Node、干净 venv、启动器、带空格路径 |
+| `docs/代码审计与修改方案.md`、`docs/代码审计-第二轮发现.md` | 已确认缺陷、证据等级、修改方案 |
+
+> 根目录的 `AGENTS.md` 是未跟踪的旧副本，不作为本项目指令；以本文件和 `docs/` 为准。
 
 ## 常用命令
 
-**后端 / 内核（Python）**
+### 环境与安装
+
+本机实际验证环境：Windows 11、Python **3.14.0**、Node **24.15.0**。`pyproject.toml` 声明 `requires-python >=3.11`；
+3.12 是早期锁定环境记录，当前机器没有该解释器，不要写“当前使用 3.12 验证”。
 
 ```bash
-pip install -r requirements.txt
-
-uvicorn backend.main:app --reload --port 8002   # FastAPI（接口文档 /docs）
-                                                # 8000 与 8001 在本机都已有残留监听套接字，
-                                                # 故改用 8002。详见下方坑 3
-streamlit run app.py                            # 原 Streamlit 版（保留，用于快速自检）
-python -m water_quality_mcp.server              # 以 MCP Server 方式运行（stdio）
-python scripts/build_rag_index.py               # 重建 RAG 索引（首次需下 ~400MB 嵌入模型）
+python -m pip install -r requirements-lock.txt   # 完整运行（含 Streamlit、ChromaDB、嵌入模型）
+python -m pip install -r requirements-ci.txt     # 离线核心回归/示例/手工模型（不含 RAG 可选依赖）
 ```
 
-**前端（Vue）**
+产品锁用 `opencv-python`，CI 用 `opencv-python-headless`；同一环境只装一种，不要两者都装。
+
+### 后端 / 内核
+
+```bash
+python scripts/serve_web.py --port 5174          # 推荐：网页 + API 同一端口（默认 5174）
+python scripts/serve_web.py --check --port 5199  # 只做启动预检，不启动服务
+uvicorn backend.main:app --reload --port 8002    # 仅 API 开发（接口文档 /docs）
+streamlit run app.py                             # 原 Streamlit 版（保留作对照/快速自检）
+python -m water_quality_mcp.server               # MCP Server（stdio）
+python scripts/build_rag_index.py                # 重建 RAG 索引（缺模型缓存时可能下载数百 MB）
+python scripts/prepare_sample_data.py            # 从 仿真数据/ 重新生成示例 CSV；默认不覆盖不同内容
+```
+
+Windows 入口：`start_web.cmd` / `start_web.cmd --check --port 5199`。指定解释器：
+
+```bat
+set "WQ_PYTHON=C:\实际安装目录\python.exe"
+start_web.cmd
+```
+
+```powershell
+$env:WQ_PYTHON = 'C:\实际安装目录\python.exe'
+& '.\start_web.cmd'
+```
+
+### 前端
 
 ```bash
 cd frontend
 npm install
-BACKEND_PORT=8002 npm run dev   # 开发服务器 :5173，/api 代理到 BACKEND_PORT
-                                # 端口**必须显式给** —— vite.config.js 的默认值是 8001，而 8001 已废
-npm run build      # 生产构建
-npm run preview
+BACKEND_PORT=8002 npm run dev    # 开发服务器 :5173，/api 代理到 8002
+npm run build                    # 生产构建到 frontend/dist
+npm run check                    # typecheck + node --test + build（推荐门禁）
 ```
 
-> 前端只监听 **IPv6 `[::1]:5173`**，请用 `http://localhost:5173/`
-> （`127.0.0.1` 连不上，见坑 3）。
+端口**必须显式给** `BACKEND_PORT`：`vite.config.js` 默认值是已废弃的 8001。
+开发服务器只监听 IPv6 `[::1]:5173`，请用 `http://localhost:5173/`；生产 `serve_web.py` 监听 `127.0.0.1`。
 
-**测试**（全部为**脚本式**，非 pytest；"跑单个测试"即单独运行对应脚本）
+### 测试与门禁
 
 ```bash
-python tests/泛化能力检查.py           # 16 项 —— 换一条河还能不能用（改参数推导/边界/格式后必跑）
-python tests/前端字段名检查.py         # 前端读的键名 vs 接口实际产出（改前端后必跑）
-python tests/后端接口检查.py           # 16 项 —— 会话保持、接口契约、参数校验
-python tests/字段名一致性检查.py       # 同上，但针对 app.py（旧界面）
-python tests/数据完整性检查.py         # 10 项 —— 时间解析丢点、污染源不得编造
-python tests/密钥泄漏检查.py           # 9 项 —— 密钥不入库 + .env 优先级
-python tests/逆地理识别降级链.py       # 11 项
-python tests/经纬度缺失值对齐.py       # 8 项
-python tests/参数估计路径一致性.py     # 10 项
-python tests/river_model_验收算例.py   # 15 通过 / 0 失败 / 1 项已知缺陷
-python tests/前端演示_真实数据.py      # 驱动 app.py 跑完整流程（会真实调用 LLM，约 2 分钟）
-python tests/前端截图.py               # Playwright 走完整流程并逐页截图（约 2 分钟）
-python test_smoke.py                   # 见下方说明，当前不可信
+# Python 全量（当前 609 项；tests 不是 package，不要用 python -m unittest tests.xxx）
+python -m unittest discover -s tests -p "test_*.py"
+
+# 单个 unittest 文件
+python -m unittest discover -s tests -p "test_sample_catalog_regressions.py" -v
+
+# 旧脚本式检查（非 pytest；改哪块跑哪块，项数以实际输出为准）
+python tests/泛化能力检查.py          # 换一条河还能不能用
+python tests/前端字段名检查.py        # 前端读的键名 vs 接口实际产出
+python tests/后端接口检查.py          # 会话保持、接口契约、参数校验
+python tests/字段名一致性检查.py      # app.py（旧界面）
+python tests/数据完整性检查.py        # 时间解析丢点、污染源不得编造
+python tests/密钥泄漏检查.py          # 密钥不入库 + .env 优先级
+python tests/river_model_验收算例.py  # 含 1 项已知缺陷（潮汐质量不守恒）
+
+# 前端
+npm --prefix frontend run check       # 361 项 + TS/SFC + 构建
+cd frontend && node --test tests/keyState.test.mjs   # 单个前端测试
+
+# 跨平台离线门禁（含全量 unittest、字段/泛化/后端/密钥检查）
+python scripts/check_ci.py
+
+# 从真实 TestClient 响应生成 TS 契约（输出被 gitignore）
+python scripts/export_frontend_contracts.py
 ```
 
-`test_smoke.py:45` 有一个**已知的路径错误**：它查找 `提交文件/苗圃杯/.../河道巡航走航样本数据.xlsx`，而样本文件实际在上一级。后果是第 3 项（黑臭检测）与第 5 项（图表生成）被 `if df is not None` **静默跳过**，连计数都不进——"4 总计"是虚的。修复前不要把它当作可信的回归基线。
+`test_smoke.py:45` 有已知路径错误：黑臭检测与图表生成会被 `if df is not None` 静默跳过，
+修复前不要把“4 总计”当作可信回归基线。
 
-样本数据：`C:\Users\Cloud-Mist Sky Lake\Desktop\苗圃杯\无人船智能水质监测分析和因果溯源样本数据\河道巡航走航样本数据.xlsx`（1805 条，2025-08-01 10:33~13:05，雅瑶水道实际轨迹）。
+### 交付包
+
+```bash
+# 必须：源码全部提交、工作区无未提交源码、frontend/dist 已构建
+python scripts/package_delivery.py --output work/delivery_<日期>.zip
+
+# 解压到新的空目录（无 .env/.mcp.json）后，在该副本内运行
+python scripts/verify_delivery.py --output-dir <新的空目录>
+```
+
+打包器使用 `git archive HEAD`，拒绝未提交源码和被跟踪的本机配置；不包含 `.env`、用户项目、
+模型缓存、`.rag_index/`、原始 `仿真数据/`。包内 `delivery-manifest.json` 记录实际 revision。
+
+### 浏览器验收
+
+先启动一个**隔离项目目录**的服务，避免把演示项目写进用户项目库：
+
+```bash
+WQ_PROJECT_HOME=work/browser_projects python scripts/serve_web.py --port 5183
+python tests/browser_sample_acceptance.py --url http://127.0.0.1:5183/chat
+python tests/browser_readability_acceptance.py --url http://127.0.0.1:5183/chat \
+  --out docs/validation/readability_<日期> --report browser_readability_<日期>.json
+python tests/browser_river_guide_acceptance.py --url http://127.0.0.1:5183/river
+```
+
+浏览器脚本需要 Playwright/Chromium；不要把 5180/用户默认项目目录当作隔离环境。
 
 ## 架构
 
-```
+```text
 frontend/                  Vue 3 + Vite + Pinia + ECharts + Leaflet
    │  REST / SSE
-backend/                   FastAPI —— 把内核包装成 HTTP 服务
+backend/                   FastAPI —— 会话、项目、数据/示例、Agent、报告
    │
-   ├─→ water_quality_mcp/  水质分析内核（25 个 MCP 工具）
+   ├─→ water_quality_mcp/  水质分析内核（MCP 工具、加载、检测、RAG、报告）
    └─→ river_model/        一维水动力-水质数值模型
          └─ knowledge_base/ --(build_rag_index)--> .rag_index/  ChromaDB 向量索引
 
-app.py                     原 Streamlit 版（等价能力，保留作对照与快速自检）
-
-data/external/             外部数据源（第三方，公开许可，见该目录 README）
-   └─ terrain/             DEM 地形样本 + 采集脚本
+app.py                     原 Streamlit 版（等价能力，保留作对照）
+scripts/serve_web.py       生产入口：静态前端 + /api，同一端口
+backend/web.py             内存快照 index/assets；四页入口；未知路径 404
 ```
 
-**`data/external/`** —— 为"泛化到任意河流"补数据的调研与落地。三个数据源里
-**只有地形拿到了**：DEM 走 OpenTopoData 公共 API（SRTM，公有领域，无需密钥），
-判据用**地形起伏**而非经纬度方框。潮汐振幅受阻于凭证申请，断面几何因
-SWORD 亚洲区单文件 948 MB 而放弃。细节与许可见该目录 README。
-**该目录下的数据尚未接入模型** —— 阈值未经独立验证，接入前先问。
+`data/external/` 目前只有 DEM 地形样本（OpenTopoData/SRTM），**尚未接入模型**；阈值未独立验证，接入前先问。
+`data/` 顶层另有用途：`pollution_permit._find_key_sources_file` 在此查找各省重点排污单位名录（不递归子目录）。
 
-> `data/` 顶层另有用途：`pollution_permit._find_key_sources_file` 在此查找各省
-> 重点排污单位名录（xlsx）。该函数**不递归子目录**，与本目录不冲突。
+### 后端主干
 
-### 另有一个独立分支 `research/hydro-wq-model`（**刻意不并入 main**）
+- `backend/main.py` — 注册全部 `/api` 路由；`session_middleware` 解析并回传 `X-Session-Id`。
+- `backend/session.py` — `Session` 持有数据、分析结果、消息、项目状态、`operation_lock`、revision；
+  `STORE` 是按 session_id 的内存字典（进程内，未做 TTL/容量，见 N08.2）。
+- `backend/deps.py` — 会话依赖；`get_exclusive_session` 用非阻塞 `operation_lock` 防止并发覆盖。
+- `backend/data_service.py` — 上传与示例共用的 `parse_monitoring` / `apply_monitoring`；
+  候选数据先解析，成功后才应用到会话。
+- `backend/sample_catalog.py` + `data/samples/` — 只按 `manifest.json` 白名单读取示例；
+  校验文件名、CSV 后缀、“仿真”、字节数、SHA-256、路径逃逸；清单/文件损坏返回 503，不返回空列表。
+- `backend/routers/data.py` — 上传/视频/状态 + `GET /api/data/samples`、`POST /api/data/samples/{id}/load`；
+  载入先保存当前项目，再创建独立演示项目；`detect=true` 的筛查失败不回滚已载入数据；`df.attrs['sample_meta']` 随项目保存。
+- `backend/projects.py` + `backend/project_codec.py` — SQLite 项目索引 + 版本化 `.wqproj` 快照；
+  当前 `schema_version=4`，包含 `media_assets`/`media/<asset_id>`；schema 1—3 可读并补空附件。
+- `backend/media_assets.py` + `backend/routers/media.py` — 图片真实解码、规范化、哈希、按会话隔离；
+  `backend/vision.py` 把选帧/附件加载成多模态 `image_url`，图片字节不写入 SSE/历史/`full_messages`。
+- `backend/project_data.py` — 只读业务数据目录/分页/统计，供 `read_project_data` 等工具使用。
+- `backend/agent/loop.py` — DeepSeek Function Calling + SSE 主循环；每轮工具结果全部返回后才追加图片消息；
+  `error_text.py` 把传输/服务异常转成可操作中文提示，但保留 Agent 自身的中文校验错误；`response_style.py` 共享表达规范。
+- `backend/agent/tools.py` — 工具定义与执行分发；与 `app.py` 的同名清单是两份，改工具时两处都要改。
+- `backend/side_chat.py` + `backend/routers/side.py` — 侧边提问/解释线程；当前不执行数据工具，不改主报告/任务。
+- `backend/routers/rag.py` — 知识库状态与检索；状态返回 `stage`（依赖/索引读取/索引构建/模型加载/实际检索），
+  不返回本机绝对路径；缺依赖/索引/检索失败分别显示。
+- `backend/routers/system.py` — `/api/config` 返回 `keys` 与 `key_state`（configured/verified/notice），
+  只说明“是否填写”，不返回值。
 
-水质-水动力开源方案的调研 + HEC-RAS 实测记录。
+### 前端主干
 
-⚠️ **它的内容不在 main 上**，当前分支里看不到那个目录。要读需先取回：
+- `frontend/src/stores/session.js` — Pinia 中央状态：会话、数据、项目、示例目录、问题上下文、图片上传、
+  侧边线程、草稿；所有异步动作做 workspace/project/revision 版本检查，丢弃迟到响应。
+- `frontend/src/api/client.js` — 统一请求封装，带 `X-Session-Id`；SSE 单独处理。
+- `frontend/src/types/contracts.ts` — 后端真实响应的 TS 类型；`scripts/export_frontend_contracts.py` 生成赋值检查。
+- `frontend/src/views/` — `ChatView`（SSE、图片上下文、可折叠分析区）、`ChartsView`、`RiverView`（恒定流分步引导/播放）、`TechView`（RAG、国控、模型验证）。
+- `frontend/src/components/SafeMarkdown.vue` — 报告/回答渲染与选文；`EChart.vue`、`TraceMap.vue`、`PollutionPlayback.vue`。
+- `frontend/src/utils/questionContext.js`、`agentStream.js`、`keyState.js`、`ragStage.js` — 上下文、事件解码、配置/阶段文案。
 
-```bash
-git fetch origin research/hydro-wq-model
-git show research/hydro-wq-model:research/hydro-wq-model/HEC-RAS实测笔记.md
-# 或   git checkout research/hydro-wq-model
-```
+### 数据与模型链路
 
-**其中最关键的一份是 `HEC-RAS实测笔记.md`** —— 记录了 HEC-RAS 7.0 非恒定流的
-四处格式错误、实测跑通的潮汐工况与质量守恒数据、以及会阻塞 COM 的两类模态对话框、
-还有可复用的探针与看门狗脚本。**要碰 HEC-RAS 相关代码，先读它。**
+- 上传/示例 → `load_data` 生产加载器 → `Session.df`（含观测掩码/插值标记、`data_identity`、`sample_meta`）。
+- 分析 → `find_black_spots` / 交叉印证 → `Session.black_spots` 等 → 图表由后端出 JSON、前端 ECharts 渲染。
+- Agent → 工具结果 + 证据包 → SSE → `full_messages`/`messages`；报告正文由服务端构造事实，模型只写解释。
+- 河道模型 → `RiverConfig`/手工参数 → `river_model` 一维恒定流 → 项目 `river_state`/结果；潮汐仍走纯 Python，
+  质量不守恒是已知缺陷，不要开放为正式 Web 路径。
+- RAG → 可选依赖 + 嵌入模型 + `.rag_index` → 检索片段 + 引用 ID；相似度不是结论概率。
 
-> 注意：`git ls-tree` 默认转义非 ASCII 路径（形如 `"research/...\345\256\236..."`），
-> 用 `grep "^research/"` 会漏掉这些文件。加 `-c core.quotepath=false` 再筛。
-
-**`backend/`**
-- `session.py` — 按 session_id 隔离的会话状态，对应原 `st.session_state`
-- `deps.py` + `main.py` 的 `session_middleware` — 会话的解析与回传（见下方坑 1）
-- `routers/{system,data,analysis,charts,agent}.py` — 五组接口
-- `agent/tools.py` — 工具定义与执行分发；**与 `app.py` 里的同名清单是两份**，改工具时两处都要改
-- `agent/loop.py` — Function Calling 流式主循环（SSE）
-
-**`frontend/src/`**
-- `stores/session.js` — Pinia，会话状态集中管理（对应 `st.session_state`）
-- `views/` — 四个视图，与 `app.py` 的四个标签页一一对应
-- `components/EChart.vue` — ECharts 封装（处理尺寸为 0 时的空白图、卸载 dispose）
-- `components/TraceMap.vue` — Leaflet 地图
-
-### 前端视图 ↔ app.py 标签页对照
+### 前端视图 ↔ app.py 标签页
 
 | 视图 | app.py | 状态 |
 |---|---|---|
-| `views/ChatView.vue` | tab1 智能对话 | ✅ 已通（SSE） |
-| `views/ChartsView.vue` | tab2 分析图表 | ✅ 已通 |
-| `views/RiverView.vue` | tab3 河道模型 | ⬜ 占位 |
-| `views/TechView.vue` | tab4 技术展示 | 🟡 部分（黑臭检测/统计已通） |
+| `views/ChatView.vue` | tab1 智能对话 | ✅ SSE、图片上下文、可折叠分析区 |
+| `views/ChartsView.vue` | tab2 分析图表 | ✅ 图表/质控/统计 |
+| `views/RiverView.vue` | tab3 河道模型 | ✅ 恒定流分步引导、播放、参数来源 |
+| `views/TechView.vue` | tab4 技术展示 | ✅ RAG、国控查询、模型验证/技术说明 |
 
 ### 关键领域概念
 
-- **双标准黑臭检测**：GB3838-2002 提供连续的内梅罗评分（用于排序/聚类），《城市黑臭水体整治工作指南》(2015) 提供"是/否黑臭"定性判定（用于筛选）。两者分工明确，不要混用。
-- **时空增强评分**：`增强评分 = 内梅罗 × 严重度因子 × (1 + 1.5×时间因子) × (1 + 1.5×空间因子)`。孤立单点超标被抑制，持续成片超标被放大。输出同时含 `black_score`（增强）与 `nemerow_raw`（原始）。
-- **引擎选择**：HEC-RAS COM 分支**仅支持恒定流**。非恒定流（潮汐）工况必须走纯 Python 求解器——`hydro_engine.is_nonconstant()` 负责判定，不要绕过它。
-- **图表改为「后端出数据、前端渲染」**：`backend/routers/charts.py` **不 import matplotlib**，只返回 JSON；ECharts / Leaflet 在前端画。这是赛题"前端工程能力 + 数据分析与可视化"的得分点，不要改回出 PNG。
-- **数据源权威性**：政府公示数据 > 商业地图数据。每个外部数据源都做了独立降级（缺 Key / 网络失败 / API 改版都不应阻断整体流程）。
+- **双标准黑臭检测**：GB3838-2002 提供连续的内梅罗评分（排序/聚类）；《城市黑臭水体整治工作指南》(2015)
+  提供“是/否黑臭”定性判定（筛选）。两者分工明确，不要混用。
+- **时空增强评分**：`增强评分 = 内梅罗 × 严重度因子 × (1 + 1.5×时间因子) × (1 + 1.5×空间因子)`。
+  输出同时含 `black_score`（增强）与 `nemerow_raw`（原始）；热点数量不是污染源数量。
+- **引擎选择**：`hydro_engine.is_nonconstant()` 负责判定；HEC-RAS COM 分支仅支持恒定流，
+  非恒定流强制走纯 Python；不要绕过判定。HEC-RAS 实测笔记在 `research/hydro-wq-model` 分支。
+- **图表后端出数据、前端渲染**：`backend/routers/charts.py` 不 import matplotlib，只返回 JSON；
+  这是赛题可视化得分点，不要改回 PNG。
+- **数据源权威性**：政府公示数据 > 商业地图数据；每个外部数据源独立降级（缺 Key/网络失败/API 改版不阻断整体流程）。
 
 ## 必须知道的坑
 
-**动手前先读 `docs/` 下两份审计文档**，它们记录了已确认的缺陷、证据等级与修改方案：
-
-- `docs/代码审计与修改方案.md` — 第一轮，含修复进展表
-- `docs/代码审计-第二轮发现.md` — 第二轮（全文通读后）
-
 **1. 会话靠 `X-Session-Id` 请求头传递 —— 后端必须回传**
 
-HTTP 是无状态的。前端在请求头带 `X-Session-Id`，**后端必须在响应头回传**，否则前端永远不知道自己在用哪个会话，于是每个请求都新建会话。曾因此出现「上传成功 1805 条，但状态始终为空、按钮点不动」。修复见 `backend/main.py` 的 `session_middleware`（放在中间件层而非依赖里，才能覆盖包括错误响应在内的全部出口）。
-
-写后端测试时**不要手动替客户端带 `X-Session-Id`** 就把用例写完 —— 那会掩盖客户端侧的问题。`tests/后端接口检查.py` 里专门保留了一条「不带 id 时应查不到数据」的用例守这个语义。
+HTTP 无状态。前端在请求头带 `X-Session-Id`，后端必须在响应头回传，否则每个请求都新建会话。
+修复在 `backend/main.py` 的 `session_middleware`（中间件层，覆盖错误响应）。写测试时不要手动替客户端带 id
+就把用例写完——`tests/后端接口检查.py` 保留“不带 id 应查不到数据”的用例守这个语义。
 
 **2. 导入必须用全路径，否则会加载到 `D:\aiRAG` 的另一份代码**
 
-本机存在一个指向 `D:\aiRAG\water_quality_mcp\src\water_quality_mcp` 的 **editable 安装**。因此：
+本机存在指向 `D:\aiRAG\water_quality_mcp\src\water_quality_mcp` 的 editable 安装：
 
 | 写法 | 实际加载 |
 |---|---|
 | `from water_quality_mcp.src.water_quality_mcp.X import ...` + 项目根在 `sys.path` | ✅ 本项目 |
 | `import water_quality_mcp` + `src` 在 `sys.path` | ✅ 本项目 |
-| `from water_quality_mcp.X import ...` + 只有项目根在 `sys.path` | ❌ **`D:\aiRAG`** |
+| `from water_quality_mcp.X import ...` + 只有项目根在 `sys.path` | ❌ `D:\aiRAG` |
 
-`backend/__init__.py` 已处理 sys.path 并统一走全路径。**写新代码时请沿用**，不要图省事写短路径。
+`backend/__init__.py` 已处理 sys.path 并统一走全路径；新代码沿用。项目未真正 pip 安装，`.rag_index` 由
+`rag_engine.py` 以相对 `__file__` 解析；`trace_map.html`、`_uploaded_data.xlsx` 等输出是 CWD 相对路径。
 
-项目并未真正 pip 安装，全靠 `sys.path` 操作。`.rag_index` 由 `rag_engine.py` 以 `../../../` 相对 `__file__` 解析；多处输出文件（`trace_map.html`、`_uploaded_data.xlsx`、`river_*.png`）是 **CWD 相对**路径。
+**3. 本机环境的特性（会干扰测试与调试）**
 
-**3. 本机环境的三个特性（会干扰测试与调试）**
+- 开发 Vite 只监听 IPv6 `[::1]:5173`，用 `127.0.0.1` 访问不到；生产 `serve_web.py` 监听 `127.0.0.1`。
+- curl/urllib 默认走系统代理（Clash `127.0.0.1:7890`），访问本地服务返回 502；加 `--noproxy '*'` 或禁用代理。
+- 用过的后端端口会堆积无法回收的残留监听套接字：`netstat` 显示 LISTENING 但 PID 进程不存在，
+  改了后端代码却不生效。`Get-NetTCPConnection -LocalPort <port> -State Listen` + `Get-Process -Id <pid>` 核对；
+  **换端口是最快的解法**，不要纠缠杀进程。8000/8001 已实测残留，现在 API 开发用 8002、生产入口用 5174。
+- **验证“修复是否生效”要用行为，不要用进程状态**：观察只有新代码才有的行为，不能只看 HTTP 200 或“服务起来了”。
 
-- **Vite 只监听 IPv6 `[::1]:5173`**，用 `127.0.0.1` 访问不到
-- **curl / urllib 默认走系统代理**（Clash，`127.0.0.1:7890`），访问本地服务返回 502。
-  命令行加 `--noproxy '*'`；Python 用
-  `urllib.request.build_opener(urllib.request.ProxyHandler({}))`
-- **用过的后端端口会堆积无法回收的残留监听套接字**：`netstat` 显示有 PID 在
-  LISTENING，但该 PID 的进程已不存在，`taskkill` 报"找不到进程"。表现为
-  **改了后端代码却不生效** —— 请求被残留套接字背后的旧实例接走了，且不影响
-  HTTP 200 的返回，极具迷惑性。**8000 与 8001 上都已实测复现**（2026-10-14），
-  所以「换到 8001」这个旧建议已失效，**现在用 8002**。
-
-  排查：`Get-NetTCPConnection -LocalPort <port> -State Listen` 后
-  `Get-Process -Id <pid>`，若进程不存在即为残留。Git Bash 的 `netstat`
-  在此场景下视图不可靠，以 PowerShell 的 `Get-NetTCPConnection` 为准。
-  **换端口是最快的解法**，别去纠缠怎么杀掉它。
-
-- **已验证服务跑的是哪版代码，不能靠"应该生效了"**：因为上一条，旧实例会安静地
-  继续应答。比对本机接口的**行为**才算数 —— 例如上传一份别名列名的 CSV，
-  返回 `rows=1` 才说明跑的是含列名兼容修复的版本。
-
-**4. 字段名不匹配是系统性问题，不是孤例 —— 有两个检查器，别只跑一个**
-
-调用层曾按英文 `snake_case` 键名读取**中文键名**的产出，`.get()` 取不到时静默返回默认值、不报错。已修复 11 处（详见第二轮审计文档 A 节）。
-
-**两个检查器分工不同，改哪边就跑哪个：**
+**4. 字段名不匹配是系统性问题 —— 两个检查器别只跑一个**
 
 | 改了 | 跑 |
 |---|---|
 | `app.py`（旧界面） | `tests/字段名一致性检查.py` |
 | `frontend/`（新前端） | `tests/前端字段名检查.py` |
-| 后端接口的返回字段 | 两个都要跑 |
+| 后端接口返回字段 | 两个都跑 |
 
-新前端曾因**没有对应的检查器**而重蹈覆辙：`CrossValidation.vue` 读了
-`alignment`/`agreement`/`correlations`/`findings` 四个英文键，后端一个都没有，
-四个指标卡全空白、接口却返回 200。加检查器之后才系统性地堵住。
-
-写这类检查器时注意**避免假阳性**（假阳性会直接毁掉工具的可信度）：
-- 必须取该组件依赖的**全部**接口的键之并集。RiverView 用四个接口，
-  只拿一个比会误报十几个键
-- 只在条件分支出现的键、组件里有 `||` 兜底的键、以及本地常量
-  （如 Leaflet 图层名），要显式豁免并注明原因
+写检查器避免假阳性：必须取组件依赖的**全部**接口键之并集；条件分支键、`||` 兜底键、本地常量要显式豁免并注明原因。
 
 **5. 按钮禁用必须说明原因**
 
-前端出现过一处 `:disabled="!query.trim()"` —— 输入框为空时按钮禁用，但
-没有任提示，用户只看到"按钮点不动"。原 app.py 的行为是
-`query = tech_rag_query or "黑臭水体治理"`，**空输入走默认查询**。
+需要前置条件的按钮，要么给默认值兜底、要么附一行说明；一个看不出原因的死按钮，比默认查询的按钮差得多。
+原 `app.py` 空输入走默认查询 `"黑臭水体治理"`；前端聊天发送键的通用惯例除外。
 
-结论：需要前置条件的按钮，要么给默认值兜底、要么附一行说明；
-**一个看不出原因的死按钮，比一个用默认值兜底的按钮差得多。**
-改动了前端全部 16 处 `:disabled` 逐个审过，其余都有合理理由
-（loading 态、缺数据但有提示、聊天发送键的通用惯例）。
+**6. 已知未修复的缺陷，不要“顺手”改**
 
-**6. 已知未修复的缺陷，不要"顺手"改**
-
-- `pure_py_hydro.py` 连续性方程遗漏水面宽 `B_mid`，非恒定工况质量不守恒（残差达蓄水率 103%）。补上 `B_mid` 的实验已回滚——残差不变且破坏 Newton 收敛。**需要重新推导 Preissmann 离散，非外科修复可解。**
-- `analysis_config.py` 有两个独立单例（`get_config()` 管理的 `_DEFAULT_CONFIG` 与模块级 `DEFAULT_CONFIG`）。全库无人调用 `set_config`，属潜伏隐患。**改动零收益、风险非零，建议不动。**
-- `TIDAL_AMPLITUDE_BY_REGION` 的 8 个具体河口键当前不可达（只取 `"default"`）。原因与影响已写在 `regional_defaults.py` 表旁。
+- `pure_py_hydro.py` 连续性方程遗漏水面宽 `B_mid`，非恒定工况质量不守恒（残差达蓄水率 103%）。
+  补 `B_mid` 的实验已回滚（残差不变且破坏 Newton 收敛），需要重新推导 Preissmann 离散。
+- `analysis_config.py` 有两个独立单例（`get_config()` 的 `_DEFAULT_CONFIG` 与模块级 `DEFAULT_CONFIG`），
+  全库无人调用 `set_config`；改动零收益、风险非零，建议不动。
+- `TIDAL_AMPLITUDE_BY_REGION` 的 8 个具体河口键当前不可达（只取 `"default"`），原因写在 `regional_defaults.py` 表旁。
 
 **7. 不要在作品说明中美化能力**
 
-按**本仓库实际代码**核对过：溯源是 **4 个加权源**（不是文档说的 6 源）；ESA 土地利用与降雨模块在本仓库中**不存在**；视频分析只有整帧 Laplacian + HSV（不是文档说的 5 维 ROI/光流/水色/纹理/漂浮物）。
+按本仓库实际代码核对：溯源是 **4 个加权源**（不是 6 源）；ESA 土地利用与降雨模块在本仓库**不存在**；
+视频分析只有整帧 Laplacian + HSV（不是 5 维 ROI/光流/水色/纹理/漂浮物）。
 
-**河道模型的潮汐工况，准确说法是**（2026-10-14 实测后修订）：
-
-- 潮汐工况目前由**纯 Python 求解器**处理，实测**质量不守恒**（体积守恒残差达蓄水率的 103%）。
-  这**不是"选了 Preissmann 格式"的错** —— HEC-RAS 用的是同一类格式（1D Unsteady
-  Finite Difference），质量守恒误差仅 **0.0116%**。差别在离散写法。
-- **HEC-RAS 的非恒定流其实可用**。`hecras_bridge.py` 注释所称的"7.0 格式不兼容"
-  经实测推翻：真实原因是生成的输入文件有四处格式错误，HEC-RAS 每次都判为恒定流方案
-  并静默调用 `RasSteady.exe`。四处错误与修法见 `research/hydro-wq-model/HEC-RAS实测笔记.md`。
-- 但 `hydro_engine.py:87` **强制**把非恒定流推给纯 Python
-  （`engine = "pure_python" if is_nonconstant(...) else detect_engine()`），
-  所以**修好格式也不会改变任何潮汐输出**。要切换得单独决策 ——
-  代价是改变全部潮汐结果、HEC-RAS 成为必需依赖、以及模态对话框会挂住 FastAPI 请求。
-- **几何是人工规则梯形，不是实测断面**。即便切换引擎，结果也只是"数值上正确"，
-  不是"雅瑶水道的真实模型"。
-
-> 注：`D:\aiRAG`（见坑 2）里**有** `land_use.py` 与 `precipitation.py`，但那是另一份、未纳入本仓库的代码。写说明文档时以本仓库为准。
+河道模型准确说法：潮汐由纯 Python 求解器处理，实测质量不守恒（体积残差达蓄水率 103%）；
+HEC-RAS 非恒定流其实可用，`hecras_bridge.py` 注释的“7.0 格式不兼容”经实测推翻，真实原因是输入文件四处格式错误；
+但 `hydro_engine.is_nonconstant()` 的分支强制非恒定流走纯 Python，修好格式也不会改变潮汐输出；几何是人工规则梯形，不是实测断面。
+即便切换引擎，结果只是“数值上正确”，不是“雅瑶水道的真实模型”。
 
 **8. 泛化的实质：靠一张 9 条河的手工表撑着**
 
-本项目的目标不是"只服务雅瑶水道"，而是"喂任意河流的数据都能跑"。但审计实测：
+真实数据上 10 个参数里 9 个来自 `KNOWN_RIVERS_GD`（只有 9 条广东河流）；`classify_region` 穷举中国网格，
+99.3% 判为 lowland，foothill/mountain/coastal 一次都没返回过 → 山区坡降错 20~33 倍。
+数据入口原先只认一种列命名，别名/英文列名会 KeyError。已修复部分见 `tests/泛化能力检查.py`（16 项）。
+**根本瓶颈是断面几何**（HEC-RAS 工程用人工规则梯形），是数据问题不是代码问题。
 
-- 真实数据上 **10 个参数里 9 个来自 `KNOWN_RIVERS_GD`** —— 一张只有 9 条
-  **广东**河流的手工表。出了表就退化到区域默认值。
-- `classify_region` 穷举中国全境网格，**99.3% 判为 lowland**，
-  `foothill`/`mountain`/`coastal` **一次都没返回过**（尽管 docstring 声称会）
-  → 山区河道坡降错 20~33 倍。
-- 数据入口原先只认一种列命名，别名/英文列名一律 KeyError 崩栈。
+改这类代码的设计约束：**对本项目样本数据输出不变，只在换河时才不同**（桩号跟 `length_m`、参数回落 config
+且默认值等于原硬编码常数）。
 
-已修复的部分见 `tests/泛化能力检查.py`（16 项）。**未修复的根本瓶颈是断面几何**：
-HEC-RAS 工程用的是人工规则梯形，不是实测断面 —— 这是数据问题，不是代码问题。
+**9. 列映射这类“两份实现”必须合并**
 
-> **改这类代码时的设计约束**：修复应做到"对本项目样本数据输出不变，
-> 只在换河时才不同"。第 1/2/3/6 项修复都是这样设计的（桩号跟着 `length_m`、
-> 参数回落到 config 而其默认值恰等于原硬编码常数），这样不会打乱既有演示结果。
-
-**9. 列映射这类"两份实现"必须合并**
-
-`app.py` 与 `loaders.py` 曾各有一份**独立的**列名映射与时间解析。修复列名兼容时
-只改了 `loaders`，`app.py` 仍是旧的 —— 因为两边是两套代码。
-现已统一走 `loaders.normalize_columns()`。
-**发现同类重复实现时，先合并再改，否则必然漏改一边。**
+`app.py` 与 `loaders.py` 曾各有一份列名映射/时间解析；修复时只改 `loaders`，`app.py` 仍是旧的。
+现已统一走 `loaders.normalize_columns()`。发现同类重复实现时，先合并再改，否则必然漏改一边。
 
 **10. `.rag_index/chroma.sqlite3` 每查一次 RAG 就会被改动**
 
-该文件（1.8 MB 二进制）已被 git 跟踪，但**每次检索都会写它** ——
-实测同一次查询前后 md5 不同。后果：**任何人查一次 RAG，工作区就变脏**。
+该文件被 Git 跟踪，但每次检索都会写它；跑完 RAG 相关测试后，提交前先
+`git checkout -- .rag_index/chroma.sqlite3`。若后端正在运行，文件被占用会报 `unable to unlink ... Invalid argument`
+——必须先停后端再回退。是否移出 Git 尚未决策，见 N08.8；不要擅自删除或改跟踪状态。
 
-处理方式：跑完 RAG 相关测试后，提交前先 `git checkout -- .rag_index/chroma.sqlite3`。
-**若后端正在运行，该文件被占用，回退会报 `unable to unlink ... Invalid argument`**
-—— 必须先停掉后端进程再回退。
+**11. 示例 CSV 与 manifest 是字节级契约，不能用加载器结果重新生成**
 
-> 已向用户提出过这个取舍但**尚未决定**：继续跟踪 = 评委开箱能跑 RAG，代价是工作区
-> 常脏；移出跟踪 + gitignore = 工作区干净，代价是评委需自行跑
-> `scripts/build_rag_index.py`（要下载约 400 MB 嵌入模型）。改动前先问。
+`data/samples/*.csv` 必须从原始 Excel 的监测工作表直接导出，**不能先 `load_data` 再导出**——加载器会插值、
+清洗、补坐标，抹掉 S06 的缺测。manifest 记录实际字节的 SHA-256/大小/行数；`.gitattributes` 将 CSV 标记为 binary。
+不要手改 CSV 或 manifest；需要重生成时跑 `scripts/prepare_sample_data.py`，它默认不覆盖不同内容。
+示例身份固定为 `synthetic`，`sample_meta` 随项目保存，不要改客户端传入的身份。
 
-**11. 验证"修复是否生效"要用行为，不要用进程状态**
+**12. 示例载入的顺序：先校验，再保存，再切独立演示项目**
 
-本机同时存在：残留监听套接字（坑 3）、`--reload` 的自动重载、以及多个端口上
-跑着不同版本的实例。**"服务起来了"不等于"跑的是新代码"。**
-要证明新代码生效，必须观察**只有新代码才有的行为**。
+`POST /api/data/samples/{id}/load` 先解析候选 CSV，成功后才保存当前项目并创建独立演示项目；
+不要改成“先清空会话、再找文件”。筛查失败只标记“数据已载入、检测未完成”，不回滚数据；S01 零热点是有效结果。
+载入/检测不要暗中触发收费 AI、实时 POI 或联网分析。
+
+**13. 交付打包只认已提交源码**
+
+`scripts/package_delivery.py` 用 `git archive HEAD`，拒绝未提交源码和被跟踪的本机配置；
+`work/` 在 `.gitignore` 中，ZIP 需单独发送。包内 `delivery-manifest.json` 记录 revision；ZIP 哈希不写入包内文件
+（会自引用）。解压到新的空目录、确认无 `.env`/`.mcp.json` 后跑 `scripts/verify_delivery.py`。
+不要拿未提交工作区代码冒充某个 revision。
+
+**14. 密钥扫描只豁免“声明的摘要字段”**
+
+`scripts/secret_scan.py` 只豁免示例 manifest 的 `sha256`、验证记录顶层的 `*_sha256`、图片/视频证据的
+`sha256`/`asset_revision`/`video_revision` 和 32 位 `asset_id`；模型正文、配置键、未声明 hex 仍扫描。
+不要把任意 64 位 hex 加进 allowlist 来让检查变绿；新增验证记录字段时先看 `metadata_hash_spans` 的测试。
+
+**15. 测试必须隔离用户项目与外部服务**
+
+用 `WQ_PROJECT_HOME` 指向临时目录；浏览器脚本会创建示例项目，必须对**隔离项目目录的临时服务**运行，
+不要写进用户默认 `data/projects`。`check_ci.py` 会设置临时目录并禁止外部 `requests/httpx`。
+前端 `questionSourceState.test.mjs` 用 fixture 替换除 `vue` 外的导入；组件新增导入时要在映射里补真实路径
+（如 `utils/ragStage.js`），否则测试会报 “does not provide an export”。
+
+**16. Python 版本口径以实际环境为准**
+
+当前机器只有 Python 3.14.0；干净 CI venv 也是 3.14.0。`pyproject.toml` 声明 `>=3.11`，README/启动器不要再写
+“当前锁定依赖使用 3.12 验证”。若在别的 Python 版本上运行，先实测并记录，不能只改版本文本。
+
+**17. 接口不要暴露本机绝对路径**
+
+RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单元数据。新增接口时不要返回项目根、`.env` 路径、
+调用栈、完整文件正文或隐藏真值。错误信息要可操作但不泄露路径/凭证。
 
 ## 与苗圃杯原项目的关系
 
-基线代码来自 `C:\Users\Cloud-Mist Sky Lake\Desktop\苗圃杯\提交文件\`（**无 Git**，冻结的只读参照）。其中 `提交文件/` 与 `1/提交文件/` 的 **Python 源码完全相同**，`提交文件/` 是唯一权威版本。
+基线代码来自 `C:\Users\Cloud-Mist Sky Lake\Desktop\苗圃杯\提交文件\`（**无 Git**，冻结的只读参照）。
+其中 `提交文件/` 与 `1/提交文件/` 的 Python 源码完全相同，`提交文件/` 是唯一权威版本。
 
-原仓库 `yunshuitianhu/water-quality-monitoring` **不要使用**：它只有 5 次提交、首次即 `Initial commit` 提交全部功能，正是赛道禁止的形态，且缺失最终版的大量模块。本仓库首次提交已显式标注了代码来源，**绝不补造提交历史**。
+原仓库 `yunshuitianhu/water-quality-monitoring` **不要使用**：只有 5 次提交、首次即 `Initial commit` 提交全部功能，
+正是赛道禁止的形态，且缺失最终版大量模块。本仓库首次提交已显式标注代码来源，**绝不补造提交历史**。
 
-本机还有 `D:\aiRAG\`（时间戳 2026-06-18，晚于苗圃杯提交的 06-03）。它是同一项目的后续开发版本，多出 `land_use.py`、`precipitation.py`、真实 ESA 数据与名录，但**同样存在本仓库已修复的全部缺陷**。**尚未决定是否并入**——改动前先与用户确认。
+本机还有 `D:\aiRAG\`（时间戳 2026-06-18，晚于苗圃杯 06-03）：同一项目的后续开发版本，多出 `land_use.py`、
+`precipitation.py`、真实 ESA 数据与名录，但同样存在本仓库已修复的全部缺陷。**尚未决定是否并入**——改动前先与用户确认。
+
+## 文档索引
+
+- `docs/交付说明_20261028.md` — 交付物/安装/验收/限制。
+- `docs/任务队列.md` — Q/N 任务状态与日期记录。
+- `docs/内置仿真示例与一键载入实施记录_20261027.md` — N01—N08 实施与证据。
+- `docs/Windows安装与运行环境验证_20261028.md` — 干净 venv/启动器/带空格路径。
+- `docs/AI交互与多模态接入实施记录_20261027.md` — 图片附件、只读工具、项目 schema 4。
+- `docs/代码审计与修改方案.md`、`docs/代码审计-第二轮发现.md` — 已确认缺陷与修复进展。
+- `data/samples/README.md` — 示例来源、字段、单位、缺测规则与演示限制。
+- 独立分支 `research/hydro-wq-model`（刻意不并入 main）— HEC-RAS 实测笔记；碰 HEC-RAS 代码前先读。
+  内容不在 main：`git fetch origin research/hydro-wq-model` 后
+  `git show research/hydro-wq-model:research/hydro-wq-model/HEC-RAS实测笔记.md`。注意 `git ls-tree` 默认转义
+  非 ASCII 路径，用 `-c core.quotepath=false` 再筛。
