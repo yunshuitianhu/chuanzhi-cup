@@ -42,6 +42,12 @@ class DeliveryTests(unittest.TestCase):
             self.assertEqual(self.client.head(path).status_code, 200)
         self.assertEqual(STORE.count, before)
 
+    def test_unknown_api_and_page_paths_are_404_not_the_home_page(self):
+        for path in ('/api/does-not-exist', '/nope', '/river/extra'):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 404, path)
+            self.assertNotIn('<html', response.text.lower(), path)
+
     def test_running_service_keeps_lazy_assets_when_build_directory_is_replaced(self):
         old = self.client.get('/assets/app-abcd.js').content
         (self.dist/'assets/app-abcd.js').unlink()
