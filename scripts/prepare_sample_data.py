@@ -94,7 +94,8 @@ def to_csv_bytes(raw: pd.DataFrame) -> bytes:
 
 
 def metadata(sample_id: str, source: Path, csv_name: str, raw: pd.DataFrame,
-             notes: dict, csv_bytes: bytes, title: str, description: str) -> dict:
+             notes: dict, csv_bytes: bytes, title: str, description: str,
+             *, source_label: str = '仿真数据', version_prefix: str = 'v1') -> dict:
     times = pd.to_datetime(raw['时间'], errors='coerce')
     if times.isna().any():
         raise ValueError(f'{source.name} 存在无法解析的时间')
@@ -109,7 +110,7 @@ def metadata(sample_id: str, source: Path, csv_name: str, raw: pd.DataFrame,
         'description': description,
         'file': csv_name,
         'data_kind': 'synthetic',
-        'version': 'v1-' + _sha(csv_bytes)[:12],
+        'version': f'{version_prefix}-' + _sha(csv_bytes)[:12],
         'sha256': _sha(csv_bytes),
         'size_bytes': len(csv_bytes),
         'rows': int(len(raw)),
@@ -117,7 +118,7 @@ def metadata(sample_id: str, source: Path, csv_name: str, raw: pd.DataFrame,
         'time_range': time_range,
         'time_zone': '无时区偏移（naive），未声明时区；按原始时间字符串解释',
         'coordinate_system': notes.get('坐标系', '未提供坐标系；不能凭地名推断'),
-        'source_reference': f'仿真数据/{source.name} · 工作表 {MONITOR_SHEET}',
+        'source_reference': f'{source_label}/{source.name} · 工作表 {MONITOR_SHEET}',
         'has_video': False,
         'notice': notice[:2000],
         'field_units': _field_units(raw.columns),
@@ -142,6 +143,10 @@ def main() -> int:
     parser.add_argument('--source-dir', type=Path, default=DEFAULT_SOURCE)
     parser.add_argument('--output-dir', type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument('--force', action='store_true', help='允许覆盖内容不同的既有 CSV')
+    parser.add_argument('--source-label', default='仿真数据',
+                        help='写进 manifest 的源目录标签；默认仿真数据')
+    parser.add_argument('--version-prefix', default='v1',
+                        help='示例版本前缀；默认 v1，v2 卫星定线样本用 v2')
     args = parser.parse_args()
     source_dir = args.source_dir.resolve()
     output_dir = args.output_dir.resolve()
@@ -157,7 +162,9 @@ def main() -> int:
         csv_bytes = to_csv_bytes(raw)
         target = output_dir / csv_name
         changed = write_if_needed(target, csv_bytes, args.force)
-        samples.append(metadata(sample_id, source, csv_name, raw, notes, csv_bytes, title, description))
+        samples.append(metadata(sample_id, source, csv_name, raw, notes, csv_bytes,
+                                title, description, source_label=args.source_label,
+                                version_prefix=args.version_prefix))
         print(f'{sample_id}: {len(raw)} 行 -> {target} ({len(csv_bytes)} bytes, {"写入" if changed else "未变"})')
     manifest = {
         'manifest_version': 1,

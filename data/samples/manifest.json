@@ -9,9 +9,9 @@
       "description": "正常背景对照；零预警或零热点也可以是有效筛查结果。",
       "file": "S01_仿真_正常背景.csv",
       "data_kind": "synthetic",
-      "version": "v1-816a709c978f",
-      "sha256": "816a709c978f7e5505e5bee770d89a2d28f3e4239e449c1d78702bbae32e7f95",
-      "size_bytes": 146061,
+      "version": "v2-788eafa6e29d",
+      "sha256": "788eafa6e29d8ee5bca2abe248916895c29185ac6a174da24986e5862aa2786b",
+      "size_bytes": 146063,
       "rows": 1801,
       "columns": [
         "时间",
@@ -32,8 +32,8 @@
         "2026-10-21 11:30:00"
       ],
       "time_zone": "无时区偏移（naive），未声明时区；按原始时间字符串解释",
-      "coordinate_system": "WGS84；地图描线近似误差约30米",
-      "source_reference": "仿真数据/S01_仿真_正常背景.xlsx · 工作表 仿真走航数据",
+      "coordinate_system": "WGS84；卫星水面人工近似定线，未经测绘验证",
+      "source_reference": "scripts/generate_synthetic_monitoring.py v2（卫星水面定线）/S01_仿真_正常背景.xlsx · 工作表 仿真走航数据",
       "has_video": false,
       "notice": "可验证受控场景行为，不能据此证明真实河流准确率；仅为仿真数据，不能作为现场实测或污染责任依据。",
       "field_units": {
@@ -53,9 +53,9 @@
       "description": "单源持续排放情景；场景名称不代表已经成功反演出真实来源。",
       "file": "S02_仿真_单源持续排放.csv",
       "data_kind": "synthetic",
-      "version": "v1-517c8bb38d6f",
-      "sha256": "517c8bb38d6f7679fcc34f7f2a74063bb50bff8ec29c4181d27448e7dc82ad48",
-      "size_bytes": 146643,
+      "version": "v2-72a33adb3318",
+      "sha256": "72a33adb3318a79378817588256a10531098f74bc46f385eb4c8302cf3946800",
+      "size_bytes": 146889,
       "rows": 1801,
       "columns": [
         "时间",
@@ -76,8 +76,8 @@
         "2026-10-22 11:30:00"
       ],
       "time_zone": "无时区偏移（naive），未声明时区；按原始时间字符串解释",
-      "coordinate_system": "WGS84；地图描线近似误差约30米",
-      "source_reference": "仿真数据/S02_仿真_单源持续排放.xlsx · 工作表 仿真走航数据",
+      "coordinate_system": "WGS84；卫星水面人工近似定线，未经测绘验证",
+      "source_reference": "scripts/generate_synthetic_monitoring.py v2（卫星水面定线）/S02_仿真_单源持续排放.xlsx · 工作表 仿真走航数据",
       "has_video": false,
       "notice": "可验证受控场景行为，不能据此证明真实河流准确率；仅为仿真数据，不能作为现场实测或污染责任依据。",
       "field_units": {
@@ -97,9 +97,9 @@
       "description": "双源持续排放情景；热点数量不等于污染源数量。",
       "file": "S03_仿真_双源持续排放.csv",
       "data_kind": "synthetic",
-      "version": "v1-4e85a705e6f8",
-      "sha256": "4e85a705e6f8aa5173a1a535003d1f7ff83bfcedb581117adc847755daefeeb9",
-      "size_bytes": 147250,
+      "version": "v2-b961e926c193",
+      "sha256": "b961e926c193a28a9ae226d60eb74e76dc7ad9a9767e4505a0f5ed3a0710aa34",
+      "size_bytes": 147251,
       "rows": 1801,
       "columns": [
         "时间",
@@ -120,8 +120,8 @@
         "2026-10-23 11:30:00"
       ],
       "time_zone": "无时区偏移（naive），未声明时区；按原始时间字符串解释",
-      "coordinate_system": "WGS84；地图描线近似误差约30米",
-      "source_reference": "仿真数据/S03_仿真_双源持续排放.xlsx · 工作表 仿真走航数据",
+      "coordinate_system": "WGS84；卫星水面人工近似定线，未经测绘验证",
+      "source_reference": "scripts/generate_synthetic_monitoring.py v2（卫星水面定线）/S03_仿真_双源持续排放.xlsx · 工作表 仿真走航数据",
       "has_video": false,
       "notice": "可验证受控场景行为，不能据此证明真实河流准确率；仅为仿真数据，不能作为现场实测或污染责任依据。",
       "field_units": {
@@ -141,9 +141,9 @@
       "description": "单源两次间歇排放情景；读数变化仍同时受走航位置和时间影响。",
       "file": "S04_仿真_单源两次间歇排放.csv",
       "data_kind": "synthetic",
-      "version": "v1-cdb753cd0697",
-      "sha256": "cdb753cd0697dfe6fb7bb03afa58de6020389d8e706fa1521002e8568a083d1f",
-      "size_bytes": 146513,
+      "version": "v2-72f281384ffb",
+      "sha256": "72f281384ffb0b29cf9c329294b61169e39a55cc9d6ae9f3de13493c059a3270",
+      "size_bytes": 146666,
       "rows": 1801,
       "columns": [
         "时间",
@@ -164,8 +164,8 @@
         "2026-10-24 11:30:00"
       ],
       "time_zone": "无时区偏移（naive），未声明时区；按原始时间字符串解释",
-      "coordinate_system": "WGS84；地图描线近似误差约30米",
-      "source_reference": "仿真数据/S04_仿真_单源两次间歇排放.xlsx · 工作表 仿真走航数据",
+      "coordinate_system": "WGS84；卫星水面人工近似定线，未经测绘验证",
+      "source_reference": "scripts/generate_synthetic_monitoring.py v2（卫星水面定线）/S04_仿真_单源两次间歇排放.xlsx · 工作表 仿真走航数据",
       "has_video": false,
       "notice": "可验证受控场景行为，不能据此证明真实河流准确率；仅为仿真数据，不能作为现场实测或污染责任依据。",
       "field_units": {
@@ -185,9 +185,9 @@
       "description": "双源氨氮与有机物耗氧情景；按实际字段解释指标，不把CBOD当COD。",
       "file": "S05_仿真_双源氨氮与有机物耗氧.csv",
       "data_kind": "synthetic",
-      "version": "v1-27cedb7b89dc",
-      "sha256": "27cedb7b89dc5f7895c0fc00ed9f5bfcf321845e8aaa6eace7730cc5e78506da",
-      "size_bytes": 146112,
+      "version": "v2-f1d9ebb1b8a3",
+      "sha256": "f1d9ebb1b8a3ad856bb169d0d1def3bfa4aa4f576dac7ec7513ea820630524d4",
+      "size_bytes": 146073,
       "rows": 1801,
       "columns": [
         "时间",
@@ -208,8 +208,8 @@
         "2026-10-25 11:30:00"
       ],
       "time_zone": "无时区偏移（naive），未声明时区；按原始时间字符串解释",
-      "coordinate_system": "WGS84；地图描线近似误差约30米",
-      "source_reference": "仿真数据/S05_仿真_双源氨氮与有机物耗氧.xlsx · 工作表 仿真走航数据",
+      "coordinate_system": "WGS84；卫星水面人工近似定线，未经测绘验证",
+      "source_reference": "scripts/generate_synthetic_monitoring.py v2（卫星水面定线）/S05_仿真_双源氨氮与有机物耗氧.xlsx · 工作表 仿真走航数据",
       "has_video": false,
       "notice": "可验证受控场景行为，不能据此证明真实河流准确率；仅为仿真数据，不能作为现场实测或污染责任依据。",
       "field_units": {
@@ -229,9 +229,9 @@
       "description": "正常水体叠加仪器异常与缺测情景；用于区分原始缺测、插值和有效零值。",
       "file": "S06_仿真_正常水体加仪器异常与缺测.csv",
       "data_kind": "synthetic",
-      "version": "v1-f3b7b1ee2079",
-      "sha256": "f3b7b1ee2079ef1239d49c3f4c290107a7c2bc823cb0a96ce4d9e4045f39c5c8",
-      "size_bytes": 145788,
+      "version": "v2-90479da02c03",
+      "sha256": "90479da02c03d0ec9bb2fc0f9482495d2bf6ec6d8c585813cce84e65d45863b4",
+      "size_bytes": 145792,
       "rows": 1801,
       "columns": [
         "时间",
@@ -252,8 +252,8 @@
         "2026-10-26 11:30:00"
       ],
       "time_zone": "无时区偏移（naive），未声明时区；按原始时间字符串解释",
-      "coordinate_system": "WGS84；地图描线近似误差约30米",
-      "source_reference": "仿真数据/S06_仿真_正常水体加仪器异常与缺测.xlsx · 工作表 仿真走航数据",
+      "coordinate_system": "WGS84；卫星水面人工近似定线，未经测绘验证",
+      "source_reference": "scripts/generate_synthetic_monitoring.py v2（卫星水面定线）/S06_仿真_正常水体加仪器异常与缺测.xlsx · 工作表 仿真走航数据",
       "has_video": false,
       "notice": "可验证受控场景行为，不能据此证明真实河流准确率；仅为仿真数据，不能作为现场实测或污染责任依据。",
       "field_units": {

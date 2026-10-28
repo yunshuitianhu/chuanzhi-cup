@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 from copy import deepcopy
 import json
+import math
 import os
 from pathlib import Path
 import sqlite3
@@ -39,6 +40,20 @@ def manifest_payload():
     return json.loads(MANIFEST.read_text(encoding='utf-8'))
 
 
+def _point_to_route_m(lat, lon, points):
+    """Approximate distance from a WGS84 point to a lon/lat polyline, in metres."""
+    scale_x = 111195 * math.cos(math.radians(lat))
+    xy = [((p[0] - lon) * scale_x, (p[1] - lat) * 111195) for p in points]
+    best = float('inf')
+    for (x1, y1), (x2, y2) in zip(xy, xy[1:]):
+        dx, dy = x2 - x1, y2 - y1
+        length2 = dx * dx + dy * dy
+        t = 0.0 if length2 == 0 else max(0.0, min(1.0, -(x1 * dx + y1 * dy) / length2))
+        px, py = x1 + t * dx, y1 + t * dy
+        best = min(best, math.hypot(px, py))
+    return best
+
+
 class SampleFileTests(unittest.TestCase):
     def test_manifest_lists_six_synthetic_csvs_without_private_paths(self):
         payload = sample_catalog.list_samples()
@@ -54,26 +69,25 @@ class SampleFileTests(unittest.TestCase):
             self.assertNotIn('file', item)
             self.assertFalse(item['has_video'])
 
-    def test_csv_preserves_raw_excel_order_time_coordinates_zeros_and_missing(self):
+    def test_csv_coordinates_follow_documented_v2_satellite_route(self):
+        from scripts.generate_synthetic_monitoring import ROUTES, route_coordinates
+
+        route_names = {'S01': 'nanjing', 'S02': 'nanjing', 'S03': 'chengdu',
+                       'S04': 'chengdu', 'S05': 'hangzhou', 'S06': 'hangzhou'}
         for item in manifest_payload()['samples']:
-            source = ROOT / '仿真数据' / item['source_reference'].split(' · ')[0].split('/', 1)[1]
-            if not source.is_file():
-                self.skipTest('开发侧原始 Excel 未随交付源码提供；本机已另行做过原始对照')
-            raw = pd.read_excel(source, sheet_name='仿真走航数据', dtype=object)
             csv = pd.read_csv(SAMPLES / item['file'])
-            self.assertEqual(list(raw.columns), list(csv.columns))
-            self.assertEqual(str(raw['时间'].iloc[0]), str(csv['时间'].iloc[0]))
-            self.assertEqual(str(raw['时间'].iloc[-1]), str(csv['时间'].iloc[-1]))
-            self.assertEqual(len(raw), len(csv))
-            for column in ('经度', '纬度', '氨氮(mg/L)', '溶解氧(mg/L)'):
-                left = pd.to_numeric(raw[column], errors='coerce')
-                right = pd.to_numeric(csv[column], errors='coerce')
-                self.assertEqual(int(left.isna().sum()), int(right.isna().sum()))
-                self.assertEqual(int((left == 0).sum()), int((right == 0).sum()))
-                pd.testing.assert_series_equal(left, right, check_names=False, check_dtype=False)
+            self.assertEqual(list(csv.columns), item['columns'])
+            self.assertEqual(len(csv), 1801)
+            self.assertEqual(item['coordinate_system'],
+                             'WGS84；卫星水面人工近似定线，未经测绘验证')
+            points, _ = route_coordinates(ROUTES[route_names[item['id']]])
+            distances = [_point_to_route_m(lat, lon, points)
+                         for lat, lon in zip(csv['纬度'], csv['经度'])]
+            # 生成器只加入约 0.7m 位置噪声；10m 上限用于发现旧 V1 对角线路线的回归。
+            self.assertLess(max(distances), 10.0, item['id'])
             if item['id'] == 'S06':
-                self.assertEqual(int(pd.to_numeric(raw['氨氮(mg/L)'], errors='coerce').isna().sum()), 24)
-                self.assertEqual(int(pd.to_numeric(raw['溶解氧(mg/L)'], errors='coerce').isna().sum()), 24)
+                self.assertEqual(int(pd.to_numeric(csv['氨氮(mg/L)'], errors='coerce').isna().sum()), 24)
+                self.assertEqual(int(pd.to_numeric(csv['溶解氧(mg/L)'], errors='coerce').isna().sum()), 24)
 
     def test_production_loader_consumes_all_samples_and_keeps_observation_masks(self):
         for item in manifest_payload()['samples']:
@@ -89,6 +103,18 @@ class SampleFileTests(unittest.TestCase):
                 self.assertEqual(int((~frame['__observed_ammonia_nitrogen']).sum()), 24)
                 self.assertEqual(int((~frame['__observed_dissolved_oxygen']).sum()), 24)
                 self.assertEqual(int(frame['__raw_ammonia_nitrogen'].isna().sum()), 24)
+
+    def test_prepare_metadata_uses_explicit_v2_source_and_version(self):
+        from scripts.prepare_sample_data import metadata
+
+        raw = pd.DataFrame({'时间': ['2026-10-21 09:00:00'], '经度': [118.7619], '纬度': [32.0399]})
+        meta = metadata('S01', Path('S01_仿真_正常背景.xlsx'), 'S01_仿真_正常背景.csv',
+                        raw, {'坐标系': 'WGS84；卫星水面人工近似定线，未经测绘验证'},
+                        b'controlled-csv', '标题', '说明', source_label='v2测试源',
+                        version_prefix='v2')
+        self.assertTrue(meta['version'].startswith('v2-'))
+        self.assertTrue(meta['source_reference'].startswith('v2测试源/'))
+        self.assertEqual(meta['coordinate_system'], 'WGS84；卫星水面人工近似定线，未经测绘验证')
 
     def test_manifest_hash_and_size_match_actual_bytes(self):
         for item in manifest_payload()['samples']:
