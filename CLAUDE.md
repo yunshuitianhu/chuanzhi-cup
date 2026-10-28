@@ -38,7 +38,7 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 | --- | --- |
 | `docs/项目情况汇报与Codex交接_20261028.md` | 给失忆协作者的项目全貌、当前状态、命令、坑与下一步 |
 | `docs/交付说明_20261028.md` | 交付物、安装运行、能力边界、验收清单、未验证项 |
-| `docs/任务队列.md` | Q01—Q17 与 N01—N08 的逐项状态、日期、限制 |
+| `docs/任务队列.md` | Q01—Q18 与 N01—N08 的逐项状态、日期、限制 |
 | `docs/内置仿真示例与一键载入实施记录_20261027.md` | 示例/载入/契约/打包的实现范围、命令、提交号 |
 | `docs/Windows安装与运行环境验证_20261028.md` | 实际 Python/Node、干净 venv、启动器、带空格路径 |
 | `docs/代码审计与修改方案.md`、`docs/代码审计-第二轮发现.md` | 已确认缺陷、证据等级、修改方案 |
@@ -160,7 +160,7 @@ python tests/browser_performance_acceptance.py --url http://127.0.0.1:5183/chat 
   --out work/q17_performance --report q17_performance.json
 ```
 
-浏览器脚本需要 Playwright/Chromium；不要把 5180/用户默认项目目录当作隔离环境。
+浏览器脚本需要 Playwright/Chromium；不要把 5180/用户默认项目目录当作隔离环境。性能脚本只记录本机观察，长历史是合成路由夹具，不设跨设备 CI 门槛。
 
 ## 架构
 
