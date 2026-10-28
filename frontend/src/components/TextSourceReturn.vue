@@ -66,11 +66,11 @@ onBeforeUnmount(()=>{disposed=true;request++})
   </section>
 </template>
 <style scoped>
-.source-notice{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:16px 18px;margin-bottom:20px;border:1px solid var(--c-border);border-left:3px solid var(--c-accent);border-radius:var(--radius-sm);background:var(--c-surface);color:var(--c-ink);font-size:13px;line-height:1.8}
+.source-notice{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:16px 18px;margin-bottom:20px;border:1px solid var(--c-border);border-left:3px solid var(--c-accent);border-radius:var(--radius-sm);background:var(--c-surface);color:var(--c-ink);font-size: 15px;line-height:1.8}
 .source-notice-copy{flex:1 1 360px;min-width:0;overflow-wrap:anywhere}
-.source-notice strong{font-size:14px}
+.source-notice strong{font-size: 16px}
 .source-notice p{margin:5px 0 0}
-.source-notice .source-notice-note{color:var(--c-sub);font-size:12px}
+.source-notice .source-notice-note{color:var(--c-sub);font-size: 14px}
 .source-notice-actions{display:flex;gap:8px;flex-wrap:wrap}
 .source-notice button{font:inherit;min-height:36px;padding:6px 12px;border:1px solid var(--c-border);border-radius:var(--radius-sm);color:var(--c-accent);background:var(--c-bg);cursor:pointer}
 .source-notice button:hover,.source-notice button:focus-visible{border-color:var(--c-accent)}

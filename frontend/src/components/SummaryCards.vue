@@ -56,14 +56,14 @@ watch([() => store.projectState.current?.id, () => store.workspaceRevision, () =
 </template>
 
 <style scoped>
-.tip { font-size: 12px; color: var(--c-sub); }
+.tip { font-size: 14px; color: var(--c-sub); }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .card {
   background: var(--c-surface-2); border: 1px solid var(--c-border);
   border-radius: 8px; padding: 10px 13px;
 }
-.k { font-size: 12px; color: var(--c-sub); }
-.v { font-size: 20px; font-weight: 700; color: var(--c-accent); margin: 2px 0; }
-.v small { font-size: 12px; color: var(--c-sub); margin-left: 3px; font-weight: 400; }
-.s { font-size: 12px; color: var(--c-sub); }
+.k { font-size: 14px; color: var(--c-sub); }
+.v { font-size: 22px; font-weight: 700; color: var(--c-accent); margin: 2px 0; }
+.v small { font-size: 14px; color: var(--c-sub); margin-left: 3px; font-weight: 400; }
+.s { font-size: 14px; color: var(--c-sub); }
 </style>

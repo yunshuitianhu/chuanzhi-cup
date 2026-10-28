@@ -145,27 +145,27 @@ function classColor(c) {
 .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
 select, input[type="text"], input:not([type]) {
   background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-ink);
-  border-radius: 7px; padding: 7px 11px; font-family: inherit; font-size: 13px;
+  border-radius: 7px; padding: 7px 11px; font-family: inherit; font-size: 15px;
 }
 input:not([type]) { flex: 1; min-width: 200px; }
-.switch { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-sub); cursor: pointer; }
+.switch { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--c-sub); cursor: pointer; }
 button {
   background: var(--c-accent); color: #06121c; border: none;
-  padding: 8px 20px; border-radius: 7px; font-weight: 600; font-size: 13px;
+  padding: 8px 20px; border-radius: 7px; font-weight: 600; font-size: 15px;
 }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
-.tip { margin: 0 0 12px; font-size: 12px; color: var(--c-sub); }
+.tip { margin: 0 0 12px; font-size: 14px; color: var(--c-sub); }
 
 .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .chip {
-  font-size: 12px; color: var(--c-sub); background: var(--c-surface-2);
+  font-size: 14px; color: var(--c-sub); background: var(--c-surface-2);
   border: 1px solid var(--c-border); padding: 3px 10px; border-radius: 20px;
 }
-.note { font-size: 12px; color: var(--c-sub); margin: 4px 0; }
+.note { font-size: 14px; color: var(--c-sub); margin: 4px 0; }
 
 .table-wrap { max-height: 380px; overflow: auto; border: 1px solid var(--c-border); border-radius: 8px; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th {
   position: sticky; top: 0; background: var(--c-surface-2);
   padding: 8px 10px; text-align: left; font-weight: 600;
@@ -173,5 +173,5 @@ th {
 }
 td { padding: 6px 10px; border-bottom: 1px solid #1a242e; white-space: nowrap; }
 tr:hover td { background: #1a2530; }
-.badge { padding: 1px 8px; border-radius: 20px; color: #fff; font-size: 12px; font-weight: 600; }
+.badge { padding: 1px 8px; border-radius: 20px; color: #fff; font-size: 14px; font-weight: 600; }
 </style>

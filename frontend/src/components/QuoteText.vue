@@ -20,5 +20,5 @@ function reference(){
   </div>
 </template>
 <style scoped>
-.quote-text{min-width:0}.quote-equivalent{font:inherit;font-size:12px;background:transparent;color:var(--c-sub);border:1px solid var(--c-border);border-radius:5px;padding:4px 8px;margin-top:7px}.quote-error{font-size:12px;color:#f4bb87}.quote-text>div:focus-visible{outline:2px solid var(--c-accent);outline-offset:5px;border-radius:4px}
+.quote-text{min-width:0}.quote-equivalent{font:inherit;font-size: 14px;background:transparent;color:var(--c-sub);border:1px solid var(--c-border);border-radius:5px;padding:4px 8px;margin-top:7px}.quote-error{font-size: 14px;color:#f4bb87}.quote-text>div:focus-visible{outline:2px solid var(--c-accent);outline-offset:5px;border-radius:4px}
 </style>

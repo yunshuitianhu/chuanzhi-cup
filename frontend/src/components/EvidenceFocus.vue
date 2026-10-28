@@ -38,4 +38,4 @@ onBeforeUnmount(()=>{version++})
     <span v-else>报告关联记录 #{{row.record_number}} · {{row.time??'未提供时间'}} · 氨氮 {{numberText(row.values.ammonia_nitrogen)}} mg/L · DO {{numberText(row.values.dissolved_oxygen)}} mg/L。{{row.map_sample_id===null?'无有效GPS，无法在地图定位。':'地图蓝色标记为该原始采样位置。'}}</span>
   </div>
 </template>
-<style scoped>.evidence-focus{padding:12px;margin-bottom:12px;border:1px solid var(--c-border);border-radius:8px;color:var(--c-accent);font-size:13px;line-height:1.7}</style>
+<style scoped>.evidence-focus{padding:12px;margin-bottom:12px;border:1px solid var(--c-border);border-radius:8px;color:var(--c-accent);font-size: 15px;line-height:1.7}</style>

@@ -37,7 +37,7 @@ watch(displayed, async () => { await nextTick(); emit('rendered') })
 .report-markdown :deep(pre code) { padding:0; background:none; }
 .report-markdown :deep(pre.report-plain) { white-space:pre-wrap; overflow-wrap:anywhere; }
 .report-markdown :deep(.report-table) { max-width:100%; overflow-x:auto; margin:1em 0; }
-.report-markdown :deep(table) { border-collapse:collapse; font-size:14px; min-width:100%; }
+.report-markdown :deep(table) { border-collapse:collapse; font-size: 16px; min-width:100%; }
 .report-markdown :deep(th),.report-markdown :deep(td) { padding:8px 10px; border:1px solid var(--c-border); text-align:left; min-width:90px; }
 .report-markdown :deep(th) { background:var(--c-bg); }.report-markdown :deep(hr) { border:0; border-top:1px solid var(--c-border); margin:1.3em 0; }
 </style>

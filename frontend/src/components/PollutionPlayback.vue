@@ -57,7 +57,7 @@ const option=computed(()=>{
     animation:false,
     grid:{left:56,right:30,top:38,bottom:45},
     tooltip:{trigger:'axis',valueFormatter:v=>`${numberText(v)} mg/L`},
-    title:{text:`${d.label}沿程浓度 · T+${numberText(currentTime.value)} h`,textStyle:{color:'#dae7f3',fontSize:14},left:12},
+    title:{text:`${d.label}沿程浓度 · T+${numberText(currentTime.value)} h`,textStyle:{color:'#dae7f3',fontSize: 16},left:12},
     xAxis:{type:'value',name:'桩号 m',nameLocation:'middle',nameGap:28,axisLabel:{color:'#95abbe'},splitLine:{lineStyle:{color:'#263848'}}},
     yAxis:{type:'value',name:'mg/L',min:0,max:Math.max(d.color_scale.max,d.limit ?? 0)*1.1 || 1,
       axisLabel:{color:'#95abbe'},splitLine:{lineStyle:{color:'#263848'}}},
@@ -106,17 +106,17 @@ const option=computed(()=>{
 <style scoped>
 .player-toolbar,.playback-controls,.player-stats {display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;}
 .player-toolbar label,.playback-controls label {display:flex;align-items:center;gap:8px;}
-button,select {padding:7px 11px;border:1px solid var(--c-border);border-radius:6px;background:#172634;color:var(--c-text);font-size:12px;}
+button,select {padding:7px 11px;border:1px solid var(--c-border);border-radius:6px;background:#172634;color:var(--c-text);font-size: 14px;}
 button {cursor:pointer;}button:disabled {opacity:.4;cursor:default;}
 .playback-controls>button:first-child {background:#168ac1;color:#fff;}
 .playback-controls strong {margin-left:auto;color:#73d1fb;}
-.player-tag {color:#88cdb0;border:1px solid #386653;padding:4px 8px;border-radius:10px;font-size:12px;}
+.player-tag {color:#88cdb0;border:1px solid #386653;padding:4px 8px;border-radius:10px;font-size: 14px;}
 .time-slider {width:100%;accent-color:#29ace5;}
-.player-stats {margin-top:12px;color:var(--c-sub);font-size:12px;gap:20px;}
+.player-stats {margin-top:12px;color:var(--c-sub);font-size: 14px;gap:20px;}
 .player-stats b {color:var(--c-text);}
-.player-empty {padding:18px;background:#152331;border-radius:7px;color:var(--c-sub);font-size:13px;line-height:1.8;}
+.player-empty {padding:18px;background:#152331;border-radius:7px;color:var(--c-sub);font-size: 15px;line-height:1.8;}
 .player-empty a {color:#54beec;}
-.player-note,.source-info,.mapping-note {color:var(--c-sub);font-size:12px;line-height:1.7;}
+.player-note,.source-info,.mapping-note {color:var(--c-sub);font-size: 14px;line-height:1.7;}
 .mapping-note {color:#dfb876;}
-.show-map {display:flex;align-items:center;gap:7px;margin:16px 0;color:var(--c-sub);font-size:12px;}
+.show-map {display:flex;align-items:center;gap:7px;margin:16px 0;color:var(--c-sub);font-size: 14px;}
 </style>

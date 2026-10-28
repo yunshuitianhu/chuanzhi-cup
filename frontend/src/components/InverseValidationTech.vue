@@ -31,17 +31,17 @@ const percent = value => `${(value * 100).toFixed(2)}%`
 </template>
 
 <style scoped>
-.inverse-tech { font-size: 12px; color: var(--c-sub); line-height: 1.85; }
+.inverse-tech { font-size: 14px; color: var(--c-sub); line-height: 1.85; }
 p { margin: 8px 0; max-width: 850px; }
-.scope { color: var(--c-ink); font-size: 12px; }
+.scope { color: var(--c-ink); font-size: 14px; }
 .table-scroll { overflow-x: auto; border: 1px solid var(--c-border); border-radius: 8px; margin-top: 12px; }
 table { width: 100%; min-width: 470px; border-collapse: collapse; text-align: left; font-variant-numeric: tabular-nums; }
-caption { padding: 9px 12px; background: var(--c-surface-2); text-align: left; font-size: 12px; }
+caption { padding: 9px 12px; background: var(--c-surface-2); text-align: left; font-size: 14px; }
 th, td { padding: 9px 12px; border-top: 1px solid var(--c-border); }
 th { font-weight: 500; color: var(--c-ink); }
-.note, details { font-size: 12px; }
+.note, details { font-size: 14px; }
 details { margin-top: 12px; }
 summary { cursor: pointer; color: var(--c-ink); }
-.limitation { margin-top: 12px; border-left: 3px solid var(--c-accent); padding: 4px 12px; background: var(--c-surface-2); font-size: 12px; }
+.limitation { margin-top: 12px; border-left: 3px solid var(--c-accent); padding: 4px 12px; background: var(--c-surface-2); font-size: 14px; }
 .table-scroll:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; }
 </style>

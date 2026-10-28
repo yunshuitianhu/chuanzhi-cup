@@ -27,8 +27,8 @@ defineProps({ summary: { type: Object, default: null } })
 <style scoped>
 .quality-summary { margin: 12px 0; padding: 14px; border: 1px solid var(--c-border); border-radius: 9px; background: var(--c-surface-2); }
 .quality-metrics { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: 12px; }
-.quality-metrics span { display: block; color: var(--c-sub); font-size: 12px; }
-.quality-metrics b { display: block; font-size: 24px; color: var(--c-accent); margin-top: 4px; }
-p, li, summary { font-size: 12px; line-height: 1.65; color: var(--c-sub); }
+.quality-metrics span { display: block; color: var(--c-sub); font-size: 14px; }
+.quality-metrics b { display: block; font-size: 26px; color: var(--c-accent); margin-top: 4px; }
+p, li, summary { font-size: 14px; line-height: 1.65; color: var(--c-sub); }
 summary { cursor: pointer; }
 </style>

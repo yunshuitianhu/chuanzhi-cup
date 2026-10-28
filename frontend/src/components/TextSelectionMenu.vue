@@ -40,5 +40,5 @@ watch(()=>[store.workspaceRevision,store.switchingProject,route.path],hide)
   </div></Teleport>
 </template>
 <style scoped>
-.selection-menu{position:fixed;z-index:1000;max-width:calc(100vw - 16px);display:flex;gap:2px;flex-wrap:wrap;padding:5px;background:#243844;border:1px solid #486473;border-radius:8px;box-shadow:0 7px 25px #0006}.selection-menu button{font:inherit;font-size:12px;border:0;border-radius:5px;background:transparent;color:#edf5fa;padding:8px;min-height:36px}.selection-menu button:hover,.selection-menu button:focus-visible{background:#365566}.selection-menu p{font-size:12px;margin:5px;max-width:240px;color:#ffd19c}
+.selection-menu{position:fixed;z-index:1000;max-width:calc(100vw - 16px);display:flex;gap:2px;flex-wrap:wrap;padding:5px;background:#243844;border:1px solid #486473;border-radius:8px;box-shadow:0 7px 25px #0006}.selection-menu button{font:inherit;font-size: 14px;border:0;border-radius:5px;background:transparent;color:#edf5fa;padding:8px;min-height:36px}.selection-menu button:hover,.selection-menu button:focus-visible{background:#365566}.selection-menu p{font-size: 14px;margin:5px;max-width:240px;color:#ffd19c}
 </style>

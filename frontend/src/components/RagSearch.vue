@@ -145,7 +145,7 @@ async function run(q) {
 <style scoped>
 .status {
   display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
-  font-size: 12px; margin-bottom: 12px;
+  font-size: 14px; margin-bottom: 12px;
   padding: 8px 12px; background: var(--c-surface-2); border-radius: 7px;
 }
 .ok { color: var(--c-accent-2); font-weight: 600; }
@@ -155,28 +155,28 @@ async function run(q) {
 .bar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
 .bar > input {
   flex: 1; background: var(--c-surface-2); border: 1px solid var(--c-border);
-  color: var(--c-ink); border-radius: 8px; padding: 9px 13px; font-family: inherit; font-size: 13px;
+  color: var(--c-ink); border-radius: 8px; padding: 9px 13px; font-family: inherit; font-size: 15px;
 }
 .bar > input:focus { outline: none; border-color: var(--c-accent); }
-.topk { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--c-sub); white-space: nowrap; }
+.topk { display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--c-sub); white-space: nowrap; }
 .topk input {
   width: 52px; background: var(--c-surface-2); border: 1px solid var(--c-border);
   color: var(--c-ink); border-radius: 6px; padding: 6px 8px; font-family: inherit;
 }
 button {
   background: var(--c-accent); color: #06121c; border: none;
-  padding: 9px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; white-space: nowrap;
+  padding: 9px 20px; border-radius: 8px; font-weight: 600; font-size: 15px; white-space: nowrap;
 }
 button:disabled { opacity: .45; cursor: not-allowed; }
 
 .quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .qbtn {
   background: transparent; border: 1px solid var(--c-border); color: var(--c-sub);
-  padding: 5px 13px; border-radius: 20px; font-size: 12px; font-weight: 400;
+  padding: 5px 13px; border-radius: 20px; font-size: 14px; font-weight: 400;
 }
 .qbtn:hover:not(:disabled) { border-color: var(--c-accent); color: var(--c-ink); }
 
-.note { font-size: 12px; color: var(--c-sub); margin: 0 0 10px; }
+.note { font-size: 14px; color: var(--c-sub); margin: 0 0 10px; }
 
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .case {
@@ -184,11 +184,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   border-radius: 9px; padding: 13px 15px;
 }
 .case header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.case h4 { margin: 0; font-size: 13px; line-height: 1.5; }
-.sim { border: 1px solid; border-radius: 20px; padding: 1px 9px; font-size: 12px; font-weight: 600; flex-shrink: 0; }
-.tags { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0; font-size: 12px; color: var(--c-sub); }
-.methods { margin: 6px 0 0; font-size: 12px; color: var(--c-sub); line-height: 1.7; }
-details { margin-top: 8px; font-size: 12px; }
+.case h4 { margin: 0; font-size: 15px; line-height: 1.5; }
+.sim { border: 1px solid; border-radius: 20px; padding: 1px 9px; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+.tags { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0; font-size: 14px; color: var(--c-sub); }
+.methods { margin: 6px 0 0; font-size: 14px; color: var(--c-sub); line-height: 1.7; }
+details { margin-top: 8px; font-size: 14px; }
 details summary { cursor: pointer; color: var(--c-sub); }
 .summary { margin: 6px 0 0; color: var(--c-sub); line-height: 1.8; white-space: pre-wrap; }
 </style>

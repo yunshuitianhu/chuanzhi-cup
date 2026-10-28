@@ -14,7 +14,7 @@ defineProps({
 <style scoped>
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--c-sub);
+  font-size: 14px; color: var(--c-sub);
   padding: 4px 10px; border-radius: 20px;
   border: 1px solid var(--c-border);
 }

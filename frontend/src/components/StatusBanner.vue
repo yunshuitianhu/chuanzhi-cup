@@ -36,7 +36,7 @@ const items = computed(() => [
 .banner { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--c-sub);
+  font-size: 14px; color: var(--c-sub);
   background: var(--c-surface-2); border: 1px solid var(--c-border);
   padding: 4px 11px; border-radius: 20px;
 }

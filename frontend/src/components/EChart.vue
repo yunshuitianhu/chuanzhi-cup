@@ -41,7 +41,7 @@ function ensure() {
   if (el.value.clientWidth === 0 || el.value.clientHeight === 0) return  // 尺寸未就绪
   chart.value = echarts.init(el.value, 'dark', { renderer: 'canvas' })
   chart.value.on('datazoom', event=>emit('rangeSelected',event))
-  chart.value.setOption({backgroundColor:'transparent',textStyle:{fontSize:12},...props.option})
+  chart.value.setOption({backgroundColor:'transparent',textStyle:{fontSize: 14},...props.option})
   dirty = false
   if (props.loading) chart.value.showLoading('default', { text: '加载中', color:'#7cd4eb',textColor:'#adc0cd',maskColor:'rgba(12,21,32,.85)' })
 }
@@ -50,7 +50,7 @@ onMounted(() => {
   frames = frameScheduler(() => {
     if (!visible) return
     ensure()
-    if (chart.value && dirty) { chart.value.setOption({backgroundColor:'transparent',textStyle:{fontSize:12},...props.option}, true); dirty=false }
+    if (chart.value && dirty) { chart.value.setOption({backgroundColor:'transparent',textStyle:{fontSize: 14},...props.option}, true); dirty=false }
     chart.value?.resize()
     if (props.loading) chart.value?.showLoading('default', { text:'处理中', color:'#7cd4eb',textColor:'#adc0cd',maskColor:'rgba(12,21,32,.85)' })
     else chart.value?.hideLoading()

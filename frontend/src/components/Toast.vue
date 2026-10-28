@@ -25,7 +25,7 @@ import { toasts } from '../composables/useToast'
   display: flex; align-items: center; gap: 8px;
   background: var(--c-surface-2); border: 1px solid var(--c-border);
   color: var(--c-ink); padding: 10px 16px; border-radius: 8px;
-  font-size: 13px; max-width: 380px;
+  font-size: 15px; max-width: 380px;
   box-shadow: 0 6px 24px rgba(0,0,0,.4);
 }
 .toast.ok    { border-color: #1d5b4f; }
@@ -38,5 +38,5 @@ import { toasts } from '../composables/useToast'
 
 .toast-enter-active, .toast-leave-active { transition: opacity .2s ease,transform .2s ease; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(20px); }
-@media(max-width:600px){.toast-wrap{top:66px;left:12px;right:12px;align-items:stretch}.toast{max-width:none;padding:9px 12px;font-size:12px}}
+@media(max-width:600px){.toast-wrap{top:66px;left:12px;right:12px;align-items:stretch}.toast{max-width:none;padding:9px 12px;font-size: 14px}}
 </style>

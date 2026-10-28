@@ -54,7 +54,7 @@ const heatOption = computed(() => {
     grid: { left: 108, right: 76, top: 16, bottom: 46 },
     tooltip: {
       backgroundColor: 'rgba(20,30,40,.95)', borderColor: '#2a3947',
-      textStyle: { color: '#e8eef5', fontSize: 13 },
+      textStyle: { color: '#e8eef5', fontSize: 15 },
       formatter: (p) => {
         const c = corr.find(
           (x) => x.视频指标 === vLabels[p.value[1]] && x.传感器指标 === sLabels[p.value[0]],
@@ -65,23 +65,23 @@ const heatOption = computed(() => {
     },
     xAxis: {
       type: 'category', data: sLabels, splitArea: { show: true },
-      axisLabel: { color: '#94a7b8', fontSize: 12 },
+      axisLabel: { color: '#94a7b8', fontSize: 14 },
       axisLine: { lineStyle: { color: '#2a3947' } },
     },
     yAxis: {
       type: 'category', data: vLabels, splitArea: { show: true },
-      axisLabel: { color: '#94a7b8', fontSize: 12 },
+      axisLabel: { color: '#94a7b8', fontSize: 14 },
       axisLine: { lineStyle: { color: '#2a3947' } },
     },
     visualMap: {
       min: -1, max: 1, calculable: true, orient: 'vertical', right: 8, top: 'center',
-      textStyle: { color: '#94a7b8', fontSize: 12 },
+      textStyle: { color: '#94a7b8', fontSize: 14 },
       inRange: { color: ['#2ea3f2', '#17212b', '#ff4d6d'] },
     },
     series: [{
       type: 'heatmap', data,
       label: {
-        show: true, fontSize: 12,
+        show: true, fontSize: 14,
         formatter: (p) => Number(p.value[2]).toFixed(2),
         color: '#e8eef5',
       },
@@ -173,10 +173,10 @@ watch([() => rawResult.value?.['时间对齐']?.['时间偏移秒'], () => rawRe
 </template>
 
 <style scoped>
-.tip { padding: 30px; text-align: center; color: var(--c-sub); font-size: 13px; }
+.tip { padding: 30px; text-align: center; color: var(--c-sub); font-size: 15px; }
 
 .controls { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
-.controls label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--c-sub); }
+.controls label { display: flex; flex-direction: column; gap: 5px; font-size: 14px; color: var(--c-sub); }
 .controls input {
   background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-ink);
   border-radius: 6px; padding: 6px 10px; width: 120px; font-family: inherit;
@@ -186,7 +186,7 @@ watch([() => rawResult.value?.['时间对齐']?.['时间偏移秒'], () => rawRe
   padding: 8px 18px; border-radius: 6px; font-weight: 600;
 }
 .run:disabled { opacity: .5; cursor: not-allowed; }
-.hint { font-size: 12px; color: var(--c-sub); }
+.hint { font-size: 14px; color: var(--c-sub); }
 
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
 @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
@@ -194,16 +194,16 @@ watch([() => rawResult.value?.['时间对齐']?.['时间偏移秒'], () => rawRe
   background: var(--c-surface-2); border: 1px solid var(--c-border);
   border-radius: 8px; padding: 10px 13px; display: flex; flex-direction: column; gap: 2px;
 }
-.m-label { font-size: 12px; color: var(--c-sub); }
-.m-val { font-size: 22px; font-weight: 700; color: var(--c-accent); }
-.m-val small { font-size: 12px; margin-left: 1px; }
-.m-sub { font-size: 12px; color: var(--c-sub); }
+.m-label { font-size: 14px; color: var(--c-sub); }
+.m-val { font-size: 24px; font-weight: 700; color: var(--c-accent); }
+.m-val small { font-size: 14px; margin-left: 1px; }
+.m-sub { font-size: 14px; color: var(--c-sub); }
 
 .interp {
-  font-size: 12px; color: var(--c-sub); margin: 0 0 12px;
+  font-size: 14px; color: var(--c-sub); margin: 0 0 12px;
   padding: 8px 12px; background: var(--c-surface-2); border-radius: 6px;
   border-left: 2px solid var(--c-accent);
 }
-.findings { margin: 12px 0 0; padding-left: 18px; font-size: 12px; color: var(--c-sub); }
+.findings { margin: 12px 0 0; padding-left: 18px; font-size: 14px; color: var(--c-sub); }
 .findings li { margin: 3px 0; }
 </style>

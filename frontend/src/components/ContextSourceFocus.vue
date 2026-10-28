@@ -49,5 +49,5 @@ onBeforeUnmount(()=>{disposed=true;request++})
   </section>
 </template>
 <style scoped>
-.context-source{border:1px solid var(--c-border);border-left:3px solid var(--c-accent);background:var(--c-surface-2);padding:12px 14px;border-radius:8px;margin-bottom:16px;font-size:13px;line-height:1.75;overflow-wrap:anywhere}.context-source p{margin:5px 0}.notice{color:var(--c-sub);font-size:12px}.context-source pre{white-space:pre-wrap;max-height:300px;overflow:auto;font:inherit;color:var(--c-sub)}.context-source summary{cursor:pointer}.context-source button{font:inherit;font-size:12px;color:var(--c-ink);background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;padding:6px 10px}
+.context-source{border:1px solid var(--c-border);border-left:3px solid var(--c-accent);background:var(--c-surface-2);padding:12px 14px;border-radius:8px;margin-bottom:16px;font-size: 15px;line-height:1.75;overflow-wrap:anywhere}.context-source p{margin:5px 0}.notice{color:var(--c-sub);font-size: 14px}.context-source pre{white-space:pre-wrap;max-height:300px;overflow:auto;font:inherit;color:var(--c-sub)}.context-source summary{cursor:pointer}.context-source button{font:inherit;font-size: 14px;color:var(--c-ink);background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;padding:6px 10px}
 </style>

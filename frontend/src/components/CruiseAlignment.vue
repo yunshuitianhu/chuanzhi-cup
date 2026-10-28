@@ -122,8 +122,8 @@ onBeforeUnmount(()=>{disposed=true;cancel()})
 </template>
 
 <style scoped>
-.alignment { margin-top:20px; padding:18px; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:9px; color:var(--c-sub); font-size:12px; line-height:1.8; }
-h3 { margin:0 0 10px; color:var(--c-ink); font-size:14px; }
+.alignment { margin-top:20px; padding:18px; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:9px; color:var(--c-sub); font-size: 14px; line-height:1.8; }
+h3 { margin:0 0 10px; color:var(--c-ink); font-size: 16px; }
 p { margin:8px 0; }
 .fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 12px; }
 label { display:flex; flex-direction:column; gap:4px; margin:8px 0; }

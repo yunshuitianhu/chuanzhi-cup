@@ -18,6 +18,6 @@ function fmt(value) { return Number.isFinite(value) ? value.toFixed(3) : '—' }
 </template>
 
 <style scoped>
-.numerical-resolution, .legacy-numerics { font-size: 12px; color: var(--c-sub); line-height: 1.75; margin: 12px 0; }
+.numerical-resolution, .legacy-numerics { font-size: 14px; color: var(--c-sub); line-height: 1.75; margin: 12px 0; }
 summary { cursor: pointer; }
 </style>

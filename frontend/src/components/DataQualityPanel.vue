@@ -145,13 +145,13 @@ onBeforeUnmount(() => { disposed=true;requestVersion++;saveVersion++ })
 </template>
 
 <style scoped>
-p, li, label, summary, .pagination { color: var(--c-sub); font-size: 12px; line-height: 1.7; }
+p, li, label, summary, .pagination { color: var(--c-sub); font-size: 14px; line-height: 1.7; }
 select, button { margin: 4px 8px; padding: 6px 12px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-surface-2); color: var(--c-ink); }
 button, summary { cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
 .review-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .review-toggle { margin-left: 0; }
-.review-count { color: var(--c-sub); font-size: 12px; }
+.review-count { color: var(--c-sub); font-size: 14px; }
 .quality-record { border-bottom: 1px solid var(--c-border); padding: 9px 0; }
 .settings { margin-bottom: 12px; }
 .settings fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 10px; }

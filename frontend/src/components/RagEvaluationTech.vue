@@ -29,5 +29,5 @@ const pct=value=>`${(value*100).toFixed(1)}%`
 </template>
 
 <style scoped>
-.rag-evaluation{font-size:12px;line-height:1.9;margin-top:20px;padding:14px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:8px}.scope strong{color:var(--c-accent)}p{margin:8px 0}.table-scroll{overflow-x:auto}table{border-collapse:collapse;min-width:460px;width:100%;text-align:left}th,td{padding:9px;border-bottom:1px solid var(--c-border)}thead th{color:var(--c-sub);font-weight:500}summary{cursor:pointer;color:var(--c-accent)}.limit{color:var(--c-sub)}ul{padding-left:20px}
+.rag-evaluation{font-size: 14px;line-height:1.9;margin-top:20px;padding:14px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:8px}.scope strong{color:var(--c-accent)}p{margin:8px 0}.table-scroll{overflow-x:auto}table{border-collapse:collapse;min-width:460px;width:100%;text-align:left}th,td{padding:9px;border-bottom:1px solid var(--c-border)}thead th{color:var(--c-sub);font-weight:500}summary{cursor:pointer;color:var(--c-accent)}.limit{color:var(--c-sub)}ul{padding-left:20px}
 </style>

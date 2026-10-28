@@ -41,7 +41,7 @@ const distOption = computed(() => {
       data: Object.entries(d).map(([k, v]) => ({
         value: v, itemStyle: { color: COLOR[k] || '#2ea3f2' },
       })),
-      label: { show: true, position: 'right', color: '#e8eef5', fontSize: 12 },
+      label: { show: true, position: 'right', color: '#e8eef5', fontSize: 14 },
     }],
   }
 })
@@ -126,23 +126,23 @@ const METRICS = [
   background: var(--c-surface-2); border: 1px solid var(--c-border);
   border-radius: 8px; padding: 9px 12px;
 }
-.m-k { font-size: 12px; color: var(--c-sub); }
-.m-v { font-size: 19px; font-weight: 700; color: var(--c-accent); margin-top: 2px; }
+.m-k { font-size: 14px; color: var(--c-sub); }
+.m-v { font-size: 21px; font-weight: 700; color: var(--c-accent); margin-top: 2px; }
 
-.std { font-size: 12px; color: var(--c-sub); margin: 4px 0; }
+.std { font-size: 14px; color: var(--c-sub); margin: 4px 0; }
 .std.warn { color: #e8c98a; }
 
-.clusters { margin-top: 12px; font-size: 12px; }
+.clusters { margin-top: 12px; font-size: 14px; }
 .clusters summary { cursor: pointer; color: var(--c-sub); padding: 6px 0; }
 .cluster {
   border: 1px solid var(--c-border); border-radius: 8px;
   padding: 10px 13px; margin-top: 8px; background: var(--c-surface-2);
 }
 .c-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
-.tag { font-size: 12px; padding: 1px 8px; border-radius: 20px; }
+.tag { font-size: 14px; padding: 1px 8px; border-radius: 20px; }
 .tag.bad { background: #4a1018; color: #ff8fa3; }
 .tag.mid { background: #4a3a10; color: #ffd479; }
-.c-sub { color: var(--c-sub); font-size: 12px; }
-.c-body, .c-stat { display: flex; flex-wrap: wrap; gap: 14px; color: var(--c-sub); font-size: 12px; }
-.c-trig { margin-top: 4px; color: var(--c-sub); font-size: 12px; }
+.c-sub { color: var(--c-sub); font-size: 14px; }
+.c-body, .c-stat { display: flex; flex-wrap: wrap; gap: 14px; color: var(--c-sub); font-size: 14px; }
+.c-trig { margin-top: 4px; color: var(--c-sub); font-size: 14px; }
 </style>
