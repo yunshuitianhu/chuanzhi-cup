@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-28",
+  "purpose": "N04-A/N04-B 配置组合与服务失败受控矩阵；不包含真实外部服务调用",
+  "baseline": {
+    "source_commit_before_record": "1d716d7",
+    "python": "3.14.0",
+    "clean_venv": "work/venv_ci_20261028",
+    "frontend": "Node 24.15.0"
+  },
+  "tests": {
+    "capability_matrix": "tests/test_capability_matrix_regressions.py",
+    "python_full": {"count": 640, "result": "OK"},
+    "frontend_full": {"count": 362, "result": "passed"},
+    "contracts": 22,
+    "check_ci": "passed (secret check 9/9)"
+  },
+  "config_matrix": {
+    "C01": {"status": "passed_controlled", "actual": "全无 Key：六例目录 200；S01 载入 1801 行、synthetic、detection.ok=true、0 预警；time-series 200", "test": "test_c01_no_keys_still_lists_and_detects_samples_without_ai"},
+    "C02": {"status": "passed_controlled", "actual": "全无 Key：RAG status available=true/ready；search 200 并返回 retrieval_id；引擎为受控替身", "test": "test_c02_local_rag_status_and_search_do_not_require_llm_key"},
+    "C03": {"status": "passed_controlled", "actual": "仅 DeepSeek：仅 deepseek configured=true，verified=false", "test": "test_c03_to_c05_each_key_is_reported_independently"},
+    "C04": {"status": "passed_controlled", "actual": "仅高德：仅 amap=true；DeepSeek 仍 false", "test": "test_c03_to_c05_each_key_is_reported_independently"},
+    "C05": {"status": "passed_controlled", "actual": "仅星图：仅 starcloud=true；AI/高德仍显示各自前提", "test": "test_c03_to_c05_each_key_is_reported_independently"},
+    "C06": {"status": "passed_controlled", "actual": "三类均 configured=true 且 verified=false；notice 含“尚未验证”", "test": "test_c06_configured_keys_are_not_verified_service_health"},
+    "C07": {"status": "passed_controlled", "actual": "your-...、空白、<...> 均判未配置；不回显占位值", "test": "test_c07_placeholder_and_blank_values_are_unconfigured"},
+    "C08": {"status": "passed_controlled", "actual": "修改 .env 文件不自动生效；显式 load_env 后才生效；后端启动时载入，因此修改后需重启", "test": "test_c08_env_file_is_read_only_when_explicitly_loaded"}
+  },
+  "failure_matrix": {
+    "F01": {"status": "passed_controlled", "actual": "认证失败提示核对服务端 Key/账户/模型权限；前端失败后恢复原问题、引用并保留重试", "tests": ["test_f01_authentication_failure_is_actionable", "frontend:服务失败后保留原问题、引用和重试入口"]},
+    "F02": {"status": "passed_controlled", "actual": "额度/频率受限提示余额和稍后重试", "test": "test_f02_quota_and_rate_limit_are_not_retried_forever"},
+    "F03": {"status": "passed_controlled", "actual": "权限不足与未配置分开", "test": "test_f03_permission_failure_is_distinct_from_missing_key"},
+    "F04": {"status": "passed_controlled", "actual": "超时/网络失败提示检查网络后重试并保留草稿", "test": "test_f04_timeout_and_network_failure_are_retryable"},
+    "F05": {"status": "passed_controlled", "actual": "5xx 提示服务端暂时不可用，不声称成功", "test": "test_f05_upstream_server_failure_does_not_claim_success"},
+    "F06": {"status": "passed_existing", "actual": "国控失败保留上次结果；离线目录与实时读数分开", "tests": ["test_third_review_regressions.py", "test_portability_regressions.py"]},
+    "F07": {"status": "passed_existing", "actual": "高德/星图缺 Key 或上游失败单独提示；轨迹/表格/趋势仍可用；可切换底图", "tests": ["test_maps_regressions.py", "frontend/tests/amapLayer.test.mjs"]},
+    "F08": {"status": "passed_existing", "actual": "SSE 缺少终止帧不判成功；停止/重试可用", "tests": ["frontend/tests/agentStream.test.mjs", "test_agent_flow_regressions.py"]},
+    "F09": {"status": "passed", "actual": "失败后原问题恢复到输入框，引用/附件保留，重试入口可用", "tests": ["frontend:服务失败后保留原问题、引用和重试入口", "frontend:上下文409保留原问题"]},
+    "F10": {"status": "passed_existing", "actual": "项目/版本切换后迟到结果不进入新项目", "tests": ["frontend/tests/projectStore.test.mjs", "frontend/tests/questionContextStore.test.mjs"]},
+    "F11": {"status": "passed_existing", "actual": "无视频步骤跳过，监测分析继续", "tests": ["test_web_regressions.py", "test_agent_progress_regressions.py"]},
+    "F12": {"status": "passed_existing", "actual": "图片发送/读取失败不声称已看图；图片字节不写入历史", "tests": ["test_vision_media_regressions.py"]}
+  },
+  "findings_fixed": [
+    "失败请求清空问题草稿：现在仅当输入为空时恢复原问题，不覆盖新草稿",
+    "侧边线程错误可能回显配置密钥：现在经过 _scrubber() 脱敏",
+    "配置修改被误认为热加载：界面改为“刷新配置状态”，文档明确需重启",
+    "README 能力表把 Esri/OSM 与需要 Key 的服务混写：已拆分"
+  ],
+  "not_verified": [
+    "真实 DeepSeek 认证/额度/权限/超时/5xx",
+    "真实高德、星图、国控在线调用",
+    "真实 LLM 综合问答/报告/图片理解",
+    "队友电脑安装与 I01-I19",
+    "N06 用户走查、N07 键盘/读屏/窄屏组合"
+  ]
+}

@@ -222,7 +222,7 @@ def explain(session, thread, question, request_id, run):
         if answer:
             thread['messages'].append({'role': 'assistant', 'content': scrub(answer), 'incomplete': True, 'run_id': run.id,
                 **({'vision': vision_info} if vision_info is not None else {})})
-        thread['messages'].append({'role': 'error', 'content': model_error_message(exc) + ' 引用和问题草稿仍保留。', 'run_id': run.id})
+        thread['messages'].append({'role': 'error', 'content': scrub(model_error_message(exc)) + ' 引用和问题草稿仍保留。', 'run_id': run.id})
         run.end('failed')
         yield emit('error', {'message': thread['messages'][-1]['content']})
     finally:

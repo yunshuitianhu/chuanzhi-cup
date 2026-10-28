@@ -123,7 +123,8 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
           <span class="key-tag" :title="k.notice">{{ keyTag(k) }}</span>
         </div>
         <p class="hint">
-          已填写只表示 <code>.env</code> 中存在配置；本进程是否成功调用，以本次请求结果为准。密钥不进入前端、日志或项目包。
+          已填写只表示 <code>.env</code> 中存在配置；本进程是否成功调用，以本次请求结果为准。修改 <code>.env</code>
+          后需重启后端进程，本页不会热加载配置文件。密钥不进入前端、日志或项目包。
         </p>
       </div></details>
 

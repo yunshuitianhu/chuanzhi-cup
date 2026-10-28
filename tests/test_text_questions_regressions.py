@@ -2,6 +2,7 @@
 from copy import deepcopy
 from io import BytesIO
 import json
+import os
 from types import SimpleNamespace as NS
 import unittest
 from unittest.mock import patch
@@ -302,6 +303,18 @@ class TextQuestionTests(unittest.TestCase):
             repo.return_value.write.assert_not_called()
         status=self.client.get('/api/side/run',headers=self.h).json()
         self.assertNotIn('已随项目保存',status['save_notice'])
+
+    def test_error_message_does_not_echo_configured_secret(self):
+        t=self.thread();secret='sk-'+'a'*24
+        with patch.dict(os.environ,{'DEEPSEEK_API_KEY':secret}), \
+                patch('backend.side_chat.resolve_api_key',return_value='controlled-client'), \
+                patch('backend.side_chat.OpenAI') as client:
+            client.return_value.chat.completions.create.side_effect=RuntimeError('服务异常：'+secret)
+            response=self.client.post('/api/side/threads/'+t['id']+'/chat',headers=self.h,
+                json={'message':'检查错误脱敏','request_id':str(uuid4())})
+        self.assertIn('event: error',response.text)
+        self.assertNotIn(secret,response.text)
+        self.assertIn('[已移除密钥]',response.text)
 
     def test_worker_initialization_failure_sends_error_and_releases_lock(self):
         t=self.thread()

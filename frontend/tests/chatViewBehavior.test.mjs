@@ -277,6 +277,21 @@ test('没有监测表时仍可明确询问已选资料片段',async()=>{
   }finally{v.close()}
 })
 
+test('服务失败后保留原问题、引用和重试入口，不把输入清空',async()=>{
+  const v=await mount()
+  try{v.store.questionContext=selectedContext('image_asset');v.state.input='服务失败后仍要保留的问题'
+    const bodies=[]
+    globalThis.fetch=async(_url,options)=>{bodies.push(JSON.parse(options.body));return {ok:false,status:500,json:async()=>({detail:'模型服务暂时不可用'})}}
+    await v.state.send()
+    assert.equal(v.state.input,'服务失败后仍要保留的问题')
+    assert.equal(v.store.questionContext?.id,selectedContext('image_asset').id)
+    assert.match(v.store.chatMessages.at(-1).content,/模型服务暂时不可用/)
+    await v.state.retryLast()
+    assert.equal(bodies.length,2)
+    assert.equal(bodies.at(-1).context_id,selectedContext('image_asset').id)
+  }finally{v.close()}
+})
+
 test('会话忙碌409保留仍有效的引用和问题，不冒充来源已过期',async()=>{
   const v=await mount()
   try{v.store.questionContext=selectedContext();v.state.input='等待任务结束后询问'

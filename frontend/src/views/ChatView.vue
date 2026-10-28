@@ -38,7 +38,7 @@ const selectedKind = computed(()=>store.questionContext?.kind || (store.textQues
 const aiConfigured = computed(()=>!store.config?.keys || store.config.keys.deepseek!==false)
 function ensureAi(){
   if(aiConfigured.value){aiNotice.value='';return true}
-  aiNotice.value='未配置 DeepSeek Key：可先载入内置示例、查看图表和运行基础筛查；AI 问答与报告需在服务端配置 Key 后重试。'
+  aiNotice.value='未配置 DeepSeek Key：可先载入内置示例、查看图表和运行基础筛查；AI 问答与报告需在服务端配置 Key 并重启后端后重试。'
   return false
 }
 async function recheckConfig(){
@@ -309,6 +309,8 @@ async function submit(text,auto) {
     if(current()) {
       incomplete()
       messages.value.push({role:'error',content:`${e.message}；请核对任务状态后重试。`,uiRequest:token})
+      // 请求失败时保留原问题，避免用户重新输入；自动分析不把内部提示写回输入框。
+      if(!auto && !input.value.trim())input.value=text
       toastErr(e.message)
     }
   } finally {
@@ -379,7 +381,7 @@ async function submit(text,auto) {
       </div>
       <div class="reading-controls"><span>{{ scrollState.following ? '跟随最新内容' : '已暂停跟随，可继续阅读' }}</span><button v-if="!scrollState.following" type="button" class="latest" @click="latest">{{ scrollState.hasUnseen ? '有新内容 · 回到最新' : '回到最新' }} <span aria-hidden="true">↓</span></button></div>
     </div>
-    <p v-if="aiNotice" class="tip warning" role="alert">{{aiNotice}} <button type="button" class="retry" @click="recheckConfig">重新检查配置</button></p>
+    <p v-if="aiNotice" class="tip warning" role="alert">{{aiNotice}} <button type="button" class="retry" @click="recheckConfig">刷新配置状态</button></p>
     <form class="composer" @submit.prevent="send">
       <textarea ref="composerEl" aria-label="向水质分析助手提问" v-model="input" rows="2" :disabled="!canAsk || !store.ready || store.loading || running"
         :placeholder="selectedKind==='image_asset' ? '说说你想从这张图片了解什么…' : '描述你想了解的异常、指标或证据…'" @keydown="composerKey" @input="autosize" @paste="onPaste"></textarea>
