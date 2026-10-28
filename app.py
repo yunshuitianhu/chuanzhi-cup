@@ -199,27 +199,32 @@ def load_data(uploaded_file):
         已清空分析状态却没清 df，界面会出现"✅ 数据 1805 条"配着全空的
         分析结果 —— 自相矛盾。现已把副作用全部挪到**解析成功之后**，
         并把成败显式返回给调用方。
+
+        数据清洗复用 `loaders.load_data`，与 Vue/FastAPI 共用同一份
+        有效性规则（DO=0 是合法观测；插值不冒充实测；缺失 GPS 留标记）。
     """
     if uploaded_file is None: return "请先上传Excel或CSV文件", False
     try:
-        fn = uploaded_file.name.lower()
-        if fn.endswith('.csv'):
-            try: df = pd.read_csv(uploaded_file, encoding='utf-8')
-            except: df = pd.read_csv(uploaded_file, encoding='gbk')
-        elif fn.endswith(('.xls','.xlsx')): df = pd.read_excel(uploaded_file)
-        else: return "不支持的文件格式", False
-    except Exception as e: return f"读取失败: {e}", False
+        name = uploaded_file.name
+        fn = name.lower()
+        if not fn.endswith(('.csv','.xls','.xlsx')):
+            return "不支持的文件格式", False
+        raw = uploaded_file.getvalue() if hasattr(uploaded_file, 'getvalue') else uploaded_file.read()
+        if isinstance(raw, str): raw = raw.encode('utf-8')
+        if not raw:
+            return "文件为空：没有读到任何数据行（请检查工作表是否为空或表头行是否正确）", False
+    except Exception as e:
+        return f"读取失败: {e}", False
 
-    # ---- 列名识别与时间解析：走 loaders 的统一实现 ----
-    # 这里原先有一份**独立的**列映射与时间解析，与 loaders.load_data 里的
-    # 那份是两套代码。后果：修列名兼容时只改了 loaders，app.py 仍是旧的
-    # （只认一种列命名、时间格式也只认两种）。改为共用，避免再次漏改一边。
-    from water_quality_mcp.src.water_quality_mcp.loaders import normalize_columns
-    df, _norm_err = normalize_columns(df)
-    if _norm_err:
-        return _norm_err, False
+    try:
+        from water_quality_mcp.src.water_quality_mcp.loaders import load_data as core_load_data
+        df, report = core_load_data(base64.b64encode(raw).decode(), name)
+    except Exception as e:
+        return f"读取失败: {e}", False
+    if df is None:
+        return report, False
 
-    # ---- 重置所有分析状态 ----
+    # ---- 重置所有分析状态（仅在解析成功后）----
     st.session_state.black_spots = None
     st.session_state.video_frames = []
     st.session_state.cross_validation_result = None
@@ -247,41 +252,14 @@ def load_data(uploaded_file):
             try: os.remove(f)
             except OSError: pass
 
-    # ---- 保存上传数据副本供 build_trace_animation 使用 ----
+    # ---- 保存加载后的数据副本供 build_trace_animation 使用 ----
     try:
         df.to_excel("_uploaded_data.xlsx", index=False)
     except Exception:
         pass
 
-    # 数值清洗
-    numeric_cols = ['ammonia_nitrogen','dissolved_oxygen','water_temperature','cod','turbidity','ph']
-    for col in numeric_cols:
-        if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    # 剔除物理上不可能的0值（pH、溶解氧、水温）
-    for col in ['ph','dissolved_oxygen','water_temperature']:
-        if col in df.columns: df[col] = df[col].replace(0, np.nan)
-
-    # 范围限定
-    limits = {'ammonia_nitrogen':(0,1000),'dissolved_oxygen':(0,20),'water_temperature':(0,45),
-              'cod':(0,500),'turbidity':(0,2000),'ph':(3,12)}
-    for col, (lo,hi) in limits.items():
-        if col in df.columns: df[col] = df[col].where((df[col]>=lo)&(df[col]<=hi), np.nan)
-
-    # 线性插值
-    for col in numeric_cols:
-        if col in df.columns and df[col].isna().sum()>0:
-            df[col] = df[col].interpolate(method='linear', limit_direction='both')
-    for col in ['longitude','latitude']:
-        if col in df.columns: df[col] = df[col].ffill().bfill()
-
     st.session_state.df = df
-    # 返回验证信息
-    report = [f"✅ 数据加载完成，共 {len(df)} 条记录"]
-    for col in ['ammonia_nitrogen','dissolved_oxygen','turbidity','ph']:
-        valid = df[col].dropna()
-        report.append(f"   {col}: 有效值={len(valid)}, 均值={valid.mean():.2f}, 最小={valid.min():.2f}, 最大={valid.max():.2f}")
-    return "\n".join(report), True
+    return report, True
 
 def extract_video(video_file, interval=5):
     """抽帧。返回 (msg, ok)；ok=False 时 msg 是错误说明。
