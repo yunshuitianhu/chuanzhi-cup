@@ -96,6 +96,7 @@ for(const [method,action,key,newValue] of [
     assert.equal(view.state.runNotice,'')
     assert.equal(view.state.busy,'')
     assert.match(view.state.changedNotice,/已变化/)
+    assert.equal(view.store.refreshCount,1)
   }finally{view.app.unmount()}
 })
 
@@ -106,6 +107,19 @@ test('未编辑请求的失败仍标记当前步骤',async()=>{
     view.reject(new Error('受控失败'));await pending
     assert.equal(view.state.failedStep,'hydro')
     assert.match(view.state.runNotice,/水动力模拟失败/)
+    assert.equal(view.state.busy,'')
+    assert.equal(view.store.refreshCount,1)
+  }finally{view.app.unmount()}
+})
+
+test('参数编辑后丢弃的成功结果仍刷新全局状态',async()=>{
+  const view=await mount('riverHydro')
+  try {
+    const pending=view.state.runHydro()
+    view.state.form.upstream_flow_m3s=20;await nextTick()
+    view.resolve({marker:'旧参数结果'});await pending
+    assert.equal(view.state.hydroResult,null)
+    assert.equal(view.store.refreshCount,1)
     assert.equal(view.state.busy,'')
   }finally{view.app.unmount()}
 })
