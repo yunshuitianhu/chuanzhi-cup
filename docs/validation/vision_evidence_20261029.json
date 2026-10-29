@@ -1,12 +1,12 @@
 {
-  "date": "2026-10-29T00:53:12.746645+00:00",
+  "date": "2026-10-29T01:32:09.056223+00:00",
   "endpoint": "POST /api/vision/observe",
   "input": "程序生成白底图：左侧红色方块、右侧蓝色圆形、黑色文字A7；不含用户媒体",
   "claim": "仅验证结构化视觉观察与来源绑定，不代表现场污染识别准确率或责任认定。",
   "upload_status": 200,
   "status_code": 200,
   "model": "deepseek-flash",
-  "elapsed_s": 2.09,
+  "elapsed_s": 1.87,
   "cached": false,
   "source_kind": "image_asset",
   "source_sha256_prefix": "faa124579ddea696",
@@ -39,7 +39,7 @@
   ],
   "not_visible": [],
   "quality_notes": [
-    "图像较简单，无明显反光或遮挡；文字和图形边缘略不锐利"
+    "图像清晰，无明显反光、模糊或遮挡"
   ],
   "limits": [
     "视觉观察只描述画面可见内容，不给出氨氮、溶解氧、COD 等浓度。",
