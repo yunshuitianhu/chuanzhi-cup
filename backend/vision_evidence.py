@@ -169,7 +169,8 @@ def _load_image(session, kind, frame_id, video_revision, asset_id, asset_revisio
     raise VisionError('不支持的视觉来源。')
 
 
-def _result(session, image, question, model, parsed, elapsed, *, cached=False, observed_at=None):
+def _result(image, question, model, parsed, elapsed, scope, *,
+            cached=False, observed_at=None):
     source = image_meta(image)
     frame = {
         'frame_id': image.get('frame_id'),
@@ -187,9 +188,9 @@ def _result(session, image, question, model, parsed, elapsed, *, cached=False, o
         'not_visible': parsed['not_visible'],
         'quality_notes': parsed['quality_notes'],
         'limits': LIMITS,
-        'project_id': session.project_id or None,
-        'analysis_revision': session.analysis_revision,
-        'results_revision': session.results_revision,
+        'project_id': scope[0] or None,
+        'analysis_revision': scope[1],
+        'results_revision': scope[2],
         'cached': cached,
         'elapsed_s': round(elapsed, 2),
         'observed_at': observed_at or datetime.now(timezone.utc).isoformat(),
@@ -216,8 +217,8 @@ def observe(session, *, kind, frame_id=None, video_revision=None, asset_id=None,
     if key in cache:
         entry = cache[key]
         _ensure_unchanged(session, scope, image)
-        return _result(session, image, used_question, used_model, entry['parsed'],
-                       entry.get('elapsed_s', 0), cached=True,
+        return _result(image, used_question, used_model, entry['parsed'],
+                       entry.get('elapsed_s', 0), scope, cached=True,
                        observed_at=entry.get('observed_at'))
 
     owned = client is None
@@ -273,5 +274,5 @@ def observe(session, *, kind, frame_id=None, video_revision=None, asset_id=None,
     cache[key] = {'parsed': deepcopy(parsed), 'elapsed_s': elapsed, 'observed_at': observed_at}
     while len(cache) > CACHE_LIMIT:
         cache.pop(next(iter(cache)))
-    return _result(session, image, used_question, used_model, parsed, elapsed,
+    return _result(image, used_question, used_model, parsed, elapsed, scope,
                    cached=False, observed_at=observed_at)
