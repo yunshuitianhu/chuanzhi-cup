@@ -82,7 +82,7 @@ const centerText = computed(() => {
       <label>经度<input v-model.number="lon" type="number" :disabled="busy" step="0.000001" placeholder="留空自动" /></label>
       <label>半径 m<input v-model.number="radius" type="number" :disabled="busy" min="50" max="50000" step="50" /></label>
       <button :disabled="!canRun || busy" @click="run">
-        {{ loading ? '溯源中…' : '运行多渠道溯源' }}
+        {{ loading ? '正在预测…' : '预测首选企业' }}
       </button>
     </div>
     <p v-if="error" class="note warn" role="alert">{{ error }}</p>
@@ -95,6 +95,18 @@ const centerText = computed(() => {
     </p>
 
     <template v-if="data">
+      <section v-if="data['污染源预测']" class="prediction" aria-label="污染源预测结果">
+        <h3>{{ data['污染源预测']['首选企业'] ? '预测首选企业' : '预测方向' }}</h3>
+        <p class="prediction-answer">{{ data['污染源预测']['直接回答'] }}</p>
+        <p class="note">{{ data['污染源预测']['排序说明'] }}</p>
+        <ol v-if="data['污染源预测']['候选企业']?.length">
+          <li v-for="candidate in data['污染源预测']['候选企业']" :key="candidate['名称']">
+            <b>{{ candidate['名称'] }}</b> · 排序分 {{ candidate['排序分'] }} · 距搜索中心 {{ candidate['距离_m'] }} 米
+            <p>{{ candidate['支持依据'].join('；') }}</p>
+            <p class="note">待核对：{{ candidate['缺口'].join('；') }}</p>
+          </li>
+        </ol>
+      </section>
       <div class="meta">
         <span class="chip">搜索中心 {{ centerText }}</span>
         <span class="chip">半径 {{ data['搜索半径_m'] }} m</span>
@@ -142,6 +154,11 @@ const centerText = computed(() => {
 
 <style scoped>
 .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
+.prediction { margin:12px 0; padding:16px; border:1px solid var(--c-accent); border-radius:9px; background:var(--c-surface-2); }
+.prediction h3 { margin:0 0 8px; color:var(--c-accent); }
+.prediction-answer { font-size:17px; line-height:1.8; color:var(--c-ink); }
+.prediction li { margin:12px 0; line-height:1.7; }
+.prediction li p { margin:4px 0; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--c-sub); }
 input {
   background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-ink);

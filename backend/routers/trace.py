@@ -101,6 +101,9 @@ def multi_source(payload: TraceRequest | None = None,
 
     raw = multi_source_trace(lat, lon, resolve_api_key("AMAP_KEY"), cfg)
     data = json.loads(raw) if isinstance(raw, str) else raw
+    from ..source_prediction import remember_prediction
+    data = remember_prediction(session, data, [lat, lon])
+    # 与 Agent 的同名工具共享当前查询证据，供报告和侧边问答取用。
 
     # ⚠️ 展开必须放在前面。内核返回的 "搜索中心" 是**字符串**
     # ("23.175316, 113.122026")，若放在后面展开会覆盖掉这里的数组形式，
@@ -111,7 +114,7 @@ def multi_source(payload: TraceRequest | None = None,
         "搜索中心": [lat, lon],           # 数组形式，覆盖内核的字符串版本
         "搜索中心文本": data.get("搜索中心", ""),   # 内核原值仍保留
         "搜索中心来源": origin,
-        "查询用途": "周边背景线索查询；候选资料不表示本次已检出污染，亦不构成源识别或责任认定。",
+        "查询用途": "给出预测首选企业及备选排查顺序；资料不表示本次已检出污染，排序分不是概率，预测不代表确认排污或责任。",
         '数据身份': session.data_identity,
         '仿真使用限制': ('当前数据为仿真；返回的真实周边资料只供地图背景查询，不能与设定污染关联。'
                          if session.data_identity['kind'] == 'synthetic' else None),

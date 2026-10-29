@@ -94,8 +94,8 @@ TOOLS: list[dict] = [
     _tool("reverse_geocode", "将经纬度转为地址与省份",
           {"lat": {"type": "number"}, "lon": {"type": "number"}}, required=["lat", "lon"]),
     _tool("search_nearby_pollution_sources",
-          "查询周边待核实企业资料与监测背景；排序权重不是来源概率，不确认污染源",
-          {"lat": {"type": "number"}, "lon": {"type": "number"}}, required=["lat", "lon"]),
+          "预测首选排查企业及备选：查询当前坐标周边候选，给出距离、监测指标匹配和缺口；省略坐标使用当前有效热点或轨迹。排序分不是概率",
+          {"lat": {"type": "number"}, "lon": {"type": "number"}}),
     _tool("get_national_station_data",
           "获取国控水质站点数据（实时或离线）。返回站名/pH/溶解氧/氨氮/总磷/总氮等",
           {"province": {"type": "string", "description": "省份，如「广东省」"},
@@ -294,17 +294,26 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
 
         if name == "search_nearby_pollution_sources":
             lat, lon = args.get("lat"), args.get("lon")
-            # 未给坐标时，用黑点最密集的聚类中心（与原 app.py 行为一致）
+            if (lat is None) != (lon is None):
+                return json.dumps({'error': '纬度与经度须成对提供'}, ensure_ascii=False), True
+            if lat is not None:
+                import math
+                if (type(lat) not in (int, float) or type(lon) not in (int, float)
+                        or not math.isfinite(lat) or not math.isfinite(lon)
+                        or not -90 <= lat <= 90 or not -180 <= lon <= 180):
+                    return json.dumps({'error': '搜索坐标必须为有效WGS-84经纬度'}, ensure_ascii=False), True
             if lat is None or lon is None:
-                black = session.black_spots
-                if black is not None and len(black) > 0:
-                    cid = black["cluster_id"].value_counts().idxmax()
-                    c = black[black["cluster_id"] == cid]
-                    lat, lon = float(c["latitude"].mean()), float(c["longitude"].mean())
+                from ..routers.trace import _default_center, _track_center
+                center = _default_center(session) or _track_center(session)
+                if center is not None:
+                    lat, lon = center
             if lat is None or lon is None:
-                return json.dumps({"error": "未提供坐标且无黑点聚类可用于推断"},
-                                  ensure_ascii=False), True
-            return multi_source_trace(lat, lon, amap_key, cfg), False
+                from ..source_prediction import attach_prediction
+                return json.dumps(attach_prediction(session, {}), ensure_ascii=False), False
+            from ..source_prediction import remember_prediction
+            raw = multi_source_trace(lat, lon, amap_key, cfg)
+            data = json.loads(raw) if isinstance(raw, str) else raw
+            return json.dumps(remember_prediction(session, data, [lat, lon]), ensure_ascii=False), False
 
         if name == "get_national_station_data":
             raw = get_national_station_data(
@@ -503,6 +512,16 @@ def truncate(name: str, text: str) -> str:
         return text
     if name=='search_treatment_cases':
         return compact_tool_result(text)
+    if name == 'search_nearby_pollution_sources':
+        # 优先保留完整预测结构，避免原始站点背景把企业首选挤出模型上下文。
+        try:
+            outcome = json.loads(text)
+            data = outcome.get('data')
+            if isinstance(data, dict) and '污染源预测' in data:
+                return json.dumps({**outcome, 'data': {key: data[key] for key in
+                    ('污染源预测', '搜索中心', '搜索半径_m') if key in data}}, ensure_ascii=False)
+        except (TypeError, ValueError):
+            pass
     limit = (LIMIT_REPORT if name == 'generate_final_report' else
              LIMIT_SUMMARY if name == "get_comprehensive_summary" else LIMIT_DEFAULT)
     return text if len(text) <= limit else text[:limit] + "\n...(已截断)"

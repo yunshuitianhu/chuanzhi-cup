@@ -89,6 +89,17 @@ def generate_report(api_key, summary, *, reference_sink=None):
     spatial = facts.get('空间分析', {})
     header = [f"> 数据身份：{label}。",
               '> 结论级别：水质筛查与辅助排查；当前报告没有已确认的污染源或责任主体。']
+    external = facts.get('外部与视觉线索', {})
+    clue = external.get('search_nearby_pollution_sources', {}) if isinstance(external, dict) else {}
+    if isinstance(clue, str):
+        try:
+            clue = json.loads(clue)
+        except (ValueError, TypeError):
+            clue = {}
+    prediction = clue.get('污染源预测') if isinstance(clue, dict) else None
+    if isinstance(prediction, dict) and identity.get('kind') != 'synthetic':
+        from .source_prediction import prediction_text
+        header.insert(0, '> ' + prediction_text(prediction))
     details = []
     details.append('治理案例：' + ('已取得参考资料，仅借鉴治理方法。'
         if reference_cases and '暂无相关治理案例' not in reference_cases else '本次未取得可用案例，不补造引用。'))

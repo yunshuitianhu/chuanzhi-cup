@@ -269,8 +269,17 @@ def _deduplicate_and_rank(
             continue
 
         weight = src.get("置信度权重", 0.2)
-        if name not in seen or weight > seen[name].get("置信度权重", 0):
-            seen[name] = src
+        old = seen.get(name, {})
+        sources_used = set(old.get('来源列表', []))
+        if src.get('数据源'):
+            sources_used.add(src['数据源'])
+        if name not in seen or weight > old.get("置信度权重", 0):
+            seen[name] = {**old, **src}
+        else:
+            for key, value in src.items():
+                if key not in seen[name] or seen[name][key] in (None, ''):
+                    seen[name][key] = value
+        seen[name]['来源列表'] = sorted(sources_used)
 
     ranked = sorted(seen.values(), key=lambda x: x.get("置信度权重", 0), reverse=True)
 
@@ -282,7 +291,7 @@ def _deduplicate_and_rank(
             "名称": (src.get("name") or src.get("企业名称") or src.get("站点名称") or src.get("站名") or ""),
         }
         # 复制关键字段
-        for field in ["数据源", "置信度权重", "距离", "distance", "地址", "address", "行业类别", "主要污染物", "流域", "水质目标"]:
+        for field in ["数据源", "置信度权重", "距离", "distance", "地址", "address", "行业类别", "主要污染物", "流域", "水质目标", "lat", "lon", "type", "来源列表"]:
             if field in src:
                 entry[field] = src[field]
         result.append(entry)

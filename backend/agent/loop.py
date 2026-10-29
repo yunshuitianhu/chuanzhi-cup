@@ -227,6 +227,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         **({'vision_requested':True} if vision_requested else {})})
 
     final_text = ""
+    prediction_prefix = ''
     evidence_traces = []
     scrub = _scrubber()
     citation_sources = dict(question_context.get('catalog',{})) if question_context else {}
@@ -325,6 +326,18 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         check()
         client = OpenAI(base_url=BASE_URL, api_key=api_key, timeout=TIMEOUT, max_retries=0)
         tool_errors = 0
+        from water_quality_mcp.src.water_quality_mcp.source_prediction import wants_prediction
+        if not auto and wants_prediction(user_text):
+            # 显式的企业预测问题先取实际候选，不让选中的技术介绍把问题困在抽象解释中。
+            prediction_call = 'source_prediction_' + run.id
+            msgs.append({'role': 'assistant', 'content': None, 'tool_calls': [{
+                'id': prediction_call, 'type': 'function', 'function': {
+                    'name': 'search_nearby_pollution_sources', 'arguments': '{}'}}]})
+            yield from perform_tool('search_nearby_pollution_sources', {}, prediction_call)
+            from ..source_prediction import current_prediction, attach_prediction
+            prediction = current_prediction(session) or attach_prediction(session, {})['污染源预测']
+            prediction_prefix = scrub(prediction['直接回答']) + '\n\n'
+            yield emit('delta', {'text': prediction_prefix})
         if vision_requested and (vision_sent or vision_errors):
             run.update('正在查看图片' if vision_sent else '图片读取失败，按记录回答')
             yield emit('vision', {'status': 'sent' if vision_sent else 'failed',
@@ -378,8 +391,8 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
 
             # ---- 没有工具调用 → 这就是最终回答 ----
             if not calls:
-                final_text = content
-                msgs.append({"role": "assistant", "content": content})
+                final_text = prediction_prefix + content
+                msgs.append({"role": "assistant", "content": final_text})
                 break
 
             # ---- 有工具调用 → 记录 assistant 消息，逐个执行 ----
@@ -431,6 +444,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                 model=MODEL_NAME, extra_body={"thinking":{"type":"disabled"}}, messages=msgs, temperature=0.1, stream=True)
             finish_reason = None
             stream = resp
+            final_text = prediction_prefix
             for chunk in resp:
                 check()
                 if chunk.choices and getattr(chunk.choices[0], 'finish_reason', None) is not None:
