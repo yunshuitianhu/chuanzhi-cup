@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from functools import lru_cache
+import json
 import logging
 import os
 from pathlib import Path
@@ -11,6 +12,8 @@ import uuid
 
 from . import PROJECT_ROOT
 from .project_codec import ProjectError, dump_project, load_project, STATE_FIELDS
+from water_quality_mcp.src.water_quality_mcp.detection_support import DETECTION_VERSION
+from water_quality_mcp.src.water_quality_mcp.evidence import EVIDENCE_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +261,20 @@ def prepare_snapshot(snapshot):
     return directory,restored
 
 
+def _detection_outdated(session):
+    """恢复旧项目时识别旧检测/证据口径，要求重新分析而不是沿用完成标记。"""
+    if session.black_spots is None:
+        return False
+    try:
+        evidence = json.loads(session.black_spots_json or '{}')
+    except (TypeError, ValueError):
+        return True
+    if not isinstance(evidence, dict):
+        return True
+    return (evidence.get('算法版本') != DETECTION_VERSION
+            or evidence.get('证据版本') != EVIDENCE_VERSION)
+
+
 def publish_snapshot(session,info,snapshot,directory,restored):
     """把已物化的快照发布到会话；此函数只改内存，不做磁盘 I/O。"""
     revision=session.analysis_revision
@@ -278,6 +295,8 @@ def publish_snapshot(session,info,snapshot,directory,restored):
     if session.analysis_status=='running':
         session.analysis_status='cancelled'
         session.analysis_done=False
+    if _detection_outdated(session):
+        session.invalidate_report()
 
 
 def apply_snapshot(session,info,snapshot):

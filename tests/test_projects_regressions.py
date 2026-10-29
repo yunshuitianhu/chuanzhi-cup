@@ -162,6 +162,21 @@ class ProjectApiTests(unittest.TestCase):
     def create(self,name='河流A',from_current=True):
         return self.post('',{'name':name,'from_current':from_current})['current']['id']
 
+    def test_restoring_old_detection_marks_completed_report_stale(self):
+        self.session.black_spots_json=json.dumps({'算法版本':'screening-support-v2',
+            '证据版本':'evidence-2026-10-25-v9'})
+        self.session.analysis_done=True
+        self.session.analysis_status='succeeded'
+        self.session.comprehensive_summary='旧口径摘要'
+        pid=self.create()
+        other=self.client.get('/api/session').json()['session_id']
+        self.ids.append(other)
+        self.post(f'/{pid}/open',headers={'X-Session-Id':other})
+        restored=STORE.get(other)
+        self.assertFalse(restored.analysis_done)
+        self.assertEqual(restored.analysis_status,'stale')
+        self.assertIsNone(restored.comprehensive_summary)
+
     def test_two_projects_switch_without_sharing_data_or_configuration(self):
         a=self.create()
         self.session.df.loc[4,'ammonia_nitrogen']=12.
