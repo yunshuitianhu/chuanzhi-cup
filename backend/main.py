@@ -18,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from . import PROJECT_ROOT  # noqa: F401  —— 导入即完成 sys.path 与 .env 初始化
-from .routers import agent, analysis, charts, data, rag, river, stations, system, trace, projects, maps, investigations, video, media
+from .routers import agent, analysis, charts, data, rag, river, stations, system, trace, projects, maps, investigations, video, media, vision
 from .session import STORE
 from .routers import side, analysis_cards
 
@@ -104,6 +104,7 @@ app.include_router(maps.router, prefix="/api")
 app.include_router(investigations.router, prefix="/api")
 app.include_router(video.router, prefix="/api")
 app.include_router(media.router, prefix="/api")
+app.include_router(vision.router, prefix="/api")
 app.include_router(side.router, prefix="/api")
 
 

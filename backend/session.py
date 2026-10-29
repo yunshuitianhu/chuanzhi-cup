@@ -122,6 +122,7 @@ class Session:
         self.analysis_revision += 1
         self.agent_run = None
         self.results_revision += 1
+        self._vision_evidence_cache = {}
         self.black_spots = None
         self.black_spots_json = None
         self.cross_validation = None
@@ -170,6 +171,7 @@ class Session:
     def replace_video(self, frames, filename) -> None:
         self._video_quality_cache = None
         self._vision_image_cache = {}
+        self._vision_evidence_cache = {}
         self.video_frames = frames
         self.video_filename = filename
         self.cross_validation = None
@@ -184,6 +186,7 @@ class Session:
         self.media_assets = {}
         self._media_bytes = {}
         self._vision_image_cache = {}
+        self._vision_evidence_cache = {}
 
     def clear_all(self) -> None:
         """加载新数据时调用 —— 与原 app.py 的「重置所有分析状态」一致。"""
