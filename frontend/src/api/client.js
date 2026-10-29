@@ -243,6 +243,8 @@ export const api = {
   videoQuality: (offset = 0) => request(`/video/quality?offset=${offset}&limit=20`),
   /** @param {number} id @param {string} revision @returns {Promise<import('../types/contracts').VideoFrameResponse>} */
   videoFrame: (id, revision) => request(`/video/frames/${id}?expected_revision=${encodeURIComponent(revision)}`),
+  /** @param {Record<string,unknown>} payload @param {AbortSignal} [signal] */
+  visionObserve: (payload, signal) => request('/vision/observe', { method:'POST', body:payload, signal }),
   /** @param {import('../types/contracts').VideoSettingsChange} payload */
   saveVideoSettings: (payload) => request('/video/settings', { method:'PUT', body:payload }),
   /** @param {number} id @param {import('../types/contracts').JsonObject} payload */

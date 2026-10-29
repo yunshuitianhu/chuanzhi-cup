@@ -43,6 +43,16 @@ export interface VisionImage {
   asset_id?: string|null; asset_revision?: string|null
 }
 export interface VisionInfo { sent: boolean; images?: VisionImage[]; errors?: string[]; error?: string; at?: string }
+export interface VisualObservationItem {
+  visible: string; where?: string; uncertainty?: string[]
+  frame_id?: number|null; frame_number?: number|null; time_sec?: number|null
+}
+export interface VisualObservationResponse {
+  ok: true; version: string; model: string; source: VisionImage; question: string
+  observations: VisualObservationItem[]; not_visible: string[]; quality_notes: string[]; limits: string[]
+  project_id?: string|null; analysis_revision: number; results_revision: number
+  cached: boolean; elapsed_s: number; observed_at: string
+}
 export interface MediaAsset {
   asset_id: string; sha256: string; media_type: string; width: number; height: number
   bytes: number; source: string; source_name: string; created_at: string; preview_url: string

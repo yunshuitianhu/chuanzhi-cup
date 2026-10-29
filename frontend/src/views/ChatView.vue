@@ -14,6 +14,7 @@ import Panel from '../components/Panel.vue'
 import ChatBubble from '../components/ChatBubble.vue'
 import TextQuoteCard from '../components/TextQuoteCard.vue'
 import QuestionContextCard from '../components/QuestionContextCard.vue'
+import VisualEvidence from '../components/VisualEvidence.vue'
 import ContextSourceFocus from '../components/ContextSourceFocus.vue'
 import {isQuestionContext,questionContextMatches} from '../utils/questionContext'
 import AgentProgress from '../components/AgentProgress.vue'
@@ -418,6 +419,8 @@ async function submit(text,auto) {
       </div>
       <TextQuoteCard v-if="store.textQuestions?.pendingMain" :quote="store.textQuestions.pendingMain" removable @remove="store.textQuestions.pendingMain=null;store.questionContextNotice=''" />
       <QuestionContextCard v-if="store.questionContext" :context="store.questionContext" removable @remove="store.clearQuestionContext()" />
+      <VisualEvidence v-if="store.questionContext && ['video_frame','image_asset'].includes(store.questionContext.kind)"
+        :context="store.questionContext" :disabled="running || store.loading || store.switchingProject" collapsed />
       <p v-if="!store.status.has_data && !store.questionContext" class="tip">从「项目与数据」载入监测表，或选择一段实际检索的资料、粘贴一张截图进行提问。</p>
       <p v-if="store.status.analysis_status === 'stale'" class="tip warning">检测或视频结果已更新，下方为历史对话；重新分析后可生成当前报告。</p>
       <p v-else-if="store.status.detection_outdated" class="tip warning">历史检测使用旧版证据口径，请重新分析。下方文字尚未按当前数据和走航时空限制复核。</p>
