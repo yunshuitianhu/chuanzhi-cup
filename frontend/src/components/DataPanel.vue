@@ -143,7 +143,6 @@ async function load() {
         <div><strong>试用仿真示例</strong><span class="sample-tag">仅监测表 · 仿真</span></div>
         <button v-if="store.sampleCatalogError || sampleError" type="button" class="sample-retry" :disabled="store.loading" @click="reloadSamples">重新读取目录</button>
       </div>
-      <p class="hint sample-intro">没有数据也可以先体验图表、质控和阈值筛查；载入会先保存当前项目，在独立演示项目中打开。基础示例和筛查不需要模型 Key；AI 解读与报告需另行配置。</p>
       <p v-if="sampleError" class="sample-error" role="alert">{{sampleError}}</p>
       <p v-else-if="store.sampleCatalogError" class="sample-error" role="alert">{{store.sampleCatalogError}}</p>
       <p v-if="sampleBusy" class="hint" role="status">正在载入示例并准备数据，请稍候…</p>
@@ -231,7 +230,6 @@ async function load() {
 .sample-head > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; min-width:0; }
 .sample-tag { color:var(--c-accent); border:1px solid var(--c-border); border-radius:9px; padding:1px 6px; font-size: 14px; }
 .sample-retry { border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-sub); border-radius:5px; font:inherit; font-size: 14px; padding:3px 7px; min-height:26px; }
-.sample-intro { margin:6px 0 8px; }
 .sample-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
 .sample-item { border-top:1px solid var(--c-border-soft); padding-top:7px; min-width:0; }
 .sample-copy strong { display:block; font-size: 15px; color:var(--c-ink); line-height:1.5; }

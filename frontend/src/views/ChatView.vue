@@ -37,35 +37,6 @@ const composerEl = ref(null)
 const canAttach = computed(()=>!running.value && !store.loading && store.ready && !store.switchingProject)
 const selectedKind = computed(()=>store.questionContext?.kind || (store.textQuestions?.pendingMain ? 'text_quote' : ''))
 const aiConfigured = computed(()=>!store.config?.keys || store.config.keys.deepseek!==false)
-const workbench = computed(()=>{
-  const status=store.status||{}
-  const hasData=!!status.has_data
-  const context=store.questionContext
-  const pending=store.textQuestions?.pendingMain
-  const draft=(store.chatDraft||'').trim()
-  const run=store.agentRun
-  const screened=!!(status.analysis_done || status.has_detection)
-  const dataText=hasData ? `${status.rows??0} 条记录${status.data_identity?.kind==='synthetic'?' · 仿真':''}` : '未载入数据'
-  const questionText=context?.title ? `已选：${context.title}` : pending?.title ? `选文：${pending.title}` : draft ? `草稿：${draft.slice(0,32)}` : '未提出'
-  let progressText='尚未分析'
-  if(run?.busy) progressText=run.stage||'分析进行中'
-  else if(run?.status==='failed') progressText='上轮失败'
-  else if(run?.status==='partial') progressText='上轮部分完成'
-  else if(run?.status==='cancelled') progressText='上轮已停止'
-  else if(run?.status==='succeeded') progressText='本轮已完成'
-  else if(status.analysis_done) progressText='已有分析结果'
-  else if(status.has_detection) progressText='已完成基础筛查'
-  const evidenceText=!hasData ? '等待数据' : screened ? `${status.black_spot_count??0} 个预警点` : '尚未筛查'
-  const nextText=!hasData ? '先载入示例' : screened ? '核对证据并安排复测' : '开始分析'
-  return {hasData,screened,dataText,questionText,progressText,evidenceText,nextText}
-})
-function focusComposer(){ nextTick(()=>composerEl.value?.focus()) }
-function scrollToProgress(){ document.getElementById('agent-progress')?.scrollIntoView({block:'nearest'}) }
-async function openInvestigationBoard(){
-  investigationVisited.value=true
-  await nextTick()
-  if(investigationDetails.value){ investigationDetails.value.open=true; investigationDetails.value.scrollIntoView({block:'start'}) }
-}
 function ensureAi(){
   if(aiConfigured.value){aiNotice.value='';return true}
   aiNotice.value='未配置 DeepSeek Key：可先载入内置示例、查看图表和运行基础筛查；AI 问答与报告需在服务端配置 Key 并重启后端后重试。'
@@ -357,50 +328,16 @@ async function submit(text,auto) {
 </script>
 
 <template>
-  <Panel class="chat-workspace" title="智能对话" dense>
+  <Panel id="image-asset" class="chat-workspace" title="智能对话" dense>
     <template #actions>
+      <button type="button" class="info-toggle" :aria-expanded="analysisExpanded" aria-controls="chat-analysis-info" @click="toggleAnalysis">{{ analysisExpanded ? '收起分析信息' : '分析信息' }}</button>
+      <button v-if="store.questionContext && ['video_frame','image_asset','text_quote'].includes(store.questionContext.kind)" type="button" class="info-toggle side-ask" :disabled="running || store.loading" @click="openSide">侧边追问</button>
       <button class="primary" :disabled="!store.canAnalyze || !store.ready || store.loading || running" :aria-busy="running" @click="autoAnalyze">
         <svg aria-hidden="true" viewBox="0 0 20 20"><path d="m10 2 1.8 5.7L18 10l-6.2 2.3L10 18l-1.8-5.7L2 10l6.2-2.3Z" /></svg>
         {{ store.sideRunning ? '侧边问答进行中…' : running ? '分析中…' : '开始自动分析' }}
       </button>
     </template>
     <ContextSourceFocus :kinds="['image_asset']" />
-    <div id="image-asset" class="chat-summary" aria-label="当前对话摘要">
-      <span class="project-tag">{{ store.projectState.current?.name || '临时巡航会话' }}</span>
-      <span class="summary-meta">{{ store.status.has_data ? store.status.rows + ' 条记录' : '等待数据' }} · 目标 {{ store.config.target_water_class }} 类
-        <span v-if="store.status.data_identity?.kind==='synthetic'" class="data-kind">仿真</span></span>
-      <span v-if="visionStatus" class="vision-chip" role="status">{{ visionStatus }}</span>
-      <span v-if="store.config.keys && !store.config.keys.deepseek" class="vision-chip" title="未配置 DeepSeek Key：仍可载入示例、查看图表和基础筛查；AI 问答与报告不可用">AI 未配置</span>
-      <button v-if="store.questionContext && ['video_frame','image_asset','text_quote'].includes(store.questionContext.kind)" type="button" class="info-toggle side-ask" :disabled="running || store.loading" @click="openSide">侧边追问</button>
-      <button type="button" class="info-toggle" :aria-expanded="analysisExpanded" aria-controls="chat-analysis-info" @click="toggleAnalysis">{{ analysisExpanded ? '收起分析信息' : '展开分析信息' }}</button>
-    </div>
-    <section class="workbench" aria-label="研判工作台状态">
-      <div class="wb-cell">
-        <span class="wb-label">数据</span>
-        <strong class="wb-value">{{workbench.dataText}}</strong>
-        <a class="wb-action" href="#data-samples">数据与示例</a>
-      </div>
-      <div class="wb-cell">
-        <span class="wb-label">当前问题</span>
-        <strong class="wb-value" :title="workbench.questionText">{{workbench.questionText}}</strong>
-        <button type="button" class="wb-action" @click="focusComposer">{{store.questionContext ? '换个问题' : '输入问题'}}</button>
-      </div>
-      <div class="wb-cell">
-        <span class="wb-label">分析进度</span>
-        <strong class="wb-value" :title="workbench.progressText">{{workbench.progressText}}</strong>
-        <button v-if="running" type="button" class="wb-action" @click="scrollToProgress">查看进度</button>
-        <button v-else-if="workbench.hasData && !workbench.screened" type="button" class="wb-action"
-          :disabled="!store.ready || store.loading" @click="autoAnalyze">开始自动分析</button>
-        <a v-else-if="workbench.hasData" class="wb-action" href="/charts">查看图表</a>
-        <span v-else class="wb-wait">等待数据</span>
-      </div>
-      <div class="wb-cell">
-        <span class="wb-label">证据 · 下一步</span>
-        <strong class="wb-value" :title="workbench.evidenceText">{{workbench.evidenceText}}</strong>
-        <a v-if="!workbench.hasData" class="wb-action" href="#data-samples">载入示例</a>
-        <button v-else type="button" class="wb-action" @click="openInvestigationBoard">{{workbench.nextText}}</button>
-      </div>
-    </section>
     <div v-if="!analysisExpanded && collapsedContext" class="context-line" aria-label="当前选择">
       <span class="context-kind">{{ collapsedContext.label }}</span>
       <span class="context-name" :title="collapsedContext.title">{{ collapsedContext.title }}</span>
@@ -464,20 +401,6 @@ async function submit(text,auto) {
 <style scoped>
 .primary{display:inline-flex;align-items:center;gap:8px;background:var(--c-accent);color:#07222f;border:1px solid transparent;padding:10px 16px;border-radius:var(--radius-sm);font-weight:650;font-size: 15px;min-height:42px}.primary svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.4}.primary:disabled{opacity:.45;cursor:not-allowed}
 .context-strip{flex-shrink:0;border-bottom:1px solid var(--c-border-soft);margin-bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;color:var(--c-sub);font-size: 15px;padding-bottom:6px}.project-tag{color:var(--c-ink);font-weight:600;max-width:100%;overflow-wrap:anywhere}.data-kind{color:#73d5be;border:1px solid #2d635a;border-radius:5px;padding:1px 6px}
-.chat-summary{flex-shrink:0;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;min-height:28px;padding:1px 0 2px;color:var(--c-sub);font-size: 14px;overflow-wrap:anywhere}
-.chat-summary .project-tag{max-width:min(42ch,60%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.summary-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.workbench{flex-shrink:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:2px 0 8px}
-.wb-cell{min-width:0;display:flex;flex-direction:column;gap:3px;padding:8px 10px;border:1px solid var(--c-border-soft);border-radius:var(--radius-sm);background:var(--c-surface-2)}
-.wb-label{font-size: 14px;color:var(--c-muted);letter-spacing:.04em}
-.wb-value{font-size: 15px;font-weight:600;color:var(--c-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wb-action{align-self:flex-start;border:0;background:transparent;color:var(--c-accent);font:inherit;font-size: 14px;padding:2px 0;min-height:24px;text-decoration:none;cursor:pointer}
-.wb-action:hover:not(:disabled){text-decoration:underline}
-.wb-action:disabled{opacity:.45;cursor:not-allowed}
-.wb-wait{align-self:flex-start;font-size: 14px;color:var(--c-muted);padding:2px 0;min-height:24px;line-height:24px}
-@media(max-width:900px){.workbench{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.workbench{gap:6px;margin-bottom:6px}.wb-cell{padding:7px 8px}}
-.vision-chip{color:var(--c-accent);border:1px solid var(--c-border);border-radius:12px;padding:1px 8px;font-size: 14px;white-space:nowrap}
 .info-toggle{margin-left:auto;flex-shrink:0;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-ink);border-radius:20px;padding:3px 10px;font:inherit;font-size: 14px;min-height:26px;white-space:nowrap}
 .info-toggle+.info-toggle{margin-left:0}
 .info-toggle:disabled{opacity:.5}
@@ -504,6 +427,6 @@ async function submit(text,auto) {
 .chat-workspace :deep(.progress){flex-shrink:0}
 .retry,.reading-controls,.composer{flex-shrink:0}
 @media(max-width:1023px){.chat-workspace{height:calc(100dvh - 104px)}}
-@media(max-width:600px){.chat-workspace{height:calc(100dvh - 96px)}.chat-workspace > :deep(.head),.chat-workspace > :deep(.body){padding:8px 14px}.conversation{min-height:0}.summary-meta{display:none}.keyboard-hint{display:none}.info-toggle{padding:5px 10px}}
-@media(max-height:520px){.chat-workspace{height:calc(100dvh - 88px)}.chat-workspace > :deep(.head){padding:4px 14px}.chat-workspace > :deep(.body){padding:4px 14px;position:relative}.chat-summary{min-height:26px;padding:1px 0 2px;position:relative;z-index:7;background:var(--c-surface)}.info-toggle{min-height:26px;padding:3px 10px}.conversation{min-height:0}.placeholder{display:none}.reading-controls{min-height:26px;padding:2px}.composer{padding:5px 8px}.composer textarea{min-height:40px;max-height:96px}.analysis-info{position:absolute;left:0;right:0;top:36px;bottom:0;max-height:none;margin:0;padding:10px 14px;background:var(--c-surface);border-top:1px solid var(--c-border);z-index:6}}
+@media(max-width:600px){.chat-workspace{height:calc(100dvh - 96px)}.chat-workspace > :deep(.head),.chat-workspace > :deep(.body){padding:8px 14px}.conversation{min-height:0}.keyboard-hint{display:none}.info-toggle{padding:5px 10px}}
+@media(max-height:520px){.chat-workspace{height:calc(100dvh - 88px)}.chat-workspace > :deep(.head){padding:4px 14px}.chat-workspace > :deep(.body){padding:4px 14px;position:relative}.info-toggle{min-height:26px;padding:3px 10px}.conversation{min-height:0}.placeholder{display:none}.reading-controls{min-height:26px;padding:2px}.composer{padding:5px 8px}.composer textarea{min-height:40px;max-height:96px}.analysis-info{position:absolute;left:0;right:0;top:36px;bottom:0;max-height:none;margin:0;padding:10px 14px;background:var(--c-surface);border-top:1px solid var(--c-border);z-index:6}}
 </style>
