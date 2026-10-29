@@ -215,6 +215,31 @@ class VisionEvidenceServiceTests(unittest.TestCase):
                              model='controlled-vision')
         self.assertEqual(getattr(self.session, '_vision_evidence_cache', {}), {})
 
+    def test_sequence_cache_includes_frame_labels_and_times(self):
+        # 0/1 与 2/3 的有序像素相同，但帧号/时间不同；模型提示中的标签也不同。
+        client = _Client(SEQ_VALID)
+        first = observe_sequence(self.session, frame_ids=[0, 1],
+                                 video_revision=self.revision, client=client,
+                                 model='controlled-vision')
+        second = observe_sequence(self.session, frame_ids=[2, 3],
+                                  video_revision=self.revision, client=client,
+                                  model='controlled-vision')
+        self.assertFalse(first['cached'])
+        self.assertFalse(second['cached'])
+        self.assertEqual(len(client.chat.completions.calls), 2)
+        self.assertEqual(second['frame_ids'], [2, 3])
+        self.assertEqual([frame['source']['time_sec'] for frame in second['frames']], [10., 15.])
+
+    def test_non_monotonic_frame_times_are_rejected(self):
+        frames = video()
+        frames[0]['time_sec'] = 10.
+        frames[1]['time_sec'] = 0.
+        self.session.video_frames = frames
+        revision = assessment(self.session)['revision']
+        with self.assertRaises(VisionError):
+            observe_sequence(self.session, frame_ids=[0, 1], video_revision=revision,
+                             client=_Client(SEQ_VALID), model='controlled-vision')
+
     def test_stale_frame_or_asset_is_rejected_before_model_call(self):
         client = _Client()
         with self.assertRaises(VisionError):
@@ -263,6 +288,16 @@ class VisionEvidenceServiceTests(unittest.TestCase):
                     observe(self.session, kind='video_frame', frame_id=1,
                             video_revision=self.revision, client=_Client(finish=finish),
                             model='controlled-vision')
+
+    def test_completely_empty_single_result_is_rejected_and_not_cached(self):
+        client = _Client(json.dumps({'observations': [], 'not_visible': [],
+                                     'quality_notes': []}, ensure_ascii=False))
+        with self.assertRaises(VisionServiceError):
+            observe(self.session, kind='video_frame', frame_id=0,
+                    video_revision=self.revision, client=client,
+                    model='controlled-vision')
+        self.assertEqual(len(client.chat.completions.calls), 1)
+        self.assertEqual(getattr(self.session, '_vision_evidence_cache', {}), {})
 
     def test_scope_change_during_model_call_is_rejected_and_not_cached(self):
         class MutatingClient(_Client):

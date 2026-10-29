@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 import json
 import logging
+import math
 import re
 import time
 
@@ -91,8 +92,12 @@ def _cache(session):
     return cache
 
 
-def _cache_key(images, question, model):
-    """只缓存模型对像素内容的解析；来源/帧号/质量每次按当前请求重建。"""
+def _cache_key(images, question, model, labels=None):
+    """只缓存模型对实际输入的解析；来源/帧号/质量每次按当前请求重建。
+
+    多帧标签（帧号、相对时间）会进入模型提示，因此也必须进入缓存键；
+    否则相同像素在不同时间/帧号下会复用带有旧时间引用的正文。
+    """
     if isinstance(images, dict):
         images = [images]
     payload = {
@@ -100,6 +105,7 @@ def _cache_key(images, question, model):
         'images': [image['sha256'] for image in images],
         'question': question,
         'model': model,
+        'labels': labels or [],
     }
     return sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
@@ -181,10 +187,14 @@ def _parse_payload(text):
         uncertainty = _string_list(item.get('uncertainty'), '不确定说明')
         cleaned.append({'visible': visible.strip(), 'where': where.strip(),
                         'uncertainty': uncertainty})
+    not_visible = _string_list(payload.get('not_visible'), '未看到说明')
+    quality_notes = _string_list(payload.get('quality_notes'), '画面质量说明')
+    if not cleaned and not not_visible and not quality_notes:
+        raise VisionServiceError('视觉模型没有给出可见观察或无法观察的原因，未生成观察结果。')
     return {
         'observations': cleaned,
-        'not_visible': _string_list(payload.get('not_visible'), '未看到说明'),
-        'quality_notes': _string_list(payload.get('quality_notes'), '画面质量说明'),
+        'not_visible': not_visible,
+        'quality_notes': quality_notes,
     }
 
 
@@ -237,13 +247,24 @@ def _load_sequence(session, frame_ids, video_revision):
         raise VisionError('同一帧不能重复选择；静止画面请选择相邻的不同帧。')
     ordered = sorted(frame_ids)
     images = []
+    times = []
     for frame_id in ordered:
         image = video_frame_image(session, frame_id, video_revision)
         quality = image.get('frame_quality') or {}
         flags = quality.get('quality_flags') or []
         if quality.get('quality_status') == 'invalid' or 'manual_exclusion' in flags:
             raise VisionError(f'视频第{frame_id + 1}帧无法作为序列证据（{quality.get("quality_status") or "已排除"}）。请调整范围。')
+        try:
+            time_sec = float(image.get('time_sec'))
+        except (TypeError, ValueError):
+            raise VisionError(f'视频第{frame_id + 1}帧缺少有效时间，不能作为时间序列发送。') from None
+        if not math.isfinite(time_sec):
+            raise VisionError(f'视频第{frame_id + 1}帧时间无效，不能作为时间序列发送。')
         images.append(image)
+        times.append(time_sec)
+    # 模型提示声称按时间顺序提供图片；恢复/导入数据可能帧号与时间不一致。
+    if any(later < earlier for earlier, later in zip(times, times[1:])):
+        raise VisionError('所选帧的时间顺序与帧号顺序不一致，请重新选择连续时间段。')
     return images
 
 
@@ -344,7 +365,9 @@ def observe_sequence(session, *, frame_ids, video_revision, question='', api_key
         raise VisionServiceError('项目、数据或视频在观察期间已变化，本次结果未采用。', 409)
     used_model = model or _default_model()
     cache = _cache(session)
-    key = _cache_key(images, used_question, used_model)
+    sequence_labels = [[image.get('frame_id'), image.get('frame_number'), image.get('time_sec')]
+                       for image in images]
+    key = _cache_key(images, used_question, used_model, sequence_labels)
     static_sequence = len({image['sha256'] for image in images}) == 1
     if key in cache:
         entry = cache[key]
