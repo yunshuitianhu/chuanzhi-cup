@@ -181,7 +181,7 @@ async function runInit() {
     toastOk('模型初始化完成')
     await refreshModelStatus()
   } catch (e) {
-    if (request.current()) { failedStep.value='init'; runNotice.value=`初始化失败：${e.message}。请检查河段范围、断面数和参数来源后重试。` }
+    if (request.matches()) { failedStep.value='init'; runNotice.value=`初始化失败：${e.message}。请检查河段范围、断面数和参数来源后重试。` }
   } finally {
     if (request.current()) busy.value = ''
   }
@@ -206,7 +206,7 @@ async function runHydro() {
     toastOk('水动力模拟完成')
     await refreshModelStatus()
   } catch (e) {
-    if (request.current()) { failedStep.value='hydro'; runNotice.value=`水动力模拟失败：${e.message}。请核对流量、水位、时长和断面设置后重试。` }
+    if (request.matches()) { failedStep.value='hydro'; runNotice.value=`水动力模拟失败：${e.message}。请核对流量、水位、时长和断面设置后重试。` }
   } finally {
     if (request.current()) busy.value = ''
   }
@@ -234,7 +234,7 @@ async function runPollution() {
     toastOk('污染事件模拟完成')
     await refreshModelStatus()
   } catch (e) {
-    if (request.current()) { failedStep.value='pollution'; runNotice.value=`污染模拟失败：${e.message}。请核对排放量、桩号、时段和网格细分后重试。` }
+    if (request.matches()) { failedStep.value='pollution'; runNotice.value=`污染模拟失败：${e.message}。请核对排放量、桩号、时段和网格细分后重试。` }
   } finally {
     if (request.current()) busy.value = ''
   }
