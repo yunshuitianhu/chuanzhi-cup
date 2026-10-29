@@ -61,6 +61,7 @@ const form = ref({
 let hydrating = false
 let disposed = false
 let requestVersion = 0
+let paramsRequest = 0
 const geometryKeys = [...GEOMETRY_KEYS, 'n_cross_sections']
 const hydroKeys = [...geometryKeys, 'upstream_flow_m3s','high_water_mean_m','duration_h','tidal_amplitude_m']
 const pollutionKeys = [...hydroKeys, ...POLLUTION_KEYS, 'wq_refinement']
@@ -133,12 +134,20 @@ watch(() => [form.value.wq_refinement, form.value.chainage_m, form.value.polluta
 
 async function detectParams() {
   if (!store.status.has_data) return
+  const ticket = ++paramsRequest
   const formSnapshot = JSON.stringify(form.value)
   const revision = store.status.analysis_revision
+  const workspace = store.workspaceRevision
+  const project = store.projectState.current?.id ?? null
+  const current = () => !disposed && ticket === paramsRequest
+    && revision === store.status.analysis_revision
+    && workspace === store.workspaceRevision
+    && project === (store.projectState.current?.id ?? null)
+    && !store.switchingProject
   busy.value = 'params'
   try {
     const result = await api.riverParams()
-    if (revision !== store.status.analysis_revision) return
+    if (!current()) return
     params.value = result
     paramsNotice.value = ''
     if (JSON.stringify(form.value) !== formSnapshot) {
@@ -153,9 +162,10 @@ async function detectParams() {
     form.value.chainage_m = form.value.length_m / 2
     toastOk(`识别到河道：${params.value.river_name}`)
   } catch (e) {
-    paramsNotice.value = `自动参数建议未完成：${e.message}。可直接手工填写下方参数，不影响手工情景计算。`
+    if (current()) paramsNotice.value = `自动参数建议未完成：${e.message}。可直接手工填写下方参数，不影响手工情景计算。`
   } finally {
-    if (revision === store.status.analysis_revision) busy.value = ''
+    // 旧请求不能清掉新请求的 busy；项目切换时仍要让本页退出“检测中”。
+    if (ticket === paramsRequest && busy.value === 'params') busy.value = ''
   }
 }
 
