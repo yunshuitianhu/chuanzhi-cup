@@ -1,0 +1,83 @@
+{
+  "date": "2026-10-29T01:57:04.987186+00:00",
+  "scope": "service-level observe_sequence; controlled generated textures, not user media",
+  "claim": "只验证多帧图像输入与结构化逐帧观察，不代表现场污染识别准确率或责任认定。",
+  "frame_ids": [
+    0,
+    1
+  ],
+  "video_revision_prefix": "f9b1b618265bb643",
+  "status": "succeeded",
+  "model": "deepseek-flash",
+  "elapsed_s": 3.63,
+  "cached": false,
+  "static_sequence": false,
+  "frames": [
+    {
+      "index": 1,
+      "frame_id": 0,
+      "time_sec": 0.0,
+      "quality_status": "usable",
+      "observations": [
+        {
+          "visible": "满幅斜向条纹图案，条纹呈深浅交替，整体偏中灰",
+          "where": "整个画面",
+          "uncertainty": [
+            "画面为规则条纹，无其他可辨识对象",
+            "无法判断条纹代表何种实际场景"
+          ],
+          "frame_id": 0,
+          "frame_number": 1,
+          "time_sec": 0.0
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "frame_id": 1,
+      "time_sec": 5.0,
+      "quality_status": "usable",
+      "observations": [
+        {
+          "visible": "满幅斜向条纹图案，条纹方向与第1帧一致，整体明显更暗，深色条纹与浅色条纹对比减弱",
+          "where": "整个画面",
+          "uncertainty": [
+            "画面为规则条纹，无其他可辨识对象",
+            "无法判断变暗是拍摄条件还是显示原因"
+          ],
+          "frame_id": 1,
+          "frame_number": 2,
+          "time_sec": 5.0
+        }
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "from": 1,
+      "to": 2,
+      "visible_change": "整体亮度下降，画面由中灰变为深暗；条纹方向与间距未见明显改变",
+      "uncertainty": [
+        "无法确认变暗的具体原因",
+        "无法排除显示或压缩造成的亮度差异"
+      ]
+    }
+  ],
+  "not_visible": [
+    "除斜向条纹外的任何物体、场景或文字",
+    "条纹图案的实际来源或所处环境"
+  ],
+  "quality_notes": [
+    "两帧均为规则条纹图案，缺少可参照的实体对象",
+    "画面相同结构，仅整体明暗不同",
+    "无可见反光、遮挡或模糊描述依据"
+  ],
+  "limits": [
+    "视觉观察只描述画面可见内容，不给出氨氮、溶解氧、COD 等浓度。",
+    "不凭水色或画面确认黑臭、污染源、排污企业或责任。",
+    "模糊、反光、遮挡或镜头变化只能提示复核，不补造未观测事实。",
+    "观察结果不自动写入报告或排查板，需人工核对来源与版本。",
+    "多帧观察只能比较已发送的帧，不能补造帧间未展示的移动、扩散或排放过程。",
+    "所选帧画面相同或几乎相同时，只能说明画面未见变化，不能推断现场静止或没有污染。"
+  ]
+}
