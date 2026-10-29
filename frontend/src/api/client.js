@@ -241,8 +241,8 @@ export const api = {
   crossValidate: (payload) => request('/analysis/cross-validate', { method: 'POST', body: payload || {} }),
   /** @returns {Promise<import('../types/contracts').VideoQualityResponse>} */
   videoQuality: (offset = 0) => request(`/video/quality?offset=${offset}&limit=20`),
-  /** @param {number} id @param {string} revision @returns {Promise<import('../types/contracts').VideoFrameResponse>} */
-  videoFrame: (id, revision) => request(`/video/frames/${id}?expected_revision=${encodeURIComponent(revision)}`),
+  /** @param {number} id @param {string} revision @param {AbortSignal} [signal] @returns {Promise<import('../types/contracts').VideoFrameResponse>} */
+  videoFrame: (id, revision, signal) => request(`/video/frames/${id}?expected_revision=${encodeURIComponent(revision)}`, {signal}),
   /** @param {Record<string,unknown>} payload @param {AbortSignal} [signal] */
   visionObserve: (payload, signal) => request('/vision/observe', { method:'POST', body:payload, signal }),
   /** @param {import('../types/contracts').VideoSettingsChange} payload */

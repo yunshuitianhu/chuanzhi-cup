@@ -4,6 +4,7 @@ import {api} from '../api/client'
 import {useSessionStore} from '../stores/session'
 import AskContext from './AskContext.vue'
 import VisualEvidence from './VisualEvidence.vue'
+import VisualSequenceEvidence from './VisualSequenceEvidence.vue'
 const props=defineProps({focusFrameId:{type:Number,default:null},focusVideoRevision:{type:String,default:null}})
 const store=useSessionStore(),emit=defineEmits(['updated'])
 const report=ref(null),settings=ref(null),frame=ref(null),selected=ref(null),offset=ref(0)
@@ -147,6 +148,7 @@ onBeforeUnmount(()=>{disposed=true;version++;frameVersion++;saveVersion++})
         <p v-if="frame.frame.features">清晰度/纹理指标 {{frame.frame.features.laplacian_var.toFixed(1)}} · 亮斑比例 {{(frame.frame.features.glare_fraction*100).toFixed(1)}}% · 过暗比例 {{(frame.frame.features.dark_fraction*100).toFixed(1)}}%</p>
         <AskContext :selector="{kind:'video_frame',frame_id:selected,video_revision:report.revision}" :disabled="locked||dirty||selected==null" label="让AI解释这帧的质量与线索" />
         <VisualEvidence :context="{kind:'video_frame',title:`视频第${selected+1}帧`,selection:{frame_id:selected,video_revision:report.revision}}" :disabled="locked||dirty||selected==null" />
+        <VisualSequenceEvidence :total="report.total" :revision="report.revision" :current="selected" :disabled="locked||dirty" />
       </div>
       <p v-if="scope==='all' && frame?.frame.review.roi">当前帧已有独立区域，分析时优先使用独立区域；选择“仅当前帧”可查看和编辑。此处正在编辑视频共用区域。</p>
       <fieldset :disabled="locked">

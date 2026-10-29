@@ -54,6 +54,20 @@ export interface VisualObservationResponse {
   project_id?: string|null; analysis_revision: number; results_revision: number
   cached: boolean; elapsed_s: number; observed_at: string
 }
+export interface VisualSequenceFrame {
+  index: number; source: VisionImage
+  source_quality?: { quality_status?: string; quality_flags?: string[]; quality_messages?: string[]; eligible?: boolean; manual_excluded?: boolean } | null
+  observations: VisualObservationItem[]
+}
+export interface VisualSequenceResponse {
+  ok: true; version: string; kind: 'video_frames'; model: string
+  frame_ids: number[]; frames: VisualSequenceFrame[]
+  changes: { from:number; to:number; visible_change:string; uncertainty:string[] }[]
+  static_sequence: boolean; time_start_s?: number|null; time_end_s?: number|null
+  not_visible: string[]; quality_notes: string[]; limits: string[]
+  project_id?: string|null; analysis_revision: number; results_revision: number
+  cached: boolean; elapsed_s: number; observed_at: string
+}
 export interface MediaAsset {
   asset_id: string; sha256: string; media_type: string; width: number; height: number
   bytes: number; source: string; source_name: string; created_at: string; preview_url: string
