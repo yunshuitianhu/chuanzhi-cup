@@ -93,6 +93,9 @@ def video_frame_image(session, frame_id: int, video_revision: str) -> dict:
         label=f'视频第{frame_id + 1}帧' + (f'（{row.get("time_sec")}秒）' if row.get('time_sec') is not None else ''),
         frame_id=frame_id, frame_number=frame_id + 1, time_sec=row.get('time_sec'),
         video_revision=current['revision'])
+    # 确定性抽帧质量与模型观察并列返回；质量门禁不因视觉观察而放宽。
+    record['frame_quality'] = {key: row.get(key) for key in
+        ('quality_status', 'quality_flags', 'quality_messages', 'eligible', 'manual_excluded')}
     _keep(cache, key, record)
     return deepcopy(record)
 

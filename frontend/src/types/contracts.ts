@@ -49,6 +49,7 @@ export interface VisualObservationItem {
 }
 export interface VisualObservationResponse {
   ok: true; version: string; model: string; source: VisionImage; question: string
+  source_quality?: { quality_status?: string; quality_flags?: string[]; quality_messages?: string[]; eligible?: boolean; manual_excluded?: boolean } | null
   observations: VisualObservationItem[]; not_visible: string[]; quality_notes: string[]; limits: string[]
   project_id?: string|null; analysis_revision: number; results_revision: number
   cached: boolean; elapsed_s: number; observed_at: string

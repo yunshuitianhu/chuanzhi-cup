@@ -155,6 +155,10 @@ onBeforeUnmount(() => {
         {{ String(result.source?.sha256 || '').slice(0, 12) }}…
         <template v-if="result.source?.frame_number"> · 第 {{ result.source.frame_number }} 帧 · {{ result.source.time_sec }}s</template>
       </p>
+      <p v-if="result.source_quality?.quality_status" class="ve-quality">
+        抽帧质量：{{ result.source_quality.quality_status }}
+        <template v-if="result.source_quality.quality_messages?.length"> · {{ result.source_quality.quality_messages.join('；') }}</template>
+      </p>
       <ul v-if="result.observations?.length" class="ve-observations">
         <li v-for="(item, index) in result.observations" :key="index">
           <p>{{ item.visible }}</p>

@@ -157,6 +157,7 @@ def _result(session, image, question, model, parsed, elapsed):
         'version': VERSION,
         'model': model,
         'source': source,
+        'source_quality': image.get('frame_quality'),
         'question': question,
         'observations': [{**item, **frame} for item in parsed['observations']],
         'not_visible': parsed['not_visible'],

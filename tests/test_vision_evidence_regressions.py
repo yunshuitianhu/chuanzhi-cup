@@ -78,6 +78,7 @@ class VisionEvidenceServiceTests(unittest.TestCase):
         self.assertEqual(result['observations'][0]['time_sec'], 5.)
         self.assertEqual(result['source']['kind'], 'video_frame')
         self.assertEqual(len(result['source']['sha256']), 64)
+        self.assertIn('quality_status', result['source_quality'])
         self.assertFalse(result['cached'])
         self.assertNotIn('base64', json.dumps(result, ensure_ascii=False))
         sent = client.chat.completions.calls[0]
