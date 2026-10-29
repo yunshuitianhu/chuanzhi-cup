@@ -26,9 +26,9 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 - N01—N03 内置六组仿真示例、一键载入、契约/打包已完成本机受控验收（N03 的 S-T13/S-T21/S-T26 未单独自动化）；
 - N04-A 能力矩阵与 N04-B 受控矩阵已完成；N05-A 安装路径已核实，N05-B 异机安装待队友执行；N05-C 本地检索已真实验证，但 LLM 综合回答/无关拒答/超时未验；
 - N06 河道引导、N07 的导航/字号为部分浏览器验收；全站字号已统一 +2px，键盘/读屏未做；N08 只完成少量低风险项；
-- 最近记录：655 项 Python（干净 CI venv）、373 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
+- 最近记录：665 项 Python（干净 CI venv）、378 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
 - Q16 工作台四项状态已完成；RAG 成功路径 29s/12 工具、失败重试已实际执行（重试仍部分完成）；
-- Q17 已完成本机受控性能与体验验收（四页/长历史/示例图表/热力开关，17 项可读性）；Q18 为下一项 P1，尚未开始；
+- Q17 已完成本机受控性能与体验验收（四页/长历史/示例图表/热力开关，17 项可读性）；Q18 阶段 A（单图/单帧视觉观察）已完成，阶段 B/C 未开始；
 - 外部核验 R01—R03 已修复：项目发布失败回滚、示例资源 503 边界、打包未跟踪文件门禁；
 - 新交付 ZIP 为 `work/delivery_20261028_r2.zip`：revision `4cc2a1a`、580 文件、SHA-256 `7577e578…`；旧包 revision `b075bd0` 仅作历史记录；`work/` 被忽略，ZIP 需单独发送。**r2 内示例仍是 V1；`data/samples` 已更新为 V2，需重新打包。**
 
@@ -103,7 +103,7 @@ npm run check                    # typecheck + node --test + build（推荐门�
 ### 测试与门禁
 
 ```bash
-# Python 全量（当前 655 项；tests 不是 package，不要用 python -m unittest tests.xxx）
+# Python 全量（当前 665 项；tests 不是 package，不要用 python -m unittest tests.xxx）
 python -m unittest discover -s tests -p "test_*.py"
 
 # 单个 unittest 文件
@@ -119,7 +119,7 @@ python tests/密钥泄漏检查.py          # 密钥不入库 + .env 优先级
 python tests/river_model_验收算例.py  # 含 1 项已知缺陷（潮汐质量不守恒）
 
 # 前端
-npm --prefix frontend run check       # 373 项 + TS/SFC + 构建
+npm --prefix frontend run check       # 378 项 + TS/SFC + 构建
 cd frontend && node --test tests/keyState.test.mjs   # 单个前端测试
 
 # 跨平台离线门禁（含全量 unittest、字段/泛化/后端/密钥检查）
@@ -201,6 +201,8 @@ backend/web.py             内存快照 index/assets；四页入口；未知路�
   失败恢复旧绑定，`discard_candidate` 只删本次未绑定候选。
 - `backend/media_assets.py` + `backend/routers/media.py` — 图片真实解码、规范化、哈希、按会话隔离；
   `backend/vision.py` 把选帧/附件加载成多模态 `image_url`，图片字节不写入 SSE/历史/`full_messages`。
+- `backend/vision_evidence.py` + `backend/routers/vision.py` — Q18 阶段 A 单图/单帧结构化视觉观察；
+  严格 JSON、版本/哈希绑定、会话缓存；不写报告/排查板，不凭图推算浓度或责任。
 - `backend/project_data.py` — 只读业务数据目录/分页/统计，供 `read_project_data` 等工具使用。
 - `backend/agent/loop.py` — DeepSeek Function Calling + SSE 主循环；每轮工具结果全部返回后才追加图片消息；
   `error_text.py` 把传输/服务异常转成可操作中文提示，但保留 Agent 自身的中文校验错误；`response_style.py` 共享表达规范。
@@ -415,6 +417,7 @@ RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单�
 - `docs/Q16协同研判工作台验收.md` — 工作台四项状态、RAG 成功路径与失败重试；Q17 性能验收已补。
 - `docs/全站字号增大验收_20261028.md` — 全站 +2px 字号、移动导航两行与四宽度可读性证据。
 - `docs/Q17整体性能与体验验收_20261028.md` — 四页加载、长历史、示例图表、热力开关与 Q16 整合。
+- `docs/Q18视觉证据接入阶段A_20261029.md` — 单图/单帧结构化视觉观察、显式发送与受控/真实验证；阶段 B/C 未开始。
 - `docs/项目情况汇报与Codex交接_20261028.md` — Codex 失忆后的恢复入口：状态、命令、坑与下一步。
 - `docs/validation/delivery_r2_20261028.json` — 新包 revision/文件数/哈希、独立审计与无 Key 副本结果。
 - `docs/任务队列.md` — Q/N 任务状态与日期记录。
