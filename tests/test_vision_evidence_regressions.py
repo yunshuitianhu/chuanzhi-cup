@@ -16,7 +16,7 @@ from backend.media_assets import store_media
 from backend.routers.video import assessment
 from backend.session import STORE, Session
 from backend.vision import VisionError
-from backend.vision_evidence import VisionServiceError, observe
+from backend.vision_evidence import VisionServiceError, observe, observe_sequence
 from test_video_quality_regressions import video
 
 
@@ -27,6 +27,28 @@ VALID = json.dumps({
     ],
     'not_visible': ['没有看到明确的排口'],
     'quality_notes': ['画面存在轻微反光'],
+}, ensure_ascii=False)
+
+SEQ_VALID = json.dumps({
+    'frames': [
+        {'index': 1, 'visible': '规则棋盘纹理，整体较亮', 'where': '全画面',
+         'uncertainty': []},
+        {'index': 2, 'visible': '规则棋盘纹理，整体较暗', 'where': '全画面',
+         'uncertainty': []},
+    ],
+    'changes': [
+        {'from': 1, 'to': 2, 'visible_change': '第二张整体更暗', 'uncertainty': ['只比较两张图，不代表连续变化']},
+    ],
+    'not_visible': ['没有看到明确的漂浮物'],
+    'quality_notes': [],
+}, ensure_ascii=False)
+
+STATIC_VALID = json.dumps({
+    'frames': [
+        {'index': 1, 'visible': '规则棋盘纹理', 'where': '全画面', 'uncertainty': []},
+        {'index': 2, 'visible': '规则棋盘纹理', 'where': '全画面', 'uncertainty': []},
+    ],
+    'changes': [], 'not_visible': [], 'quality_notes': ['两张图画面相同'],
 }, ensure_ascii=False)
 
 
@@ -135,6 +157,63 @@ class VisionEvidenceServiceTests(unittest.TestCase):
         self.assertEqual(result['source']['kind'], 'image_asset')
         self.assertIsNone(result['observations'][0]['frame_id'])
         self.assertEqual(result['source']['asset_id'], meta['asset_id'])
+
+    def test_sequence_sorts_frames_and_returns_changes_without_claiming_process(self):
+        client = _Client(SEQ_VALID)
+        result = observe_sequence(self.session, frame_ids=[1, 0],
+                                  video_revision=self.revision, question='比较明暗',
+                                  client=client, model='controlled-vision')
+        self.assertEqual(result['kind'], 'video_frames')
+        self.assertEqual(result['frame_ids'], [0, 1])
+        self.assertEqual([frame['source']['frame_id'] for frame in result['frames']], [0, 1])
+        self.assertEqual([frame['source']['time_sec'] for frame in result['frames']], [0., 5.])
+        self.assertFalse(result['static_sequence'])
+        self.assertEqual(result['changes'][0]['from'], 1)
+        self.assertEqual(result['changes'][0]['to'], 2)
+        self.assertIn('不代表连续变化', result['changes'][0]['uncertainty'][0])
+        self.assertIn('不能补造', result['limits'][-2])
+        sent = client.chat.completions.calls[0]['messages'][1]['content']
+        self.assertEqual(sum(block.get('type') == 'image_url' for block in sent), 2)
+        self.assertIn('第2张=视频第2帧', sent[0]['text'])
+
+    def test_sequence_rejects_duplicates_insufficient_frames_and_excluded_frames(self):
+        client = _Client(SEQ_VALID)
+        for frame_ids in ([0, 0], [0], list(range(9))):
+            with self.subTest(frame_ids=frame_ids):
+                with self.assertRaises(VisionError):
+                    observe_sequence(self.session, frame_ids=frame_ids,
+                                     video_revision=self.revision, client=client,
+                                     model='controlled-vision')
+        frames = video()
+        frames[2]['review'] = {'decision': 'exclude', 'reviewer': '受控复核',
+                               'notes': '人工排除'}
+        self.session.video_frames = frames
+        revision = assessment(self.session)['revision']
+        with self.assertRaises(VisionError):
+            observe_sequence(self.session, frame_ids=[0, 2], video_revision=revision,
+                             client=client, model='controlled-vision')
+        self.assertEqual(client.chat.completions.calls, [])
+
+    def test_static_sequence_is_marked_and_cache_is_reused(self):
+        client = _Client(STATIC_VALID)
+        first = observe_sequence(self.session, frame_ids=[0, 2],
+                                 video_revision=self.revision, client=client,
+                                 model='controlled-vision')
+        second = observe_sequence(self.session, frame_ids=[2, 0],
+                                  video_revision=self.revision, client=client,
+                                  model='controlled-vision')
+        self.assertTrue(first['static_sequence'])
+        self.assertTrue(second['cached'])
+        self.assertEqual(len(client.chat.completions.calls), 1)
+        self.assertEqual(second['frame_ids'], [0, 2])
+
+    def test_static_sequence_rejects_model_invented_changes(self):
+        client = _Client(SEQ_VALID)
+        with self.assertRaises(VisionServiceError):
+            observe_sequence(self.session, frame_ids=[0, 2],
+                             video_revision=self.revision, client=client,
+                             model='controlled-vision')
+        self.assertEqual(getattr(self.session, '_vision_evidence_cache', {}), {})
 
     def test_stale_frame_or_asset_is_rejected_before_model_call(self):
         client = _Client()
@@ -245,6 +324,21 @@ class VisionEvidenceApiTests(unittest.TestCase):
         self.assertEqual(body['source']['frame_id'], 1)
         self.assertNotIn('base64', response.text)
         self.assertNotIn('test-key', response.text)
+        self.assertEqual(len(fake.chat.completions.calls), 1)
+
+    def test_api_accepts_short_sequence_and_rejects_duplicate_frames(self):
+        fake = _Client(SEQ_VALID)
+        with patch('backend.routers.vision.resolve_api_key', return_value='test-key'), \
+             patch('backend.vision_evidence.OpenAI', return_value=fake):
+            response = self.post({'kind': 'video_frames', 'frame_ids': [0, 1],
+                                  'video_revision': self.revision})
+            duplicate = self.post({'kind': 'video_frames', 'frame_ids': [0, 0],
+                                   'video_revision': self.revision})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['frame_ids'], [0, 1])
+        self.assertEqual(len(response.json()['frames']), 2)
+        self.assertNotIn('base64', response.text)
+        self.assertEqual(duplicate.status_code, 422)
         self.assertEqual(len(fake.chat.completions.calls), 1)
 
     def test_missing_key_is_clear_and_does_not_call_model(self):
