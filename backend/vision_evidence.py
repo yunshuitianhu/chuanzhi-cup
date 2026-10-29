@@ -72,18 +72,42 @@ def _cache(session):
     return cache
 
 
-def _cache_key(session, image, question, model):
+def _cache_key(image, question, model):
+    """只缓存模型对像素内容的解析；来源/帧号/质量每次按当前请求重建。"""
     payload = {
+        'version': VERSION,
         'image': image['sha256'],
         'question': question,
         'model': model,
-        'project': session.project_id or '',
-        'analysis_revision': session.analysis_revision,
-        'results_revision': session.results_revision,
-        'video_revision': image.get('video_revision'),
-        'asset_revision': image.get('asset_revision'),
     }
     return sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
+def _scope(session):
+    return (session.project_id or '', session.analysis_revision, session.results_revision)
+
+
+def _source_current(session, image):
+    """模型等待期间来源也必须仍然存在且版本一致。"""
+    if image.get('video_revision') is not None:
+        from .routers.video import assessment
+        try:
+            return assessment(session).get('revision') == image['video_revision']
+        except Exception:
+            return False
+    if image.get('asset_id'):
+        from .media_assets import get_media
+        try:
+            meta, _ = get_media(session, image['asset_id'], image.get('asset_revision'))
+            return meta.get('sha256') == image.get('sha256')
+        except Exception:
+            return False
+    return False
+
+
+def _ensure_unchanged(session, scope, image):
+    if _scope(session) != scope or not _source_current(session, image):
+        raise VisionServiceError('项目、数据或视频在观察期间已变化，本次结果未采用。', 409)
 
 
 def _string_list(value, label):
@@ -145,7 +169,7 @@ def _load_image(session, kind, frame_id, video_revision, asset_id, asset_revisio
     raise VisionError('不支持的视觉来源。')
 
 
-def _result(session, image, question, model, parsed, elapsed):
+def _result(session, image, question, model, parsed, elapsed, *, cached=False, observed_at=None):
     source = image_meta(image)
     frame = {
         'frame_id': image.get('frame_id'),
@@ -166,9 +190,9 @@ def _result(session, image, question, model, parsed, elapsed):
         'project_id': session.project_id or None,
         'analysis_revision': session.analysis_revision,
         'results_revision': session.results_revision,
-        'cached': False,
+        'cached': cached,
         'elapsed_s': round(elapsed, 2),
-        'observed_at': datetime.now(timezone.utc).isoformat(),
+        'observed_at': observed_at or datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -182,15 +206,19 @@ def observe(session, *, kind, frame_id=None, video_revision=None, asset_id=None,
     if len(question) > MAX_QUESTION_CHARS:
         raise VisionError(f'视觉问题不能超过{MAX_QUESTION_CHARS}字。')
     used_question = question or DEFAULT_QUESTION
+    scope = _scope(session)
     image = _load_image(session, kind, frame_id, video_revision, asset_id, asset_revision)
+    if _scope(session) != scope:
+        raise VisionServiceError('项目、数据或视频在观察期间已变化，本次结果未采用。', 409)
     used_model = model or _default_model()
     cache = _cache(session)
-    key = _cache_key(session, image, used_question, used_model)
+    key = _cache_key(image, used_question, used_model)
     if key in cache:
-        cached = deepcopy(cache[key])
-        cached['cached'] = True
-        cached['served_at'] = datetime.now(timezone.utc).isoformat()
-        return cached
+        entry = cache[key]
+        _ensure_unchanged(session, scope, image)
+        return _result(session, image, used_question, used_model, entry['parsed'],
+                       entry.get('elapsed_s', 0), cached=True,
+                       observed_at=entry.get('observed_at'))
 
     owned = client is None
     if owned:
@@ -230,12 +258,20 @@ def observe(session, *, kind, frame_id=None, video_revision=None, asset_id=None,
                 pass
 
     try:
-        content = response.choices[0].message.content
+        choice = response.choices[0]
+        finish_reason = getattr(choice, 'finish_reason', None)
+        content = choice.message.content
     except (AttributeError, IndexError, TypeError) as exc:
         raise VisionServiceError('视觉模型没有返回可核对内容，未生成观察结果。') from exc
+    if finish_reason != 'stop':
+        raise VisionServiceError(
+            f'视觉模型输出未完整结束（{finish_reason or "缺少结束标记"}），未生成观察结果。', 502)
+    _ensure_unchanged(session, scope, image)
     parsed = _parse_payload(content)
-    result = _result(session, image, used_question, used_model, parsed, time.monotonic() - started)
-    cache[key] = deepcopy(result)
+    observed_at = datetime.now(timezone.utc).isoformat()
+    elapsed = round(time.monotonic() - started, 2)
+    cache[key] = {'parsed': deepcopy(parsed), 'elapsed_s': elapsed, 'observed_at': observed_at}
     while len(cache) > CACHE_LIMIT:
         cache.pop(next(iter(cache)))
-    return result
+    return _result(session, image, used_question, used_model, parsed, elapsed,
+                   cached=False, observed_at=observed_at)

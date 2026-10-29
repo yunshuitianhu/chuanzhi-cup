@@ -31,21 +31,22 @@ VALID = json.dumps({
 
 
 class _Completions:
-    def __init__(self, content=VALID, error=None):
+    def __init__(self, content=VALID, error=None, finish='stop'):
         self.content = content
         self.error = error
+        self.finish = finish
         self.calls = []
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
         if self.error:
             raise self.error
-        return NS(choices=[NS(message=NS(content=self.content))])
+        return NS(choices=[NS(message=NS(content=self.content), finish_reason=self.finish)])
 
 
 class _Client:
-    def __init__(self, content=VALID, error=None):
-        self.chat = NS(completions=_Completions(content, error))
+    def __init__(self, content=VALID, error=None, finish='stop'):
+        self.chat = NS(completions=_Completions(content, error, finish))
         self.closed = False
 
     def close(self):
@@ -102,6 +103,30 @@ class VisionEvidenceServiceTests(unittest.TestCase):
                 model='controlled-vision')
         self.assertEqual(len(client.chat.completions.calls), 2)
 
+    def test_identical_pixels_in_different_frames_keep_each_frame_source_and_quality(self):
+        # video() 的第 0、2 帧纹理相同；第 2 帧人工排除后仍是独立证据。
+        frames = video()
+        frames[2]['review'] = {'decision': 'exclude', 'reviewer': '受控复核',
+                               'notes': '人工排除本帧'}
+        self.session.video_frames = frames
+        revision = assessment(self.session)['revision']
+        client = _Client()
+        first = observe(self.session, kind='video_frame', frame_id=0,
+                        video_revision=revision, question='看纹理', client=client,
+                        model='controlled-vision')
+        second = observe(self.session, kind='video_frame', frame_id=2,
+                         video_revision=revision, question='看纹理', client=client,
+                         model='controlled-vision')
+        self.assertEqual(len(client.chat.completions.calls), 1)
+        self.assertTrue(second['cached'])
+        self.assertEqual(first['source']['frame_id'], 0)
+        self.assertEqual(second['source']['frame_id'], 2)
+        self.assertEqual(second['source']['time_sec'], 10.)
+        self.assertEqual(second['observations'][0]['frame_id'], 2)
+        self.assertEqual(second['observations'][0]['frame_number'], 3)
+        self.assertEqual(second['source_quality']['quality_status'], 'needs_review')
+        self.assertIn('manual_exclusion', second['source_quality']['quality_flags'])
+
     def test_image_asset_is_supported_without_video_fields(self):
         meta = store_media(self.session, png_image(), '受控截图.png')
         client = _Client()
@@ -144,6 +169,44 @@ class VisionEvidenceServiceTests(unittest.TestCase):
                     observe(self.session, kind='video_frame', frame_id=0,
                             video_revision=self.revision, client=_Client(content),
                             model='controlled-vision')
+
+    def test_empty_observations_with_reasons_are_accepted_but_incomplete_finish_is_not(self):
+        empty = json.dumps({'observations': [], 'not_visible': ['画面没有明确对象'],
+                            'quality_notes': []}, ensure_ascii=False)
+        result = observe(self.session, kind='video_frame', frame_id=0,
+                         video_revision=self.revision, client=_Client(empty),
+                         model='controlled-vision')
+        self.assertEqual(result['observations'], [])
+        self.assertEqual(result['not_visible'], ['画面没有明确对象'])
+        for finish in ('length', None):
+            with self.subTest(finish=finish):
+                with self.assertRaises(VisionServiceError):
+                    observe(self.session, kind='video_frame', frame_id=1,
+                            video_revision=self.revision, client=_Client(finish=finish),
+                            model='controlled-vision')
+
+    def test_scope_change_during_model_call_is_rejected_and_not_cached(self):
+        class MutatingClient(_Client):
+            def __init__(inner):
+                super().__init__()
+                inner.chat = NS(completions=inner)
+                inner.calls = 0
+
+            def create(inner, **kwargs):
+                inner.calls += 1
+                self.session.project_id = 'b' * 32
+                self.session.analysis_revision += 1
+                self.session.replace_video(video(), '替换后的受控视频.mp4')
+                return NS(choices=[NS(message=NS(content=VALID), finish_reason='stop')])
+
+        client = MutatingClient()
+        with self.assertRaises(VisionServiceError) as caught:
+            observe(self.session, kind='video_frame', frame_id=0,
+                    video_revision=self.revision, client=client,
+                    model='controlled-vision')
+        self.assertEqual(caught.exception.status, 409)
+        self.assertEqual(client.calls, 1)
+        self.assertEqual(getattr(self.session, '_vision_evidence_cache', {}), {})
 
     def test_service_exception_text_is_not_exposed(self):
         client = _Client(error=RuntimeError('network token=SECRET-TOKEN'))
