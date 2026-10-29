@@ -8,7 +8,7 @@ from sklearn.neighbors import BallTree, sort_graph_by_row_values
 from .data_quality import coordinate_mask
 
 EARTH_RADIUS_M = 6371000.
-DETECTION_VERSION = 'screening-support-v2'
+DETECTION_VERSION = 'screening-support-v3'
 MAX_NEIGHBOR_EDGES = 2_000_000
 
 

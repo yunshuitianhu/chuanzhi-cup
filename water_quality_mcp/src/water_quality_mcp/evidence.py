@@ -3,7 +3,7 @@ import re
 from .rag_retrieval import RAG_RULES
 from .agent_safety import CITATION_RULES
 
-EVIDENCE_VERSION = 'evidence-2026-10-25-v9'
+EVIDENCE_VERSION = 'evidence-2026-10-29-v10'
 
 REPORT_STYLE = (
     '正文先给1—3句结果摘要，再用关键数据解释，必要时说明术语，最后给复测或核对建议。'
