@@ -21,16 +21,17 @@ Python AI 内核沿用作者此前参加苗圃杯的作品《水质监测溯源�
 
 ## 当前状态与入口
 
-2026-10-28 的交付状态（以实际命令和 `docs/` 记录为准，不要只引用本节）：
+2026-10-30 的交付状态（以实际命令和 `docs/` 记录为准，不要只引用本节）：
 
 - N01—N03 内置六组仿真示例、一键载入、契约/打包已完成本机受控验收（N03 的 S-T13/S-T21/S-T26 未单独自动化）；
 - N04-A 能力矩阵与 N04-B 受控矩阵已完成；N05-A 安装路径已核实，N05-B 异机安装待队友执行；N05-C 本地检索已真实验证，但 LLM 综合回答/无关拒答/超时未验；
 - N06 河道引导、N07 的导航/字号为部分浏览器验收；全站字号已统一 +2px，键盘/读屏未做；N08 只完成少量低风险项；
-- 最近记录：677 项 Python（干净 CI venv）、384 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
+- 最近记录：690 项 Python（干净 CI venv）、383 项前端、22 份真实响应契约、`check_ci` 通过、交付副本 6 例/1801 行/`synthetic`；
 - Q16 工作台四项状态已完成；RAG 成功路径 29s/12 工具、失败重试已实际执行（重试仍部分完成）；
 - Q17 已完成本机受控性能与体验验收（四页/长历史/示例图表/热力开关，17 项可读性）；Q18 阶段 A（单图/单帧）已完成并修复复审问题；阶段 B 基础 2—8 帧短序列已完成并修复复审问题；时间偏移/传感器冲突未接，阶段 C 未开始；
+- 企业候选预测与直接来源问答已接入：`search_nearby_pollution_sources` 可返回排序候选；排序分不是概率，预测不等于确认排污或责任；
 - 外部核验 R01—R03 已修复：项目发布失败回滚、示例资源 503 边界、打包未跟踪文件门禁；
-- 新交付 ZIP 为 `work/delivery_20261028_r2.zip`：revision `4cc2a1a`、580 文件、SHA-256 `7577e578…`；旧包 revision `b075bd0` 仅作历史记录；`work/` 被忽略，ZIP 需单独发送。**r2 内示例仍是 V1；`data/samples` 已更新为 V2，需重新打包。**
+- 新交付 ZIP 为 `work/delivery_20261028_r2.zip`：revision `4cc2a1a`、580 文件、SHA-256 `7577e578…`；旧包 revision `b075bd0` 仅作历史记录；`work/` 被忽略，ZIP 需单独发送。**r2 早于 V2 示例、Q18 与企业预测，交付前必须重新打包并复验。**
 
 **先读**：
 
@@ -103,7 +104,7 @@ npm run check                    # typecheck + node --test + build（推荐门�
 ### 测试与门禁
 
 ```bash
-# Python 全量（当前 677 项；tests 不是 package，不要用 python -m unittest tests.xxx）
+# Python 全量（当前 690 项；tests 不是 package，不要用 python -m unittest tests.xxx）
 python -m unittest discover -s tests -p "test_*.py"
 
 # 单个 unittest 文件
@@ -119,7 +120,7 @@ python tests/密钥泄漏检查.py          # 密钥不入库 + .env 优先级
 python tests/river_model_验收算例.py  # 含 1 项已知缺陷（潮汐质量不守恒）
 
 # 前端
-npm --prefix frontend run check       # 384 项 + TS/SFC + 构建
+npm --prefix frontend run check       # 383 项 + TS/SFC + 构建
 cd frontend && node --test tests/keyState.test.mjs   # 单个前端测试
 
 # 跨平台离线门禁（含全量 unittest、字段/泛化/后端/密钥检查）
@@ -203,6 +204,9 @@ backend/web.py             内存快照 index/assets；四页入口；未知路�
   `backend/vision.py` 把选帧/附件加载成多模态 `image_url`，图片字节不写入 SSE/历史/`full_messages`。
 - `backend/vision_evidence.py` + `backend/routers/vision.py` — Q18 阶段 A/B 单图、单帧与 2—8 帧短序列结构化视觉观察；
   严格 JSON、版本/哈希绑定、会话缓存；不写报告/排查板，不凭图推算浓度或责任。
+- `backend/source_prediction.py` + `water_quality_mcp/src/water_quality_mcp/source_prediction.py` — 企业候选预测与直接来源问答：
+  按距离接近度、已披露污染物匹配和多来源同名支持排序；排序分不是概率，预测不等于确认排污或责任；
+  `search_nearby_pollution_sources` 未给坐标时使用当前有效热点/轨迹中心，查询结果写入会话证据并撤销旧报告。
 - `backend/project_data.py` — 只读业务数据目录/分页/统计，供 `read_project_data` 等工具使用。
 - `backend/agent/loop.py` — DeepSeek Function Calling + SSE 主循环；每轮工具结果全部返回后才追加图片消息；
   `error_text.py` 把传输/服务异常转成可操作中文提示，但保留 Agent 自身的中文校验错误；`response_style.py` 共享表达规范。
@@ -421,6 +425,7 @@ RAG 状态已移除 `index_dir`；项目/示例/媒体接口只返回白名单�
 - `docs/Q18视觉证据接入阶段B_20261029.md` — 2—8帧短序列预览/显式发送/质量门禁/静态检测与真实受控多帧验证；时间偏移/传感器冲突未接。
 - `docs/Q18阶段B复审修复_20261029.md` — 多帧时间/帧标签缓存、非单调时间拒绝与单帧全空观察拒绝。
 - `docs/Q18阶段A复审修复_20261029.md` — 同像素异帧缓存、作用域竞态、结束原因、版本失效与河道页状态同步的复审修复。
+- `docs/企业候选预测与直接回答_20261029.md` — 企业候选排序、直接来源问答、仿真不关联真实企业及未核实边界。
 - `docs/项目情况汇报与Codex交接_20261028.md` — Codex 失忆后的恢复入口：状态、命令、坑与下一步。
 - `docs/系统说明文档_20261030.md` / `.docx` — 提交/评委用系统说明：详情、使用、亮点、AI 落地、关键技术、图片、获奖与优化来源。
 - `docs/validation/delivery_r2_20261028.json` — 新包 revision/文件数/哈希、独立审计与无 Key 副本结果。
