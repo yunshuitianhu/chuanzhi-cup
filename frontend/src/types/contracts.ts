@@ -59,12 +59,24 @@ export interface VisualSequenceFrame {
   source_quality?: { quality_status?: string; quality_flags?: string[]; quality_messages?: string[]; eligible?: boolean; manual_excluded?: boolean } | null
   observations: VisualObservationItem[]
 }
+export interface VisualMonitoringFrame {
+  frame_id?: number|null; frame_number?: number|null; time_sec?: number|null
+  window_start?: string; window_end?: string; record_count: number
+  values: Record<string,{label:string;unit:string;count:number;mean:number;min:number;max:number}>
+}
+export interface VisualMonitoringContext {
+  status: 'matched'|'partial_match'|'no_match'|'sync_unconfirmed'|'no_monitoring'
+  sync_confirmed: boolean; time_offset_sec: number; window_sec: number
+  data_identity?: {kind?: string; label?: string; [key:string]: unknown}
+  frames: VisualMonitoringFrame[]; notice: string
+}
 export interface VisualSequenceResponse {
   ok: true; version: string; kind: 'video_frames'; model: string
   frame_ids: number[]; frames: VisualSequenceFrame[]
   changes: { from:number; to:number; visible_change:string; uncertainty:string[] }[]
   static_sequence: boolean; time_start_s?: number|null; time_end_s?: number|null
   not_visible: string[]; quality_notes: string[]; limits: string[]
+  monitoring_context?: VisualMonitoringContext|null
   project_id?: string|null; analysis_revision: number; results_revision: number
   cached: boolean; elapsed_s: number; observed_at: string
 }

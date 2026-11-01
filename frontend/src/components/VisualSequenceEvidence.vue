@@ -80,6 +80,21 @@ function qualityText(frame) {
   const labels = { usable: '可作线索', needs_review: '待复核', invalid: '无法读取' }
   return labels[frame?.quality_status] || frame?.quality_status || '未判定'
 }
+const MONITORING_STATUS = {
+  matched: '时间窗内有匹配记录',
+  partial_match: '部分帧有记录',
+  no_match: '时间窗内无记录',
+  sync_unconfirmed: '同步未确认',
+  no_monitoring: '无监测表',
+}
+function monitoringStatus(context) {
+  return MONITORING_STATUS[context?.status] || context?.status || '未判定'
+}
+function monitoringValues(frame) {
+  const values = Object.values(frame?.values || {})
+  if (!values.length) return '无有效原始观测'
+  return values.map(value => `${value.label} 均值 ${value.mean} ${value.unit}（${value.count} 条）`).join('；')
+}
 
 async function previewFrames() {
   if (!canPreview.value) return
@@ -250,6 +265,25 @@ onBeforeUnmount(() => {
               </li>
             </ul>
           </div>
+          <section v-if="result.monitoring_context" class="se-monitoring">
+            <div class="se-monitoring-head">
+              <b>传感器时间窗对照</b>
+              <span>{{ monitoringStatus(result.monitoring_context) }}</span>
+            </div>
+            <p class="se-meta">
+              同步：{{ result.monitoring_context.sync_confirmed ? '已人工确认' : '未确认' }}
+              · 偏移 {{ result.monitoring_context.time_offset_sec }}s
+              · 窗口 {{ result.monitoring_context.window_sec }}s
+              <template v-if="result.monitoring_context.data_identity?.label"> · {{ result.monitoring_context.data_identity.label }}</template>
+            </p>
+            <p class="se-quality">{{ result.monitoring_context.notice }}</p>
+            <ul v-if="result.monitoring_context.frames?.length">
+              <li v-for="item in result.monitoring_context.frames" :key="item.frame_id">
+                帧 #{{ item.frame_number }} · T+{{ item.time_sec }}s · 记录 {{ item.record_count }} 条：
+                {{ monitoringValues(item) }}
+              </li>
+            </ul>
+          </section>
           <p v-if="result.not_visible?.length" class="se-gap">未看到/无法判断：{{ result.not_visible.join('；') }}</p>
           <p v-if="result.quality_notes?.length" class="se-quality">模型画面质量提示：{{ result.quality_notes.join('；') }}</p>
           <p class="se-limits">{{ result.limits.join(' ') }}</p>
@@ -290,7 +324,10 @@ onBeforeUnmount(() => {
 .se-result-frame{margin:10px 0;padding-top:8px;border-top:1px solid var(--c-border)}
 .se-frame-head{margin:0 0 4px;color:var(--c-ink)}
 .se-quality{font-size:13px;color:var(--c-sub)}
-.se-result-frame ul,.se-changes ul{margin:4px 0;padding-left:20px}
+.se-result-frame ul,.se-changes ul,.se-monitoring ul{margin:4px 0;padding-left:20px}
+.se-monitoring{margin:10px 0;padding:8px 10px;border:1px solid var(--c-border);border-radius:6px;background:var(--c-surface)}
+.se-monitoring-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;color:var(--c-ink)}
+.se-monitoring-head span{font-size:13px;color:var(--c-sub)}
 .se-uncertainty{font-size:13px;margin-left:4px}
 .se-gap,.se-limits{margin:8px 0 0;font-size:13px}
 .se-limits{padding-top:8px;border-top:1px solid var(--c-border);color:#e8c98a}

@@ -19,8 +19,10 @@ import math
 import re
 import time
 
+import pandas as pd
 from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAI
 
+from water_quality_mcp.src.water_quality_mcp.data_quality import observation_values
 from .vision import (
     VisionError, asset_image, image_block, image_meta, video_frame_image,
 )
@@ -268,6 +270,94 @@ def _load_sequence(session, frame_ids, video_revision):
     return images
 
 
+def _monitoring_context(session, images):
+    """按视频同步设置给出传感器时间窗的并列对照，不自动判定一致或冲突。"""
+    settings = images[0].get('video_settings') or {}
+    try:
+        offset = float(settings.get('time_offset_sec'))
+    except (TypeError, ValueError):
+        offset = 0.
+    try:
+        window = float(settings.get('time_window_sec'))
+    except (TypeError, ValueError):
+        window = 30.
+    if not math.isfinite(offset):
+        offset = 0.
+    if not math.isfinite(window) or window <= 0:
+        window = 30.
+    identity = session.data_identity
+    base = {
+        'sync_confirmed': settings.get('sync_confirmed') is True,
+        'time_offset_sec': offset,
+        'window_sec': window,
+        'data_identity': identity,
+        'frames': [],
+    }
+    if not base['sync_confirmed']:
+        base.update(status='sync_unconfirmed',
+                    notice='视频与传感器时间尚未人工核实，不关联监测记录；请先在视频复核区确认同步依据。')
+        return base
+    df = session.df
+    if df is None or len(df) == 0 or 'datetime' not in df:
+        base.update(status='no_monitoring', notice='当前项目没有可关联的监测表，只展示视频帧观察。')
+        return base
+    try:
+        times = pd.to_datetime(df['datetime'], errors='coerce')
+    except (TypeError, ValueError):
+        base.update(status='no_monitoring', notice='监测时间无法解析，未关联传感器记录。')
+        return base
+    if times.notna().sum() == 0:
+        base.update(status='no_monitoring', notice='监测时间全部无效，未关联传感器记录。')
+        return base
+    recording_start = times.min()
+    matched = 0
+    columns = (('ammonia_nitrogen', '氨氮', 'mg/L'), ('dissolved_oxygen', '溶解氧', 'mg/L'),
+               ('cod', 'COD', 'mg/L'), ('turbidity', '浊度', 'NTU'), ('ph', 'pH', ''))
+    for image in images:
+        try:
+            frame_time = float(image.get('time_sec'))
+        except (TypeError, ValueError):
+            continue
+        start = recording_start + pd.Timedelta(seconds=offset + frame_time - window / 2)
+        end = recording_start + pd.Timedelta(seconds=offset + frame_time + window / 2)
+        selected = df.loc[(times >= start) & (times <= end)]
+        values = {}
+        for column, label, unit in columns:
+            observed = observation_values(selected, column)
+            if observed.empty:
+                continue
+            values[column] = {'label': label, 'unit': unit, 'count': int(len(observed)),
+                              'mean': round(float(observed.mean()), 3),
+                              'min': round(float(observed.min()), 3),
+                              'max': round(float(observed.max()), 3)}
+        if len(selected):
+            matched += 1
+        base['frames'].append({
+            'frame_id': image.get('frame_id'), 'frame_number': image.get('frame_number'),
+            'time_sec': frame_time, 'window_start': start.isoformat(),
+            'window_end': end.isoformat(), 'record_count': int(len(selected)), 'values': values,
+        })
+    total = len(base['frames'])
+    if not total:
+        status = 'no_match'
+    elif matched == total:
+        status = 'matched'
+    elif matched:
+        status = 'partial_match'
+    else:
+        status = 'no_match'
+    notice = ('视频与传感器时间已人工确认；下表是时间窗内原始观测值的并列对照，'
+              '不自动判定一致、冲突或污染责任。')
+    if identity.get('kind') == 'synthetic':
+        notice += '当前为仿真监测数据，不是现场实测。'
+    if status == 'no_match':
+        notice += '所选帧的时间窗内没有匹配记录，保留缺口。'
+    elif status == 'partial_match':
+        notice += '部分帧的时间窗内没有记录，未用邻近窗口补造。'
+    base.update(status=status, notice=notice)
+    return base
+
+
 def _parse_sequence_payload(text, count):
     payload = _json_object(text)
     if set(payload) - {'frames', 'changes', 'not_visible', 'quality_notes'}:
@@ -312,7 +402,7 @@ def _parse_sequence_payload(text, count):
     }
 
 
-def _sequence_result(images, question, model, parsed, elapsed, scope, static_sequence, *,
+def _sequence_result(session, images, question, model, parsed, elapsed, scope, static_sequence, *,
                      cached=False, observed_at=None):
     frames = []
     for index, image in enumerate(images, 1):
@@ -343,6 +433,7 @@ def _sequence_result(images, question, model, parsed, elapsed, scope, static_seq
         'not_visible': parsed['not_visible'],
         'quality_notes': parsed['quality_notes'],
         'limits': SEQUENCE_LIMITS,
+        'monitoring_context': _monitoring_context(session, images),
         'project_id': scope[0] or None,
         'analysis_revision': scope[1],
         'results_revision': scope[2],
@@ -372,7 +463,7 @@ def observe_sequence(session, *, frame_ids, video_revision, question='', api_key
     if key in cache:
         entry = cache[key]
         _ensure_unchanged(session, scope, images)
-        return _sequence_result(images, used_question, used_model, entry['parsed'],
+        return _sequence_result(session, images, used_question, used_model, entry['parsed'],
                                 entry.get('elapsed_s', 0), scope, static_sequence,
                                 cached=True, observed_at=entry.get('observed_at'))
 
@@ -402,7 +493,7 @@ def observe_sequence(session, *, frame_ids, video_revision, question='', api_key
     cache[key] = {'parsed': deepcopy(parsed), 'elapsed_s': elapsed, 'observed_at': observed_at}
     while len(cache) > CACHE_LIMIT:
         cache.pop(next(iter(cache)))
-    return _sequence_result(images, used_question, used_model, parsed, elapsed, scope,
+    return _sequence_result(session, images, used_question, used_model, parsed, elapsed, scope,
                             static_sequence, cached=False, observed_at=observed_at)
 
 

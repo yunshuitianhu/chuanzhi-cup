@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import cv2
 import numpy as np
+import pandas as pd
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -239,6 +240,50 @@ class VisionEvidenceServiceTests(unittest.TestCase):
         with self.assertRaises(VisionError):
             observe_sequence(self.session, frame_ids=[0, 1], video_revision=revision,
                              client=_Client(SEQ_VALID), model='controlled-vision')
+
+    def test_sequence_monitoring_context_requires_confirmed_sync_and_preserves_gaps(self):
+        frames = video()
+        frames[0]['video_settings'] = {**frames[0]['video_settings'],
+            'sync_confirmed': True, 'time_offset_sec': 0., 'time_window_sec': 2.}
+        df = pd.DataFrame({'datetime': pd.date_range('2026-01-01', periods=4, freq='5s'),
+                           'ammonia_nitrogen': [1., 2., 3., 4.],
+                           'dissolved_oxygen': [6., 5., 4., 3.]})
+        session = Session(id='monitoring-context', df=df, video_frames=frames,
+                          video_filename='受控同步视频.mp4')
+        revision = assessment(session)['revision']
+        result = observe_sequence(session, frame_ids=[0, 1], video_revision=revision,
+                                  client=_Client(SEQ_VALID), model='controlled-vision')
+        context = result['monitoring_context']
+        self.assertEqual(context['status'], 'matched')
+        self.assertTrue(context['sync_confirmed'])
+        self.assertEqual(context['time_offset_sec'], 0.)
+        self.assertEqual(context['window_sec'], 2.)
+        self.assertEqual([item['record_count'] for item in context['frames']], [1, 1])
+        self.assertEqual(context['frames'][0]['values']['ammonia_nitrogen']['count'], 1)
+        self.assertIn('不自动判定一致', context['notice'])
+
+        frames[0]['video_settings']['sync_confirmed'] = False
+        session.video_frames = frames
+        revision = assessment(session)['revision']
+        unconfirmed = observe_sequence(session, frame_ids=[0, 1], video_revision=revision,
+                                       client=_Client(SEQ_VALID), model='controlled-vision')
+        self.assertEqual(unconfirmed['monitoring_context']['status'], 'sync_unconfirmed')
+        self.assertEqual(unconfirmed['monitoring_context']['frames'], [])
+
+        frames[0]['video_settings'] = {**frames[0]['video_settings'],
+            'sync_confirmed': True, 'time_offset_sec': 1000.}
+        session.video_frames = frames
+        revision = assessment(session)['revision']
+        missing = observe_sequence(session, frame_ids=[0, 1], video_revision=revision,
+                                   client=_Client(SEQ_VALID), model='controlled-vision')
+        self.assertEqual(missing['monitoring_context']['status'], 'no_match')
+
+    def test_sequence_without_monitoring_data_reports_no_monitoring(self):
+        result = observe_sequence(self.session, frame_ids=[0, 1],
+                                  video_revision=self.revision, client=_Client(SEQ_VALID),
+                                  model='controlled-vision')
+        self.assertEqual(result['monitoring_context']['status'], 'no_monitoring')
+        self.assertEqual(result['monitoring_context']['frames'], [])
 
     def test_stale_frame_or_asset_is_rejected_before_model_call(self):
         client = _Client()

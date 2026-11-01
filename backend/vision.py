@@ -96,6 +96,10 @@ def video_frame_image(session, frame_id: int, video_revision: str) -> dict:
     # 确定性抽帧质量与模型观察并列返回；质量门禁不因视觉观察而放宽。
     record['frame_quality'] = {key: row.get(key) for key in
         ('quality_status', 'quality_flags', 'quality_messages', 'eligible', 'manual_excluded')}
+    settings = current.get('settings') if isinstance(current.get('settings'), dict) else {}
+    record['video_settings'] = {key: settings.get(key) for key in
+        ('time_offset_sec', 'time_window_sec', 'sync_confirmed', 'sync_note',
+         'roi_confirmed', 'roi_note')}
     _keep(cache, key, record)
     return deepcopy(record)
 
