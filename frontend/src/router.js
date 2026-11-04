@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // 路由划分与 app.py 的四个标签页一一对应，便于对照移植。
 const routes = [
-  { path: '/', redirect: '/chat' },
+  { path: '/', name: 'welcome', component: () => import('./views/WelcomeView.vue') },
   {
     path: '/chat',
     name: 'chat',
