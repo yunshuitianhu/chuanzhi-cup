@@ -17,6 +17,7 @@ import SideQuestions from './components/SideQuestions.vue'
 import TextSourceReturn from './components/TextSourceReturn.vue'
 import Toast from './components/Toast.vue'
 import TargetCursor from './components/TargetCursor.vue'
+import WorkspaceBackground from './components/WorkspaceBackground.vue'
 import { createRouteLoadRecovery } from './utils/routeFailures.js'
 import { keyRows, keyTag } from './utils/keyState.js'
 
@@ -89,6 +90,7 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
 
 <template>
   <div class="shell" :class="{'has-side-questions':store.textQuestions.open}">
+    <WorkspaceBackground />
     <a class="skip-link" href="#main-content">跳到主要内容</a>
     <button v-if="narrow && mobileOpen" class="sidebar-backdrop" tabindex="-1" aria-label="关闭项目侧栏" @click="closeSidebar"></button>
     <!-- ─────────── 侧边栏 ─────────── -->
@@ -209,8 +211,8 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
 .route-actions button:disabled{opacity:.5}
 
 
-.shell{display:flex;min-height:100vh}
-.sidebar{width:280px;flex-shrink:0;background:#101d28;border-right:1px solid var(--c-border-soft);padding:26px 20px;display:flex;flex-direction:column;gap:24px;position:sticky;top:0;height:100dvh;overflow-y:auto;scrollbar-gutter:stable}
+.shell{display:flex;min-height:100vh;position:relative;isolation:isolate;--c-surface:rgba(20,33,45,.78);--c-surface-2:rgba(26,43,57,.92)}
+.sidebar{width:280px;flex-shrink:0;background:rgba(16,29,40,.9);border-right:1px solid var(--c-border-soft);padding:26px 20px;display:flex;flex-direction:column;gap:24px;position:sticky;top:0;height:100dvh;overflow-y:auto;scrollbar-gutter:stable}
 .brand{display:flex;align-items:center;gap:11px;padding-bottom:24px;border-bottom:1px solid var(--c-border-soft)}
 .brand-symbol{width:34px;height:38px;flex-shrink:0;color:var(--c-accent);display:grid;place-items:center}
 .brand-symbol svg{width:30px;height:30px}
@@ -237,7 +239,7 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
 .class-btn:disabled{opacity:.5}
 .side-foot{margin-top:auto;padding-top:8px}
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
-.tabs{display:flex;align-items:center;gap:10px;padding:10px 24px;min-height:66px;background:var(--c-bg);border-bottom:1px solid var(--c-border-soft);position:sticky;top:0;z-index:20}
+.tabs{display:flex;align-items:center;gap:10px;padding:10px 24px;min-height:66px;background:rgba(12,21,32,.92);border-bottom:1px solid var(--c-border-soft);position:sticky;top:0;z-index:20}
 .tab-links{display:flex;min-width:0;overflow-x:auto;gap:4px;scrollbar-width:none}
 .sidebar-toggle,.drawer-close{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--c-border);border-radius:8px;padding:8px 10px;background:transparent;color:var(--c-sub);min-height:38px}
 .sidebar-toggle svg{width:17px;height:17px}.toggle-label{font-size: 14px}
