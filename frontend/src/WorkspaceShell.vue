@@ -16,6 +16,7 @@ import TextSelectionMenu from './components/TextSelectionMenu.vue'
 import SideQuestions from './components/SideQuestions.vue'
 import TextSourceReturn from './components/TextSourceReturn.vue'
 import Toast from './components/Toast.vue'
+import TargetCursor from './components/TargetCursor.vue'
 import { createRouteLoadRecovery } from './utils/routeFailures.js'
 import { keyRows, keyTag } from './utils/keyState.js'
 
@@ -196,6 +197,7 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
 
     <TextSelectionMenu />
     <Toast />
+    <TargetCursor />
   </div>
 </template>
 
