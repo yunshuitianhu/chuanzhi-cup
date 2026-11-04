@@ -1,13 +1,8 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import heroImage from '../assets/water-drop-hero.jpg'
+import TechTextLine from '../components/TechTextLine.vue'
 
-// React Bits Split Text's default rise: y 40 → 0, opacity 0 → 1, 1.25s.
-// Fixed Chinese title: Vue renders characters directly; no DOM-splitting runtime needed.
-const titleLines = [
-  { text: '水质溯源', offset: 0 },
-  { text: '与检测助手', offset: 4 },
-]
 const surface = ref(null)
 const effectReady = ref(false)
 let disposed = false
@@ -44,10 +39,8 @@ onBeforeUnmount(() => { disposed = true; disposeEffect() })
     <section class="welcome-copy">
       <p class="welcome-eyebrow"><span></span>让每一滴水，有迹可循</p>
       <h1 id="welcome-title" aria-label="水质溯源与检测助手">
-        <span v-for="(line, lineIndex) in titleLines" :key="line.text" class="title-line" aria-hidden="true"><span
-          v-for="(character, index) in line.text" :key="index"
-          class="split-character" :style="{ '--character-delay': `${(line.offset + index) * 55}ms` }"
-        >{{ character }}</span><span v-if="lineIndex === titleLines.length - 1" class="split-character title-dot" style="--character-delay:495ms">.</span></span>
+        <span class="title-line" aria-hidden="true"><TechTextLine text="水质溯源" /></span>
+        <span class="title-line" aria-hidden="true"><TechTextLine text="与检测助手" /><span class="title-dot">.</span></span>
       </h1>
       <p class="welcome-description">读懂水质变化，追寻污染线索。<br>连接监测数据、可视分析与智能研判。</p>
       <RouterLink class="welcome-enter" to="/chat">
@@ -59,7 +52,6 @@ onBeforeUnmount(() => { disposed = true; disposeEffect() })
 
     <footer class="welcome-footer">
       <span class="welcome-fields">水质检测<span>/</span>时空分析<span>/</span>辅助溯源</span>
-      <span class="welcome-interaction"><span class="interaction-ring"></span>轻移鼠标，泛起涟漪</span>
     </footer>
   </main>
 </template>
@@ -79,8 +71,7 @@ onBeforeUnmount(() => { disposed = true; disposeEffect() })
 .welcome-eyebrow{display:flex;align-items:center;gap:12px;color:#b3d0d4;font-size:12px;letter-spacing:.24em;margin:0 0 29px}
 .welcome-eyebrow>span{width:25px;height:1px;background:#a1d8d2}
 h1{font-size:clamp(42px,4.2vw,78px);line-height:1.4;font-weight:400;letter-spacing:.08em;margin:0 0 25px;text-shadow:0 2px 24px #14263122}
-.title-line{display:block;overflow:hidden}
-.split-character{display:inline-block;animation:split-rise 1.25s cubic-bezier(.215,.61,.355,1) backwards;animation-delay:var(--character-delay,0ms)}
+.title-line{display:block}
 .title-dot{color:#a6d8cf;margin-left:.04em}
 .welcome-eyebrow,.welcome-description,.welcome-enter,.welcome-caption{animation:welcome-arrive .9s ease backwards}
 .welcome-description{animation-delay:.3s}.welcome-enter{animation-delay:.45s}.welcome-caption{animation-delay:.55s}
@@ -89,12 +80,10 @@ h1{font-size:clamp(42px,4.2vw,78px);line-height:1.4;font-weight:400;letter-spaci
 .welcome-enter svg{width:22px;height:22px;transition:transform .25s}.welcome-enter:hover{background:#ddf3ee;box-shadow:0 6px 32px #bce4dc20;transform:translateY(-2px)}.welcome-enter:hover svg{transform:translateX(4px)}.welcome-enter:focus-visible{outline:2px solid #f0ffff;outline-offset:6px}
 .welcome-caption{font-size:10px;letter-spacing:.17em;color:#a9c3cb99;margin:17px 0 0}
 .welcome-footer{display:flex;align-items:center;justify-content:space-between;margin:0 5.2%;padding:25px 0 28px;border-top:1px solid #d2eef21c;color:#afc9ce9c;font-size:10px;letter-spacing:.15em}
-.welcome-fields{display:flex;gap:20px;align-items:center}.welcome-fields>span{color:#b2d8dd4d}.welcome-interaction{display:flex;align-items:center;gap:10px}.interaction-ring{width:15px;height:15px;border:1px solid #aacdd36b;border-radius:50%;position:relative}.interaction-ring::after{content:'';position:absolute;inset:4px;border:1px solid #afdbdf9c;border-radius:50%}
+.welcome-fields{display:flex;gap:20px;align-items:center}.welcome-fields>span{color:#b2d8dd4d}
 @keyframes welcome-arrive{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-@keyframes split-rise{from{opacity:0;transform:translate3d(0,40px,0)}to{opacity:1;transform:none}}
 @media(min-width:1800px){.welcome-copy{margin-left:12%}}
 @media(max-width:900px){.welcome-copy{margin-left:7%;width:65%}h1{font-size:clamp(40px,6vw,60px)}.welcome-edition{display:none}.welcome-shade{background:linear-gradient(90deg,#142a3bd9,#142a3b33 85%)}.welcome-description{font-size:13px}}
 @media(max-width:600px){.welcome{min-height:100svh}.welcome-header{margin:0 7%;padding:24px 0}.welcome-brand{font-size:15px}.brand-english{font-size:8px}.brand-divider{margin:0 10px}.welcome-image{background-position:72% center}.welcome-ripple{display:none}.welcome-shade{background:linear-gradient(0deg,#132633fa 0%,#172c3cce 48%,#142a3b22 100%)}.welcome-copy{margin:auto 7% 0;width:86%;padding:170px 0 46px}.welcome-eyebrow{font-size:10px;margin-bottom:20px}h1{font-size:clamp(35px,9vw,52px);margin-bottom:20px}.welcome-description{font-size:12px;margin-bottom:29px}.welcome-enter{min-height:50px;gap:50px}.welcome-footer{margin:0 7%;padding:20px 0;font-size:9px}.welcome-fields{gap:13px}.welcome-interaction{display:none}}
-@media(prefers-reduced-motion:reduce),(pointer:coarse){.welcome-interaction{visibility:hidden}}
-@media(prefers-reduced-motion:reduce){.split-character,.welcome-eyebrow,.welcome-description,.welcome-enter,.welcome-caption{animation:none!important;opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.welcome-eyebrow,.welcome-description,.welcome-enter,.welcome-caption{animation:none!important;opacity:1;transform:none}}
 </style>
