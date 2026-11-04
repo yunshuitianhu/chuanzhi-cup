@@ -246,4 +246,3 @@ Report actual changes; omit categories with none:
 ## Extension Support
 
 Custom configurations via EXTEND.md — see **Preferences** above.
-
