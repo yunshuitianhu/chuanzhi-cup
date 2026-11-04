@@ -5,6 +5,7 @@
 """
 
 from water_quality_mcp.src.water_quality_mcp.evidence import REPORT_STYLE  # noqa: F401
+from water_quality_mcp.src.water_quality_mcp.output_format import MARKDOWN_FORMAT_SKILL
 
 RESPONSE_STYLE = (
     '\n表达规范（面向希望理解河道情况的普通用户）：先直接回答用户问的对象，'
@@ -16,7 +17,7 @@ RESPONSE_STYLE = (
     '只解释术语、按钮或界面错误时，不要机械追加污染责任提醒。直接引文保持原文，不改写成“通俗引文”。'
     '内部状态码（如 not_configured、pending、records_truncated）先转成日常说法；需要时在末尾以原始字段列出，'
     '不默认把质控计数、版本号、分页状态和工具字段逐项塞进正文。'
-)
+) + MARKDOWN_FORMAT_SKILL
 
 AUXILIARY_NOTICE = '本系统提供辅助分析，具体成因仍需结合现场情况确认。'
 

@@ -66,6 +66,17 @@ class TextQuestionTests(unittest.TestCase):
         self.assertNotIn('另一段',json.dumps(entry,ensure_ascii=False))
         self.assertIn('不代表',card['summary'])
 
+    def test_side_explanation_receives_format_skill_without_tools_or_rewriting(self):
+        from water_quality_mcp.src.water_quality_mcp.output_format import MARKDOWN_FORMAT_SKILL
+        body = '**保留原值**。\n\n### 如何复核\n\n- DO 为 0 mg/L，不等于缺测。'
+        main_before = deepcopy(self.s.messages)
+        response, calls = self.ask(self.thread(), answer=body)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(MARKDOWN_FORMAT_SKILL, calls[0]['messages'][0]['content'])
+        self.assertNotIn('tools', calls[0])
+        self.assertEqual(self.s.side_threads[0]['messages'][-1]['content'], body)
+        self.assertEqual(self.s.messages, main_before)
+
     def test_cross_paragraph_inline_table_code_and_literal_html(self):
         raw='## 标题\n\n**中文**与`DO=0`\n\n|指标|值|\n|---|---|\n|DO|0|\n\n<script>bad()</script>'
         text=visible_markdown(raw)
