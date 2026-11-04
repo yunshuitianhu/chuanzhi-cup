@@ -20,6 +20,7 @@ import TargetCursor from './components/TargetCursor.vue'
 import WorkspaceBackground from './components/WorkspaceBackground.vue'
 import { createRouteLoadRecovery } from './utils/routeFailures.js'
 import { keyRows, keyTag } from './utils/keyState.js'
+import { mountRubberNavigation } from './utils/rubberNavigation.js'
 
 const store = useSessionStore()
 const route = useRoute()
@@ -33,6 +34,11 @@ const detachRecovery = routeRecovery.attach(router)
 watch(() => [store.chatRunning, store.loading, store.switchingProject], () => routeRecovery.refreshBusy())
 onBeforeUnmount(detachRecovery)
 const navItems = routes.filter((r) => r.meta)
+const navigationTrack = ref(null), navigationThumb = ref(null)
+let rubberNavigation
+onMounted(() => { rubberNavigation = mountRubberNavigation(navigationTrack.value, navigationThumb.value, route.path) })
+watch(() => route.path, async path => { await nextTick(); rubberNavigation?.select(path) })
+onBeforeUnmount(() => rubberNavigation?.destroy())
 const narrow = ref(false), mobileOpen = ref(false), desktopCollapsed = ref(false)
 const sidebar = ref(null), sidebarToggle = ref(null)
 const sidebarOpen = computed(() => narrow.value ? mobileOpen.value : !desktopCollapsed.value)
@@ -140,17 +146,21 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
     <main class="main" :inert="(narrow && mobileOpen)||quoteModal">
       <nav class="tabs" aria-label="主要导航">
         <button ref="sidebarToggle" class="sidebar-toggle" :aria-expanded="sidebarVisible" aria-controls="project-sidebar" :aria-label="sidebarVisible ? '收起项目侧栏' : '展开项目侧栏'" :title="sidebarVisible ? '收起项目侧栏' : '展开项目侧栏'" @click="toggleSidebar"><AppIcon name="panel" /><span class="toggle-label">项目与数据</span></button>
-        <div class="tab-links">
+        <div ref="navigationTrack" class="tab-links rubber-segment">
         <RouterLink
           v-for="item in navItems"
           :key="item.path"
           :to="item.path"
           class="tab"
+          :data-rubber-value="item.path"
           :class="{ active: route.path === item.path }"
         >
           <AppIcon class="tab-icon" :name="item.name" />
           <span>{{ item.meta.title }}</span>
         </RouterLink>
+        <div ref="navigationThumb" class="rubber-thumb" aria-hidden="true">
+          <span v-for="item in navItems" :key="item.path" class="rubber-copy"><AppIcon class="tab-icon" :name="item.name" /><span>{{ item.meta.title }}</span></span>
+        </div>
         </div>
 
         <SideQuestions />
@@ -240,14 +250,21 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
 .side-foot{margin-top:auto;padding-top:8px}
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
 .tabs{display:flex;align-items:center;gap:10px;padding:10px 24px;min-height:66px;background:rgba(12,21,32,.92);border-bottom:1px solid var(--c-border-soft);position:sticky;top:0;z-index:20}
-.tab-links{display:flex;min-width:0;overflow-x:auto;gap:4px;scrollbar-width:none}
+.tab-links{display:flex;align-items:center;position:relative;isolation:isolate;min-width:0;overflow-x:auto;gap:4px;scrollbar-width:none;padding:4px;border-radius:12px;background:#142b38b3;box-shadow:inset 0 0 0 1px #86c8da14}
+.rubber-thumb{position:absolute;left:4px;top:4px;height:calc(100% - 8px);background:#c2e5df;color:#12323b;pointer-events:none;opacity:0;z-index:1;will-change:clip-path}
+.rubber-copy{position:absolute;top:0;height:100%;display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;font-size:15px;font-weight:600}
+.rubber-ready .tab.active{background:transparent;box-shadow:none;font-weight:500}
+.rubber-ready .tab.active:focus-visible{color:#12323b}
 .sidebar-toggle,.drawer-close{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--c-border);border-radius:8px;padding:8px 10px;background:transparent;color:var(--c-sub);min-height:38px}
 .sidebar-toggle svg{width:17px;height:17px}.toggle-label{font-size: 14px}
 .sidebar-toggle:hover{background:var(--c-surface);color:var(--c-ink)}
+.sidebar-toggle,.tabs :deep(.side-launch){transition:transform .22s cubic-bezier(.23,1,.32,1),background .16s}
+.sidebar-toggle:active,.tabs :deep(.side-launch:active){transform:scale(.93)}
 .sidebar-backdrop{position:fixed;inset:0;background:#0009;border:0;z-index:900}
 .skip-link{position:fixed;left:12px;top:-100px;z-index:1200;padding:8px 12px;background:var(--c-accent);color:#06121c}
 .skip-link:focus{top:8px}
-.tab{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:8px;color:var(--c-sub);text-decoration:none;font-size: 15px;white-space:nowrap;flex:0 0 auto;}
+.tab{display:flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 14px;border-radius:8px;color:var(--c-sub);text-decoration:none;font-size:15px;line-height:1;white-space:nowrap;flex:0 0 auto;transition:transform .16s cubic-bezier(.23,1,.32,1)}
+.tab:active{transform:scale(.96)}.tab:focus-visible{outline:2px solid var(--c-accent);outline-offset:-2px;z-index:2;position:relative}
 .tab:hover{color:var(--c-ink);background:var(--c-surface)}
 .tab.active{color:var(--c-accent);background:var(--c-accent-soft);box-shadow:inset 0 -2px 0 var(--c-accent);font-weight:600}
 .tab-icon{width:17px;height:17px;flex-shrink:0}
@@ -260,15 +277,16 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
 .connection-panel button{padding:9px 16px;min-height:40px;color:#07222f;background:var(--c-accent);border:0;border-radius:var(--radius-sm)}
 .error-bar{background:#301f29;border:1px solid #794354;color:#ffbdc7;padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:20px;font-size: 15px}
 @media(min-width:1280px){.has-side-questions .main{margin-right:400px}.has-side-questions .tabs-right{display:none}.has-side-questions .content{padding:24px}}
-@media(max-width:1450px){.tabs-right{display:none}.toggle-label{display:none}.tabs{gap:8px}.tab{padding:9px 12px}}
+@media(max-width:1450px){.tabs-right{display:none}.toggle-label{display:none}.tabs{gap:8px}.tab{padding:0 12px}}
 @media(max-width:1023px){
  .sidebar.drawer{position:fixed;inset:0 auto 0 0;z-index:1000;width:min(320px,calc(100vw - 24px));height:100dvh;overscroll-behavior:contain;padding:18px 20px}
  .drawer-close{align-self:flex-end}.tabs{padding:8px 12px;gap:8px;min-height:60px}.tab-links{flex:1;justify-content:space-evenly}
- .tab{font-size: 14px;padding:8px 10px}.content{padding:22px 18px}.brand{padding-bottom:20px}
+ .tab,.rubber-copy{font-size:14px}.tab{padding:0 10px}.content{padding:22px 18px}.brand{padding-bottom:20px}
 }
 @media(max-width:600px){
- .tabs{gap:5px;padding:8px;flex-wrap:wrap;row-gap:4px}.tab-links{order:3;flex:1 0 100%;width:100%;justify-content:flex-start;gap:2px;overflow-x:auto;padding-top:2px}.tab{font-size: 14px;padding:8px 2px}.tab-icon{display:none}.sidebar-toggle{padding:8px}
+ .tabs{gap:5px;padding:8px;flex-wrap:wrap;row-gap:4px}.tab-links{order:3;flex:1 0 100%;width:100%;justify-content:space-evenly;gap:2px;overflow-x:auto}.tab{font-size:14px;padding:0 6px}.tab-icon{display:none}.rubber-copy{gap:0}.sidebar-toggle{padding:8px}
  .tabs :deep(.side-launch){order:2;margin-left:auto;font-size: 14px;padding:8px 6px}.content{padding:18px 10px}.connection-panel{padding:18px}.sidebar{gap:22px}
 }
+@media(prefers-reduced-motion:reduce){.tab,.sidebar-toggle,.tabs :deep(.side-launch){transition:none}.tab:active,.sidebar-toggle:active,.tabs :deep(.side-launch:active){transform:none}}
 
 </style>
