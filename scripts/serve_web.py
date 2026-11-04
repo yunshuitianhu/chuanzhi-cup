@@ -98,7 +98,7 @@ def main(argv=None) -> int:
         return 1
     if args.check:
         return 0
-    print(f'[START] http://127.0.0.1:{args.port}/chat', flush=True)
+    print(f'[START] http://127.0.0.1:{args.port}/', flush=True)
     print('[INFO] 请保持此终端运行；关闭终端将停止服务。仅监听本机，单worker。', flush=True)
     import uvicorn
     uvicorn.run(app, host='127.0.0.1', port=args.port, workers=1)
