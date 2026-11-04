@@ -94,3 +94,14 @@ test('退出工作台清理动画帧、全局监听和隐藏光标样式', t => 
   assert.equal(c.html.events.size, 0)
   assert.equal(c.styles[0].removed, true)
 })
+
+test('输入框通过聚焦或点击激活时，即使未收到移动事件也恢复原生光标', t => {
+  const c = setup(t)
+  const input = c.element({ native: true })
+  c.move(c.element({ interactive: true })); c.tick()
+  c.doc.emit('focusin', { target: input }); c.tick()
+  assert.equal(c.styles[0].textContent, '')
+  c.move(c.element({ interactive: true })); c.tick()
+  c.win.emit('pointerdown', { pointerType: 'mouse', target: input }); c.tick()
+  assert.equal(c.styles[0].textContent, '')
+})

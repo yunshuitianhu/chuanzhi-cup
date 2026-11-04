@@ -265,6 +265,7 @@ export function mountTargetCursor(root, corners, dot) {
 
     const onPointerDown = event => {
       if (event.pointerType && event.pointerType !== 'mouse') return;
+      if (nativeRegion(event.target)) { onLeave(); return; }
       pointer.pressed = true;
       wake();
     };
@@ -283,6 +284,7 @@ export function mountTargetCursor(root, corners, dot) {
     };
 
     const onVisibility = () => { if (document.hidden) onLeave(); };
+    const onFocusIn = event => { if (nativeRegion(event.target)) onLeave(); };
 
     const onScroll = () => {
       if (!pointer.inside) return;
@@ -300,6 +302,7 @@ export function mountTargetCursor(root, corners, dot) {
     window.addEventListener('blur', onLeave);
     window.addEventListener('keydown', onLeave);
     document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('focusin', onFocusIn);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -312,6 +315,7 @@ export function mountTargetCursor(root, corners, dot) {
       window.removeEventListener('blur', onLeave);
       window.removeEventListener('keydown', onLeave);
       document.removeEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('focusin', onFocusIn);
       lastScope?.removeAttribute('data-target-cursor-scope');
       style.remove();
     };
