@@ -1,0 +1,22 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>受控地图扩散验收（非实测）</title></head>
+<body style="margin:0;background:#0c1520;color:#edf4f8;font:16px sans-serif"><div id="app"></div>
+<script type="module">
+import { createApp, ref, h } from 'vue'
+import { createPinia } from 'pinia'
+import TraceMap from '/src/components/TraceMap.vue'
+import '/src/styles/main.css'
+const sim={constituent:'ammonia',label:'氨氮',times:[0,.1,.2,.3],chainage:[0,100,200,300,400],
+  concentrations:[[2,2,2,2,2],[2,8,3,2,2],[2,2.4,5,3,2],[2,2,2,2,2]],
+  color_scale:{min:2,max:8,inverse:false},source:{source_effective_chainage_m:100,source_start_h:0},
+  mapping:{available:true,positions:[[30,120],[30.0003,120.001],[30.0001,120.002],[30.0006,120.003],[30.0008,120.004]]}}
+createApp({setup(){
+  const frame=ref(0)
+  return ()=>h('main',{style:'max-width:1000px;margin:20px auto;padding:16px'},[
+    h('h1','假定污染源 → 沿河渐变扩散'),
+    h('p','受控模型帧与坐标，仅用于显示验证；底图被测试程序隔离，不是现场扩散证据。'),
+    h('label',['模拟帧 ',h('input',{id:'frame',type:'range',min:0,max:3,value:frame.value,onInput:e=>{frame.value=Number(e.target.value)}})]),
+    h('strong',' T+'+sim.times[frame.value]+' h'),
+    h(TraceMap,{simulation:sim,frameIndex:frame.value})
+  ])
+}}).use(createPinia()).mount('#app')
+</script></body></html>

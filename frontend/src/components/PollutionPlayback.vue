@@ -93,10 +93,10 @@ const option=computed(()=>{
         <span>当前峰值 <b>{{numberText(framePeak)}} mg/L</b></span><span>当前最低 <b>{{numberText(frameMinimum)}} mg/L</b></span>
         <span>第 {{frame+1}} / {{result.times.length}} 帧</span><span>原始输出 {{result.total_frames}} 帧</span>
       </div>
-      <EChart :option="option" :height="280" />
       <p class="source-info">{{result.river_name}} · 情景排放{{result.source.pollutant_type==='ammonia'?'氨氮':result.source.pollutant_type==='cbod'?'CBOD':'组分未提供'}} · 开始 T+{{numberText(result.source.source_start_h)}} h · 持续 {{numberText(result.source.duration_min)}} min · 设定负荷 {{numberText(result.source.load_kg)}} kg</p>
       <label v-if="result.mapping.available" class="show-map"><input v-model="showMap" type="checkbox" />同步显示卫星地图扩散</label>
       <SimulationMap v-if="result.mapping.available && showMap" :simulation="result" :frame-index="frame" />
+      <details class="concentration-detail"><summary>查看沿程总浓度曲线（含背景值）</summary><EChart :option="option" :height="280" /></details>
       <p v-if="!result.mapping.available" class="mapping-note">地图暂不可用：{{result.mapping.reason}}</p>
       <p class="player-note">{{result.notice}} {{result.constituent==='cbod'?'CBOD没有直接对应的GB3838类别限值，不用COD限值替代。':''}}</p>
     </template>

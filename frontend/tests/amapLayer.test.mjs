@@ -105,7 +105,8 @@ test('模拟地图渲染浓度图例，不把模拟浓度标作实测污染指�
   app.use(createPinia())
   const html=await renderToString(app)
   assert.match(html,/模拟氨氮/)
-  assert.match(html,/本次模拟全时段统一色标/)
+  assert.match(html,/播放帧统一增量色标/)
+  assert.match(html,/相对初始浓度增量/)
   assert.doesNotMatch(html,/相对.*类的综合污染指数/)
 })
 test('没有模拟结果时播放器显示操作入口，不呈现伪造扩散',async()=>{

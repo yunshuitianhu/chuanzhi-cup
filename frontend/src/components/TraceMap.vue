@@ -20,7 +20,8 @@ import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr } from '../composables/useToast'
 import { nearestSamples, sampleMetrics, numberText } from '../utils/mapInteraction'
-import { simulationColor } from '../utils/playback'
+import { trailProfile, trailSegments } from '../utils/simulationTrail'
+import { simulationTrailLayer } from '../utils/simulationTrailLayer'
 import AskContext from './AskContext.vue'
 
 const props = defineProps({simulation:{type:Object,default:null}, frameIndex:{type:Number,default:0}, focusSampleId:{type:Number,default:null}})
@@ -36,6 +37,8 @@ const wrapper = ref(null), fullscreen = ref(false)
 let map = null
 let layerGroup = null
 let selectionGroup = null
+let simulationTrail = null
+const simulationProfile = computed(() => props.simulation ? trailProfile(props.simulation) : null)
 let baseLayer = null, resizeObserver = null, disposed = false, loadVersion = 0, sourceVersion = 0
 let heatLayer = null, heatPoints = null, heatRadiusKey = null, heatOpacityKey = null
 const provider = ref(store.config.keys.starcloud ? 'starcloud' : store.config.keys.amap ? 'amap' : 'esri')
@@ -136,21 +139,19 @@ function renderSimulation(fit) {
   const sim = props.simulation
   const coordinates = sim.mapping.positions.map(p=>provider.value === 'amap' ? wgsToGcj(p) : p)
   const values = sim.concentrations[props.frameIndex]
-  if (!coordinates.length || !values) return
-  for (let i=0;i<coordinates.length;i++) {
-    const color=simulationColor(values[i],sim.color_scale)
-    if (i) L.polyline([coordinates[i-1],coordinates[i]], {color,weight:10,opacity:.85,interactive:false}).addTo(layerGroup)
-    L.circleMarker(coordinates[i],{radius:5,color:'#ffffff',weight:1,fillColor:color,fillOpacity:1})
-      .addTo(layerGroup).bindPopup(`模拟断面 · 桩号 ${numberText(sim.chainage[i],1)} m<br>`
-        + `T+${numberText(sim.times[props.frameIndex])} h<br>浓度 ${numberText(values[i])} mg/L`)
-  }
+  if (!coordinates.length || !values) { simulationTrail?.setSegments([]); return }
+  const segments = trailSegments(sim, props.frameIndex, simulationProfile.value).map(s => ({ ...s,
+    from: provider.value === 'amap' ? wgsToGcj(s.from) : s.from,
+    to: provider.value === 'amap' ? wgsToGcj(s.to) : s.to }))
+  if (!simulationTrail) simulationTrail = simulationTrailLayer(segments).addTo(map)
+  else simulationTrail.setSegments(segments)
   const source=sim.source.source_effective_chainage_m ?? sim.source.chainage_m
   if (source != null) {
     let nearest=0
     for(let i=1;i<sim.chainage.length;i++) if(Math.abs(sim.chainage[i]-source)<Math.abs(sim.chainage[nearest]-source))nearest=i
     L.circleMarker(coordinates[nearest],{radius:10,color:'#fff',weight:3,fillColor:'#222',fillOpacity:.8})
       .addTo(layerGroup).bindPopup(`情景排放点 · 实际计算桩号 ${numberText(sim.chainage[nearest],1)} m<br>`
-        + `T+${numberText(sim.times[props.frameIndex])} h · 浓度 ${numberText(values[nearest])} mg/L`)
+        + `假定污染源（非识别结果）<br>T+${numberText(sim.times[props.frameIndex])} h · 浓度 ${numberText(values[nearest])} mg/L`)
   }
   if (fit) map.fitBounds(L.latLngBounds(coordinates),{padding:[35,35],maxZoom:17})
 }
@@ -177,6 +178,7 @@ function render(fit = false) {
     if (heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer)
     renderSimulation(fit); return
   }
+  if (simulationTrail) { map.removeLayer(simulationTrail); simulationTrail = null }
   const d = displayed.value
   if (!d) {
     if (heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer)
@@ -284,6 +286,7 @@ onBeforeUnmount(() => {
   disposed = true; loadVersion++; sourceVersion++; resizeObserver?.disconnect()
   document.removeEventListener('fullscreenchange', updateFullscreen)
   map?.remove(); map = null; layerGroup = null; selectionGroup = null
+  simulationTrail = null
 })
 
 watch(() => [store.status.has_data, store.status.black_spot_count, store.status.analysis_revision, store.status.detection_algorithm_version, store.status.results_revision], load)
@@ -337,6 +340,7 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
       </details>
     </div>
     <p v-if="!simulation && data?.samples?.length" class="click-hint">点击污染色带查看最近采样点；同位置多条记录可按时间切换。</p>
+    <p v-if="simulation" class="click-hint">假定源情景 · 初始只显示源位置。色带表示当前帧相对初始值的{{ simulation.constituent === 'do' ? 'DO下降量' : '浓度增量' }}，不是独立源贡献或二维污染范围；节点间线性显示，回退和复位不会保留未来轨迹。</p>
     <div v-if="!store.status.has_data && !simulation" class="tip">
       上传走航数据后显示严重程度热力图；完成黑臭检测后叠加热点和严重点位。
     </div>
@@ -350,9 +354,10 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
       </div>
       <div v-else-if="simulation" class="legend">
         <div class="lg-title">模拟{{ simulation.label }} · mg/L</div>
-        <div class="gradient" :class="{'inverse-gradient':simulation.color_scale.inverse}"></div>
-        <div class="sim-ticks"><span>{{ numberText(simulation.color_scale.min) }}</span><span>{{ numberText(simulation.color_scale.max) }}</span></div>
-        <div class="lg-note">本次模拟全时段统一色标 · 点位可点击</div>
+        <div class="gradient" style="background:linear-gradient(90deg,#6f236b,#f43f5e 65%,#ffded5)"></div>
+        <div class="sim-ticks"><span>0</span><span>{{ numberText(simulationProfile.max) }}</span></div>
+        <div class="lg-note">{{ simulation.constituent === 'do' ? '相对初始DO下降量' : '相对初始浓度增量' }} · 播放帧统一增量色标 · 源点可点击</div>
+        <div class="lg-note">可视下限 {{ simulationProfile.threshold.toExponential(1) }} mg/L（仅显示用）</div>
       </div>
     </div>
     <section v-if="selectedSample && !simulation" class="sample-detail" aria-label="采样点水质详情">
