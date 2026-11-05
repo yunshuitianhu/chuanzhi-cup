@@ -169,12 +169,23 @@ class MapPlaybackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'未覆盖'):
             checked_model_mapping(np.array([0.,50.,100.]),self.session.df)
 
-    def test_partial_mapping_does_not_bypass_return_voyage_or_missing_gps_checks(self):
+    def test_automatic_preview_is_unconfirmed_and_strict_mapping_still_rejects_bad_full_tracks(self):
+        from river_model.geo_mapping import checked_model_mapping
         self.session.df['latitude']=np.r_[np.linspace(23,23.0008,20),np.linspace(23.0008,23,20)]
-        self.assertFalse(self.playback().json()['mapping']['available'])
+        mapping=self.playback().json()['mapping']
+        self.assertTrue(mapping['available'])
+        self.assertEqual(mapping['confirmation'],'automatic_scenario_preview_unconfirmed')
+        with self.assertRaises(ValueError):
+            checked_model_mapping(np.array([0.,50.,100.]),self.session.df)
+        self.assertNotIn('playback_reference',self.session.river_ui)
         self.session.df['latitude']=np.linspace(23,23.0008,40)
         self.session.df.loc[10,'latitude']=np.nan
-        self.assertFalse(self.playback().json()['mapping']['available'])
+        mapping=self.playback().json()['mapping']
+        if mapping['available']:
+            segment=mapping['preview_segment']
+            self.assertFalse(segment['start']<=10<=segment['end'])
+        with self.assertRaises(ValueError):
+            checked_model_mapping(np.array([0.,50.,100.]),self.session.df)
 
     def test_short_explicit_reference_maps_only_supported_nodes_and_requires_confirmation(self):
         config=dict(reference_path=[[23.,113.],[23.0007,113.]],

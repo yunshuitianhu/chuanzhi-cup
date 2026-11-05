@@ -180,11 +180,14 @@ class AlignmentApiTests(unittest.TestCase):
     def test_return_voyage_map_uses_reference_line_after_explicit_configuration(self):
         self.s.river_state.wq_result.chainage = np.array([0.,500.,900.])
         before = self.client.get('/api/river/playback',headers=self.headers).json()
-        self.assertFalse(before['mapping']['available'])
+        self.assertTrue(before['mapping']['available'])
+        self.assertEqual(before['mapping']['confirmation'],'automatic_scenario_preview_unconfirmed')
+        self.assertNotIn('alignment',self.s.river_ui)
         saved = self.client.post('/api/river/alignment',headers=self.headers,json=self.config)
         self.assertEqual(saved.status_code,200,saved.text)
         after = self.client.get('/api/river/playback',headers=self.headers).json()
         self.assertTrue(after['mapping']['available'])
+        self.assertEqual(after['mapping']['confirmation'],'user_supplied_not_independently_verified')
         self.assertAlmostEqual(after['mapping']['positions'][2][1],900/6371000*180/np.pi,places=8)
 
     def test_project_roundtrip_preserves_config_and_recomputes_comparison(self):

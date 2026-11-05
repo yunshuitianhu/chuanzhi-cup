@@ -17,17 +17,17 @@ if __name__=='__main__':
             page.route('**/api/maps/**',lambda route:route.fulfill(content_type='image/svg+xml',body=tile))
             page.route('https://**/*',lambda route:route.abort())
             errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-            page.goto('http://127.0.0.1:5184/river')
-            button=page.get_by_role('button',name='从当前轨迹查找单向航段');button.wait_for(timeout=30000);button.click()
-            page.get_by_role('checkbox',name='确认按所选方向作为本次情景的上游→下游；实际水流方向仍需核实').check()
-            page.get_by_role('button',name='应用航段并显示地图扩散').click()
+            page.goto('http://127.0.0.1:5184/charts')
+            # Open the user's exact charts entry without any route-selection clicks.
             canvas=page.locator('.pollution-player canvas.simulation-trail');canvas.wait_for()
+            assert page.get_by_text('已自动选取单向航段进行地图预览',exact=False).is_visible()
+            assert page.locator('.schematic').count()==0
             page.get_by_role('button',name='跳到扩散峰值').click()
             page.wait_for_function('''()=>{const c=document.querySelector('.pollution-player canvas.simulation-trail');return c&&c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4===3&&v>0)}''')
             page.locator('.pollution-player .map-shell').scroll_into_view_if_needed()
             page.screenshot(path=str(out/(record['sample']+'.png')))
             assert not errors,errors
-            reports.append(dict(sample=record['sample'],map_visible=True,trail_visible=True,page_errors=errors))
+            reports.append(dict(sample=record['sample'],map_visible=True,trail_visible=True,route_selection_clicks=0,page_errors=errors))
             page.close()
         browser.close()
     (out/'result.json').write_text(json.dumps(reports,indent=2),encoding='utf-8')

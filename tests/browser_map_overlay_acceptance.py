@@ -10,6 +10,7 @@ from playwright.sync_api import sync_playwright
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--base-url', default='http://127.0.0.1:5174')
+    parser.add_argument('--page-path', choices=['/river','/charts'],default='/river')
     parser.add_argument('--session-file', required=True, help='Local JSON containing the existing sid; never committed')
     parser.add_argument('--output', default='output/map-overlay-acceptance')
     args = parser.parse_args()
@@ -28,7 +29,7 @@ def main():
         page.route('**/api/maps/amap-static*',lambda route:route.abort())
         page.add_init_script('localStorage.setItem("wq_session_id", '+json.dumps(saved['sid'])+')')
         errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
-        page.goto(args.base_url+'/river')
+        page.goto(args.base_url+args.page_path)
         player=page.locator('.pollution-player');canvas=player.locator('canvas.simulation-trail')
         canvas.wait_for(timeout=45000)
         player.locator('.map-shell').scroll_into_view_if_needed()
@@ -53,7 +54,7 @@ def main():
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         player.locator('.map-shell').scroll_into_view_if_needed();page.screenshot(path=str(out/'mobile.png'))
         assert not errors,errors
-        report={'url':args.base_url+'/river','nodes':len(data['chainage']),
+        report={'url':args.base_url+args.page_path,'nodes':len(data['chainage']),
             'complete':data['mapping'].get('complete',True),'mapped_range_m':data['mapping'].get('mapped_range_m'),
             'initial_pixels':0,'peak_pixels':peak_pixels,'peak_time':peak_time,
             'basemap_tiles':player.locator('img.leaflet-tile-loaded').count(),

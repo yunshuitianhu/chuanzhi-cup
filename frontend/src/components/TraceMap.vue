@@ -344,6 +344,7 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
     </div>
     <p v-if="!simulation && data?.samples?.length" class="click-hint">点击污染色带查看最近采样点；同位置多条记录可按时间切换。</p>
     <p v-if="simulation" class="click-hint">假定源情景 · 初始仅标注有坐标的源位置。色带表示当前帧相对初始值的{{ simulation.constituent === 'do' ? 'DO下降量' : '浓度增量' }}，不是独立源贡献或二维污染范围；节点间线性显示，回退和复位不会保留未来轨迹。</p>
+    <p v-if="simulation?.mapping.confirmation === 'automatic_scenario_preview_unconfirmed'" class="map-warning">已自动选取单向航段进行地图预览 · 实际水流方向尚未确认，可在航段设置中调整。</p>
     <p v-if="simulation && simulation.mapping.complete === false" class="map-warning">部分河段有坐标：{{numberText(simulation.mapping.mapped_range_m[0],1)}}–{{numberText(simulation.mapping.mapped_range_m[1],1)}} m / 模型终点 {{numberText(simulation.mapping.model_range_m[1],1)}} m。未覆盖的源点或色带不在地图显示。</p>
     <div v-if="!store.status.has_data && !simulation" class="tip">
       上传走航数据后显示严重程度热力图；完成黑臭检测后叠加热点和严重点位。

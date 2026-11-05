@@ -33,6 +33,9 @@ class PlaybackReferenceTests(unittest.TestCase):
                         post('hydro',{'duration_h':.5,'upstream_flow_m3s':4.,'downstream_stage_m':2.})
                         post('pollution',{'simulation_hours':.5,'load_kg':1.,'duration_min':5.,'chainage_m':length*.3,'wq_refinement':2})
                         before=client.get('/api/river/playback',headers=h).json()
+                        self.assertTrue(before['mapping']['available'])
+                        self.assertEqual(before['mapping']['confirmation'],'automatic_scenario_preview_unconfirmed')
+                        self.assertNotIn('playback_reference',session.river_ui)
                         candidate=client.get('/api/river/playback/reference',headers=h).json()
                         self.assertIn('reference_path',candidate)
                         request={'start':candidate['start'],'end':candidate['end'],'reverse':False,'confirmed':True,'analysis_revision':session.analysis_revision,'project_id':None}

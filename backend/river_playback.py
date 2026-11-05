@@ -80,6 +80,12 @@ def playback_data(state, monitoring_data, constituent, target_class, max_frames,
             mapping['reason'] += ' 此航段仅用于地图情景展示，不改变逐点时空配准。'
     except (ValueError, KeyError) as exc:
         mapping['reason'] = str(exc)
+        if alignment_config is None and map_reference is None:
+            try:
+                from .playback_reference import automatic_preview
+                mapping = automatic_preview(chainage,monitoring_data)
+            except (ValueError,KeyError):
+                pass
     limits = GB3838_STANDARDS[target_class]
     limit = limits['nh3'] if constituent == 'ammonia' else limits['do'] if constituent == 'do' else None
     source = {key: wq.params.get(key) for key in ('chainage_m', 'source_effective_chainage_m', 'source_start_h', 'duration_min', 'load_kg', 'pollutant_type')}
