@@ -6,6 +6,7 @@ import { numberText } from '../utils/mapInteraction'
 import { playbackClock } from '../utils/playback'
 import EChart from './EChart.vue'
 import SimulationSchematic from './SimulationSchematic.vue'
+import PlaybackReference from './PlaybackReference.vue'
 import { peakTrailFrame } from '../utils/simulationTrail'
 
 const SimulationMap=defineAsyncComponent(()=>import('./TraceMap.vue'))
@@ -100,6 +101,7 @@ const option=computed(()=>{
       <p class="source-info">{{result.river_name}} · 情景排放{{result.source.pollutant_type==='ammonia'?'氨氮':result.source.pollutant_type==='cbod'?'CBOD':'组分未提供'}} · 开始 T+{{numberText(result.source.source_start_h)}} h · 持续 {{numberText(result.source.duration_min)}} min · 设定负荷 {{numberText(result.source.load_kg)}} kg</p>
       <label v-if="result.mapping.available" class="show-map"><input v-model="showMap" type="checkbox" />同步显示卫星地图扩散</label>
       <SimulationMap v-if="result.mapping.available && showMap" :simulation="result" :frame-index="frame" />
+      <details :open="!result.mapping.available"><summary>选择或更换当前数据的地图航段</summary><PlaybackReference @updated="load" /></details>
       <template v-if="!result.mapping.available">
         <div class="mapping-note" role="status">
           <strong>卫星地图暂未定位，下面先播放河道示意图。</strong>

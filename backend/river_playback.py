@@ -41,7 +41,7 @@ def playback_mapping(chainage, monitoring_data, alignment_config=None):
         'track_length_m': gps['total_length_m'], 'confirmation': gps['confirmation'], 'reason': reason}
 
 
-def playback_data(state, monitoring_data, constituent, target_class, max_frames, alignment_config=None):
+def playback_data(state, monitoring_data, constituent, target_class, max_frames, alignment_config=None, map_reference=None):
     wq = state.wq_result
     names = {'ammonia': ('氨氮', 'ammonia'), 'cbod': ('CBOD', 'cbod'), 'do': ('溶解氧', 'dissolved_oxygen')}
     name, field = names[constituent]
@@ -65,12 +65,19 @@ def playback_data(state, monitoring_data, constituent, target_class, max_frames,
     indices = sorted(indices)
     mapping = {'available': False, 'reason': '当前项目没有有效走航轨迹，可查看沿程浓度动画。', 'positions': []}
     try:
-        if alignment_config is not None:
+        if alignment_config is not None and map_reference is None:
             from .cruise_alignment import AlignmentRequest
             import json
             config = AlignmentRequest.model_validate_json(json.dumps(alignment_config))
             alignment_config = config.model_dump(mode='json')
+        if map_reference is not None:
+            from .playback_reference import restore_reference
+            selected = restore_reference(monitoring_data,map_reference)
+            alignment_config = {**selected,'confirmed':True}
         mapping = playback_mapping(chainage, monitoring_data, alignment_config)
+        if map_reference is not None:
+            mapping['confirmation'] = 'user_confirmed_scenario_route_only'
+            mapping['reason'] += ' 此航段仅用于地图情景展示，不改变逐点时空配准。'
     except (ValueError, KeyError) as exc:
         mapping['reason'] = str(exc)
     limits = GB3838_STANDARDS[target_class]

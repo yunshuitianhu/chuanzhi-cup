@@ -30,6 +30,38 @@ from .. import model_state
 router = APIRouter(prefix="/river", tags=["river"])
 
 
+class PlaybackReferenceRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid',strict=True)
+    start: int = Field(ge=0)
+    end: int = Field(ge=1)
+    reverse: bool = False
+    confirmed: Literal[True]
+    analysis_revision: int
+    project_id: str | None = None
+
+
+@router.get('/playback/reference')
+def suggest_playback_reference(session: Session = Depends(get_exclusive_session)):
+    from ..playback_reference import suggest_reference
+    try:
+        return suggest_reference(session.df)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+
+@router.post('/playback/reference')
+def set_playback_reference(payload: PlaybackReferenceRequest, session: Session = Depends(get_exclusive_session)):
+    from ..playback_reference import reference_segment
+    if payload.analysis_revision != session.analysis_revision or payload.project_id != (session.project_id or None):
+        raise HTTPException(409,'项目或数据已变化，请重新生成候选航段')
+    try:
+        selected = reference_segment(session.df,payload.start,payload.end,payload.reverse)
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+    session.river_ui['playback_reference'] = {**selected,'confirmed':True}
+    return selected
+
+
 @router.get('/alignment/audit')
 def alignment_audit(timezone: str = 'Asia/Shanghai', session: Session = Depends(get_session)):
     if session.df is None or session.df.empty:
@@ -95,7 +127,8 @@ def playback(constituent: Literal['ammonia', 'cbod', 'do'] = 'ammonia',
     from ..river_playback import playback_data
     try:
         return playback_data(state, session.df, constituent, session.target_water_class, max_frames,
-                             alignment_config=session.river_ui.get('alignment'))
+                             alignment_config=session.river_ui.get('alignment'),
+                             map_reference=session.river_ui.get('playback_reference'))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 

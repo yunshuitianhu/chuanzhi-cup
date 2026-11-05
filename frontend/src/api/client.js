@@ -294,6 +294,10 @@ export const api = {
   riverProfile: (timeH, constituent) => request(`/river/profile?time_h=${timeH}&constituent=${constituent}`),
   /** @param {'ammonia'|'cbod'|'do'} [constituent] @param {AbortSignal} [signal] */
   riverPlayback: (constituent = 'ammonia', signal) => consistentRead(`/river/playback?constituent=${encodeURIComponent(constituent)}`, {signal}),
+  /** @param {AbortSignal} [signal] */
+  playbackReference: (signal) => request('/river/playback/reference',{signal}),
+  /** @param {JsonObject} body @param {AbortSignal} [signal] */
+  setPlaybackReference: (body,signal) => request('/river/playback/reference',{method:'POST',body,signal}),
 }
 
 export { ApiError }
