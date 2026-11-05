@@ -137,9 +137,10 @@ function onMapClick(event) {
 
 function renderSimulation(fit) {
   const sim = props.simulation
-  const coordinates = sim.mapping.positions.map(p=>provider.value === 'amap' ? wgsToGcj(p) : p)
+  const coordinates = sim.mapping.positions.map(p=>p ? (provider.value === 'amap' ? wgsToGcj(p) : p) : null)
+  const visible = coordinates.filter(Boolean)
   const values = sim.concentrations[props.frameIndex]
-  if (!coordinates.length || !values) { simulationTrail?.setSegments([]); return }
+  if (!visible.length || !values) { simulationTrail?.setSegments([]); return }
   const segments = trailSegments(sim, props.frameIndex, simulationProfile.value).map(s => ({ ...s,
     from: provider.value === 'amap' ? wgsToGcj(s.from) : s.from,
     to: provider.value === 'amap' ? wgsToGcj(s.to) : s.to }))
@@ -149,11 +150,13 @@ function renderSimulation(fit) {
   if (source != null) {
     let nearest=0
     for(let i=1;i<sim.chainage.length;i++) if(Math.abs(sim.chainage[i]-source)<Math.abs(sim.chainage[nearest]-source))nearest=i
-    L.circleMarker(coordinates[nearest],{radius:10,color:'#fff',weight:3,fillColor:'#222',fillOpacity:.8})
-      .addTo(layerGroup).bindPopup(`情景排放点 · 实际计算桩号 ${numberText(sim.chainage[nearest],1)} m<br>`
-        + `假定污染源（非识别结果）<br>T+${numberText(sim.times[props.frameIndex])} h · 浓度 ${numberText(values[nearest])} mg/L`)
+    if (coordinates[nearest]) {
+      L.circleMarker(coordinates[nearest],{className:'simulation-source',radius:10,color:'#fff',weight:3,fillColor:'#f43f5e',fillOpacity:.9})
+        .addTo(layerGroup).bindPopup(`情景排放点 · 实际计算桩号 ${numberText(sim.chainage[nearest],1)} m<br>`
+          + `假定污染源（非识别结果）<br>T+${numberText(sim.times[props.frameIndex])} h · 浓度 ${numberText(values[nearest])} mg/L`)
+    }
   }
-  if (fit) map.fitBounds(L.latLngBounds(coordinates),{padding:[35,35],maxZoom:17})
+  if (fit) map.fitBounds(L.latLngBounds(visible),{padding:[35,35],maxZoom:17})
 }
 
 function syncHeat(d) {
@@ -340,7 +343,8 @@ watch(() => [store.config.keys.starcloud, store.config.keys.amap], ([starcloud, 
       </details>
     </div>
     <p v-if="!simulation && data?.samples?.length" class="click-hint">点击污染色带查看最近采样点；同位置多条记录可按时间切换。</p>
-    <p v-if="simulation" class="click-hint">假定源情景 · 初始只显示源位置。色带表示当前帧相对初始值的{{ simulation.constituent === 'do' ? 'DO下降量' : '浓度增量' }}，不是独立源贡献或二维污染范围；节点间线性显示，回退和复位不会保留未来轨迹。</p>
+    <p v-if="simulation" class="click-hint">假定源情景 · 初始仅标注有坐标的源位置。色带表示当前帧相对初始值的{{ simulation.constituent === 'do' ? 'DO下降量' : '浓度增量' }}，不是独立源贡献或二维污染范围；节点间线性显示，回退和复位不会保留未来轨迹。</p>
+    <p v-if="simulation && simulation.mapping.complete === false" class="map-warning">部分河段有坐标：{{numberText(simulation.mapping.mapped_range_m[0],1)}}–{{numberText(simulation.mapping.mapped_range_m[1],1)}} m / 模型终点 {{numberText(simulation.mapping.model_range_m[1],1)}} m。未覆盖的源点或色带不在地图显示。</p>
     <div v-if="!store.status.has_data && !simulation" class="tip">
       上传走航数据后显示严重程度热力图；完成黑臭检测后叠加热点和严重点位。
     </div>

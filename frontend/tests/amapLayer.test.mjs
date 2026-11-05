@@ -133,6 +133,19 @@ test('未地理定位示意图使用当前模型帧，初始仅源点且不请�
   assert.doesNotMatch(later,/leaflet|卫星图已加载/)
 })
 
+test('局部地图明确标注覆盖范围，未覆盖末段不冒充已定位',async()=>{
+  globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
+  const {default:TraceMap}=await server.ssrLoadModule('/src/components/TraceMap.vue')
+  const simulation={label:'氨氮',constituent:'ammonia',concentrations:[[2,2,2],[2,4,2]],
+    times:[0,1],chainage:[0,50,100],source:{},mapping:{available:true,complete:false,
+      positions:[[23,113],[23.0005,113],null],mapped_range_m:[0,50],model_range_m:[0,100],reason:'按当前走航轨迹示意'}}
+  const app=createSSRApp(TraceMap,{simulation});app.use(createPinia())
+  const html=await renderToString(app)
+  assert.match(html,/部分河段有坐标/)
+  assert.match(html,/模型终点 100/)
+  assert.match(html,/未覆盖的源点或色带不在地图显示/)
+})
+
 test('恢复旧检测结果时地图提示重新计算，当前结果不显示更新提示',async()=>{
   globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
   const {default:TraceMap}=await server.ssrLoadModule('/src/components/TraceMap.vue')

@@ -4,6 +4,43 @@ import numpy as np
 from water_quality_mcp.src.water_quality_mcp.analysis_config import GB3838_STANDARDS
 
 
+def playback_mapping(chainage, monitoring_data, alignment_config=None):
+    """只绘已有坐标支持的模型节点；尾段不足不使整个底图失效。"""
+    from river_model.geo_mapping import checked_model_mapping, chainage_array_to_gps
+    axis = np.asarray(chainage, dtype=float)
+    if (axis.ndim != 1 or len(axis) < 2 or not np.isfinite(axis).all()
+            or np.any(np.diff(axis) <= 0) or axis[0] < 0):
+        raise ValueError('模拟桩号轴无效')
+    covered = np.ones(len(axis), dtype=bool)
+    try:
+        gps = checked_model_mapping(axis, monitoring_data, alignment_config)
+    except ValueError as original:
+        # Probe with the first two actual model nodes, retaining all existing GPS,
+        # direction/reference and return-trip checks. Never stretch or extrapolate.
+        try:
+            probe = checked_model_mapping(axis[:2], monitoring_data, alignment_config)
+            covered = axis <= probe['total_length_m'] + 1e-6
+            if covered.all() or covered.sum() < 2:
+                raise original
+            gps = checked_model_mapping(axis[covered], monitoring_data, alignment_config)
+        except (ValueError, KeyError):
+            raise original
+    latitude, longitude = chainage_array_to_gps(gps, axis[covered])
+    positions = [None] * len(axis)
+    for i, lat, lon in zip(np.flatnonzero(covered), latitude, longitude):
+        positions[int(i)] = [float(lat), float(lon)]
+    complete = bool(covered.all())
+    reason = gps['notice']
+    if not complete:
+        reason += (f" 仅显示桩号{axis[covered][0]:.1f}–{axis[covered][-1]:.1f} m的已覆盖节点；"
+                   f"模型至{axis[-1]:.1f} m，未覆盖末段不在地图绘制，不缩放或外推坐标。")
+    return {'available': True, 'complete': complete, 'positions': positions,
+        'mapped_nodes': int(covered.sum()), 'total_nodes': len(axis),
+        'mapped_range_m': [float(axis[covered][0]), float(axis[covered][-1])],
+        'model_range_m': [float(axis[0]), float(axis[-1])],
+        'track_length_m': gps['total_length_m'], 'confirmation': gps['confirmation'], 'reason': reason}
+
+
 def playback_data(state, monitoring_data, constituent, target_class, max_frames, alignment_config=None):
     wq = state.wq_result
     names = {'ammonia': ('氨氮', 'ammonia'), 'cbod': ('CBOD', 'cbod'), 'do': ('溶解氧', 'dissolved_oxygen')}
@@ -33,11 +70,7 @@ def playback_data(state, monitoring_data, constituent, target_class, max_frames,
             import json
             config = AlignmentRequest.model_validate_json(json.dumps(alignment_config))
             alignment_config = config.model_dump(mode='json')
-        from river_model.geo_mapping import checked_model_mapping, chainage_array_to_gps
-        gps = checked_model_mapping(chainage, monitoring_data, alignment_config)
-        lat, lon = chainage_array_to_gps(gps, chainage)
-        mapping = {'available': True, 'positions': np.column_stack([lat, lon]).tolist(),
-            'track_length_m': gps['total_length_m'], 'confirmation': gps['confirmation'], 'reason': gps['notice']}
+        mapping = playback_mapping(chainage, monitoring_data, alignment_config)
     except (ValueError, KeyError) as exc:
         mapping['reason'] = str(exc)
     limits = GB3838_STANDARDS[target_class]

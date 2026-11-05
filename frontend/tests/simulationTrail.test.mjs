@@ -67,3 +67,14 @@ test('峰值跳转只选择排放开始后可显示的帧，无增量时禁用',
   sim.concentrations=sim.concentrations.map(()=>[2,2,2,2])
   assert.equal(peakTrailFrame(sim),0)
 })
+
+test('局部地图只绘有效相邻节点，缺坐标区间不连接或外推',()=>{
+  const sim=sample();sim.chainage=[0,100,200,300]
+  sim.mapping.positions=[null,[30,120.001],[30,120.002],null]
+  const segments=trailSegments(sim,2)
+  assert.equal(segments.length,1)
+  assert.deepEqual(segments[0].from,[30,120.001])
+  assert.deepEqual(segments[0].to,[30,120.002])
+  sim.mapping.positions[2]=null
+  assert.deepEqual(trailSegments(sim,2),[])
+})

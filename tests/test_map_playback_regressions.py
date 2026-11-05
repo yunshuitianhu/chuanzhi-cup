@@ -150,6 +150,44 @@ class MapPlaybackTests(unittest.TestCase):
         self.assertFalse(d['mapping']['available']);self.assertTrue(d['concentrations'])
         self.assertIn('未覆盖',d['mapping']['reason'])
 
+    def test_partial_track_keeps_supported_nodes_without_stretching_or_changing_values(self):
+        self.session.df['latitude']=np.linspace(23,23.0008,40)
+        before=self.session.river_state.wq_result.ammonia.copy()
+        d=self.playback(max_frames=6).json();mapping=d['mapping']
+        self.assertTrue(mapping['available']);self.assertFalse(mapping['complete'])
+        self.assertEqual(mapping['mapped_nodes'],2)
+        self.assertEqual(mapping['mapped_range_m'],[0.,50.])
+        self.assertEqual(mapping['model_range_m'],[0.,100.])
+        self.assertIsNone(mapping['positions'][2])
+        self.assertLess(mapping['positions'][1][0],23.0007)
+        self.assertIn('不缩放或外推',mapping['reason'])
+        np.testing.assert_array_equal(self.session.river_state.wq_result.ammonia,before)
+        for t,row in zip(d['times'],d['concentrations']):
+            np.testing.assert_array_equal(row,before[round(t*100)])
+        # The general mapping API still rejects uncovered full ranges.
+        from river_model.geo_mapping import checked_model_mapping
+        with self.assertRaisesRegex(ValueError,'未覆盖'):
+            checked_model_mapping(np.array([0.,50.,100.]),self.session.df)
+
+    def test_partial_mapping_does_not_bypass_return_voyage_or_missing_gps_checks(self):
+        self.session.df['latitude']=np.r_[np.linspace(23,23.0008,20),np.linspace(23.0008,23,20)]
+        self.assertFalse(self.playback().json()['mapping']['available'])
+        self.session.df['latitude']=np.linspace(23,23.0008,40)
+        self.session.df.loc[10,'latitude']=np.nan
+        self.assertFalse(self.playback().json()['mapping']['available'])
+
+    def test_short_explicit_reference_maps_only_supported_nodes_and_requires_confirmation(self):
+        config=dict(reference_path=[[23.,113.],[23.0007,113.]],
+            model_origin='2025-01-01T00:00:00+08:00',monitoring_timezone='Asia/Shanghai',
+            confirmed=True,reference_note='受控参考线，非实际测绘')
+        self.session.river_ui['alignment']=config
+        mapping=self.playback().json()['mapping']
+        self.assertTrue(mapping['available']);self.assertFalse(mapping['complete'])
+        self.assertIsNone(mapping['positions'][-1])
+        self.assertEqual(mapping['confirmation'],'user_supplied_not_independently_verified')
+        self.session.river_ui['alignment']['confirmed']=False
+        self.assertFalse(self.playback().json()['mapping']['available'])
+
     def test_busy_session_does_not_read_partial_model_state(self):
         self.session.operation_lock.acquire()
         try:self.assertEqual(self.playback().status_code,409)
