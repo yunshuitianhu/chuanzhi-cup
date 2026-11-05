@@ -10,27 +10,47 @@ export function trailProfile(sim) {
   return { initial, sign, max, threshold: Math.max(1e-8, max * 1e-5) }
 }
 
-export function trailSegments(sim, frameIndex, profile = trailProfile(sim)) {
+// Model-node intervals are independent of whether geographic registration is available.
+export function trailIntervals(sim, frameIndex, profile = trailProfile(sim)) {
   const time = sim.times?.[frameIndex], row = sim.concentrations?.[frameIndex]
-  const positions = sim.mapping?.positions || []
-  if (!sim.mapping?.available || !row || !Number.isFinite(time) || frameIndex === 0 ||
+  if (!Array.isArray(row) || !Number.isFinite(time) || frameIndex === 0 ||
       time <= (sim.source?.source_start_h ?? 0) || profile.max <= profile.threshold) return []
   const delta = row.map((value, i) => Number.isFinite(value) && Number.isFinite(profile.initial[i])
     ? Math.max(0, profile.sign * (value - profile.initial[i])) : null)
-  const valid = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180
   const segments = []
-  for (let i = 1; i < positions.length; i++) {
+  for (let i = 1; i < (sim.chainage?.length ?? row.length); i++) {
     const a = delta[i - 1], b = delta[i]
-    if (a == null || b == null || !valid(positions[i - 1]) || !valid(positions[i]) ||
-      Math.max(a, b) <= profile.threshold) continue
+    if (a == null || b == null || Math.max(a, b) <= profile.threshold) continue
     // Clip spatial interpolation to the visible increment; don't paint a whole zero node interval.
     const lo = a <= profile.threshold ? (profile.threshold - a) / (b - a) : 0
     const hi = b <= profile.threshold ? (a - profile.threshold) / (a - b) : 1
-    const coord = t => positions[i - 1].map((x, k) => x + (positions[i][k] - x) * t)
-    segments.push({ from: coord(lo), to: coord(hi),
+    segments.push({ index: i, lo, hi,
       a: (a + (b - a) * lo) / profile.max, b: (a + (b - a) * hi) / profile.max })
   }
   return segments
+}
+
+export function trailSegments(sim, frameIndex, profile = trailProfile(sim)) {
+  if (!sim.mapping?.available) return []
+  const positions = sim.mapping.positions || []
+  const valid = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180
+  return trailIntervals(sim, frameIndex, profile).flatMap(s => {
+    const from = positions[s.index - 1], to = positions[s.index]
+    if (!valid(from) || !valid(to)) return []
+    const coord = t => from.map((x, k) => x + (to[k] - x) * t)
+    return [{ from: coord(s.lo), to: coord(s.hi), a: s.a, b: s.b }]
+  })
+}
+
+export function peakTrailFrame(sim, profile = trailProfile(sim)) {
+  let frame = 0, peak = 0
+  for (let i = 1; i < (sim.times?.length || 0); i++) {
+    for (const s of trailIntervals(sim, i, profile)) {
+      const value = Math.max(s.a, s.b)
+      if (value > peak) { peak = value; frame = i }
+    }
+  }
+  return frame
 }
 
 export function trailColor(strength, alpha = 1) {

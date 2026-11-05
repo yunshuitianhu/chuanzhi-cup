@@ -71,7 +71,7 @@ onBeforeUnmount(()=>{disposed=true;cancel()})
 </script>
 
 <template>
-  <section class="alignment">
+  <section id="river-alignment" class="alignment">
     <h3>⑤ 走航时空配准与情景对照</h3>
     <p>每条观测按自己的采样时间与空间位置读取模型浓度。返航会回到相同桩号，不把累计航程当作河道长度；不自动猜测水流方向或把整次走航当作同一时刻。</p>
     <button type="button" :disabled="locked" @click="load">重新核对当前轨迹</button>

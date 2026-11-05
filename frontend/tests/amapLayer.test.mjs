@@ -120,6 +120,19 @@ test('没有模拟结果时播放器显示操作入口，不呈现伪造扩散',
   assert.doesNotMatch(html,/aria-label="污染扩散时间轴"/)
 })
 
+test('未地理定位示意图使用当前模型帧，初始仅源点且不请求底图',async()=>{
+  const {default:Schematic}=await server.ssrLoadModule('/src/components/SimulationSchematic.vue')
+  const simulation={constituent:'ammonia',chainage:[0,100,200],times:[0,1],
+    concentrations:[[2,2,2],[2,7,2]],source:{chainage_m:100,source_start_h:0},mapping:{available:false}}
+  const initial=await renderToString(createSSRApp(Schematic,{simulation,frameIndex:0}))
+  const later=await renderToString(createSSRApp(Schematic,{simulation,frameIndex:1}))
+  assert.match(initial,/未地理定位/)
+  assert.match(initial,/data-segments="0"/)
+  assert.match(initial,/假定排放点/)
+  assert.match(later,/data-segments="2"/)
+  assert.doesNotMatch(later,/leaflet|卫星图已加载/)
+})
+
 test('恢复旧检测结果时地图提示重新计算，当前结果不显示更新提示',async()=>{
   globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
   const {default:TraceMap}=await server.ssrLoadModule('/src/components/TraceMap.vue')

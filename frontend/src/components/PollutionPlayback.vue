@@ -5,6 +5,8 @@ import { useSessionStore } from '../stores/session'
 import { numberText } from '../utils/mapInteraction'
 import { playbackClock } from '../utils/playback'
 import EChart from './EChart.vue'
+import SimulationSchematic from './SimulationSchematic.vue'
+import { peakTrailFrame } from '../utils/simulationTrail'
 
 const SimulationMap=defineAsyncComponent(()=>import('./TraceMap.vue'))
 const props=defineProps({revision:{type:Object,default:null}})
@@ -16,6 +18,7 @@ const currentTime=computed(()=>result.value?.times[frame.value] ?? 0)
 const currentValues=computed(()=>result.value?.concentrations[frame.value] || [])
 const framePeak=computed(()=>currentValues.value.length ? Math.max(...currentValues.value) : null)
 const frameMinimum=computed(()=>currentValues.value.length ? Math.min(...currentValues.value) : null)
+const peakFrame=computed(()=>result.value ? peakTrailFrame(result.value) : 0)
 const clock=playbackClock(()=>{
   if (!result.value || frame.value >= result.value.times.length-1) { playing.value=false;return }
   frame.value++
@@ -85,6 +88,7 @@ const option=computed(()=>{
         <button type="button" :disabled="frame===0" @click="seek(frame-1)">上一帧</button>
         <button type="button" :disabled="frame===result.times.length-1" @click="seek(frame+1)">下一帧</button>
         <button type="button" @click="seek(0)">复位</button>
+        <button type="button" :disabled="!peakFrame" @click="seek(peakFrame)">跳到扩散峰值</button>
         <label>演示速度<select v-model.number="speed"><option :value=".5">0.5×</option><option :value="1">1×</option><option :value="2">2×</option><option :value="4">4×</option></select></label>
         <strong>T+{{numberText(currentTime)}} h</strong>
       </div>
@@ -96,8 +100,15 @@ const option=computed(()=>{
       <p class="source-info">{{result.river_name}} · 情景排放{{result.source.pollutant_type==='ammonia'?'氨氮':result.source.pollutant_type==='cbod'?'CBOD':'组分未提供'}} · 开始 T+{{numberText(result.source.source_start_h)}} h · 持续 {{numberText(result.source.duration_min)}} min · 设定负荷 {{numberText(result.source.load_kg)}} kg</p>
       <label v-if="result.mapping.available" class="show-map"><input v-model="showMap" type="checkbox" />同步显示卫星地图扩散</label>
       <SimulationMap v-if="result.mapping.available && showMap" :simulation="result" :frame-index="frame" />
+      <template v-if="!result.mapping.available">
+        <div class="mapping-note" role="status">
+          <strong>卫星地图暂未定位，下面先播放河道示意图。</strong>
+          <p>{{result.mapping.reason}}</p>
+          <RouterLink to="/river#river-alignment">配置河道参考线与方向 →</RouterLink>
+        </div>
+        <SimulationSchematic :simulation="result" :frame-index="frame" />
+      </template>
       <details class="concentration-detail"><summary>查看沿程总浓度曲线（含背景值）</summary><EChart :option="option" :height="280" /></details>
-      <p v-if="!result.mapping.available" class="mapping-note">地图暂不可用：{{result.mapping.reason}}</p>
       <p class="player-note">{{result.notice}} {{result.constituent==='cbod'?'CBOD没有直接对应的GB3838类别限值，不用COD限值替代。':''}}</p>
     </template>
   </div>
@@ -118,5 +129,6 @@ button {cursor:pointer;}button:disabled {opacity:.4;cursor:default;}
 .player-empty a {color:#54beec;}
 .player-note,.source-info,.mapping-note {color:var(--c-sub);font-size: 14px;line-height:1.7;}
 .mapping-note {color:#dfb876;}
+.mapping-note {padding:14px 16px;margin:16px 0;border:1px solid #655335;border-radius:8px;background:#2c271e;font-size:14px;}.mapping-note p {margin:7px 0;}.mapping-note a {color:#96d9e5;}
 .show-map {display:flex;align-items:center;gap:7px;margin:16px 0;color:var(--c-sub);font-size: 14px;}
 </style>

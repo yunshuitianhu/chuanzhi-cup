@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { trailProfile, trailSegments, trailColor } from '../src/utils/simulationTrail.js'
+import { trailProfile, trailSegments, trailColor, trailIntervals, peakTrailFrame } from '../src/utils/simulationTrail.js'
 
 function sample() { return {
   constituent:'ammonia',source:{source_start_h:0},times:[0,1,2,3],
@@ -50,4 +50,20 @@ test('无增量不绘色带，低/高值渐变和越界色值有限',()=>{
   assert.deepEqual(trailSegments(sim,1),[])
   assert.notEqual(trailColor(0),trailColor(1))
   assert.equal(trailColor(2),trailColor(1))
+})
+
+test('缺少地理配准仍能按模型节点播放，但不返回地图坐标',()=>{
+  const sim=sample();sim.chainage=[0,100,200,300];sim.mapping={available:false,positions:[]}
+  assert.equal(trailIntervals(sim,1).length,2)
+  assert.deepEqual(trailIntervals(sim,0),[])
+  assert.deepEqual(trailIntervals(sim,3),[])
+  assert.deepEqual(trailSegments(sim,1),[])
+  assert.equal(peakTrailFrame(sim),1)
+})
+
+test('峰值跳转只选择排放开始后可显示的帧，无增量时禁用',()=>{
+  const sim=sample();sim.source.source_start_h=1
+  assert.equal(peakTrailFrame(sim),2)
+  sim.concentrations=sim.concentrations.map(()=>[2,2,2,2])
+  assert.equal(peakTrailFrame(sim),0)
 })

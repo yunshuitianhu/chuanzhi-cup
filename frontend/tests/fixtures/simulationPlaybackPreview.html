@@ -1,0 +1,14 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>配准失败时的真实播放器回归（受控响应）</title></head>
+<body style="margin:0;background:#0c1520;color:#edf4f8;font:16px sans-serif"><div id="app"></div>
+<script type="module">
+import { createApp, h } from 'vue'
+import { createPinia } from 'pinia'
+import { createRouter, createMemoryHistory } from 'vue-router'
+import Player from '/src/components/PollutionPlayback.vue'
+import '/src/styles/main.css'
+const router=createRouter({history:createMemoryHistory(),routes:[{path:'/',component:{render:()=>null}},{path:'/river',component:{render:()=>null}}]})
+createApp({render:()=>h('main',{style:'max-width:1000px;margin:auto;padding:16px'},[
+  h('h2','配准失败场景 · 播放器显示验收（受控数据，非实测）'),h(Player),
+  h('section',{id:'river-alignment'},'河道参考线配置入口')
+])}).use(createPinia()).use(router).mount('#app')
+</script></body></html>
