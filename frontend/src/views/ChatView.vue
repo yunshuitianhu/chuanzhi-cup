@@ -22,6 +22,7 @@ import InvestigationBoard from '../components/InvestigationBoard.vue'
 import { consumeAgentStream } from '../utils/agentStream'
 import { createChatScroll } from '../utils/chatScroll'
 
+defineProps({compact:{type:Boolean,default:false}})
 const store = useSessionStore()
 const input = computed({get:()=>store.chatDraft||'',set:value=>{store.chatDraft=value}})
 const canAsk = computed(()=>store.ready && !store.loading && !store.switchingProject)
@@ -328,11 +329,11 @@ async function submit(text,auto) {
 </script>
 
 <template>
-  <Panel id="image-asset" class="chat-workspace" title="智能对话" dense>
+  <Panel id="image-asset" class="chat-workspace" :class="{'compact-chat':compact}" :title="compact?'AI 研判':'智能对话'" dense>
     <template #actions>
       <button type="button" class="info-toggle" :aria-expanded="analysisExpanded" aria-controls="chat-analysis-info" @click="toggleAnalysis">{{ analysisExpanded ? '收起分析信息' : '分析信息' }}</button>
       <button v-if="store.questionContext && ['video_frame','image_asset','text_quote'].includes(store.questionContext.kind)" type="button" class="info-toggle side-ask" :disabled="running || store.loading" @click="openSide">侧边追问</button>
-      <button class="primary" :disabled="!store.canAnalyze || !store.ready || store.loading || running" :aria-busy="running" @click="autoAnalyze">
+      <button v-if="!compact" class="primary" :disabled="!store.canAnalyze || !store.ready || store.loading || running" :aria-busy="running" @click="autoAnalyze">
         <svg aria-hidden="true" viewBox="0 0 20 20"><path d="m10 2 1.8 5.7L18 10l-6.2 2.3L10 18l-1.8-5.7L2 10l6.2-2.3Z" /></svg>
         {{ store.sideRunning ? '侧边问答进行中…' : running ? '分析中…' : '开始自动分析' }}
       </button>
@@ -394,7 +395,7 @@ async function submit(text,auto) {
       </div>
     </form>
   </Panel>
-  <Panel class="followup-workspace" title="排查与复测" subtitle="保存候选假设、核对依据和人工复测记录">
+  <Panel v-if="!compact" class="followup-workspace" title="排查与复测" subtitle="保存候选假设、核对依据和人工复测记录">
     <details ref="investigationDetails" class="investigation-details" @toggle="openInvestigation"><summary>查看或新建排查任务</summary><InvestigationBoard v-if="investigationVisited" /></details>
   </Panel>
 </template>
@@ -429,4 +430,5 @@ async function submit(text,auto) {
 @media(max-width:1023px){.chat-workspace{height:calc(100dvh - 104px)}}
 @media(max-width:600px){.chat-workspace{height:calc(100dvh - 96px)}.chat-workspace > :deep(.head),.chat-workspace > :deep(.body){padding:8px 14px}.conversation{min-height:0}.keyboard-hint{display:none}.info-toggle{padding:5px 10px}}
 @media(max-height:520px){.chat-workspace{height:calc(100dvh - 88px)}.chat-workspace > :deep(.head){padding:4px 14px}.chat-workspace > :deep(.body){padding:4px 14px;position:relative}.info-toggle{min-height:26px;padding:3px 10px}.conversation{min-height:0}.placeholder{display:none}.reading-controls{min-height:26px;padding:2px}.composer{padding:5px 8px}.composer textarea{min-height:40px;max-height:96px}.analysis-info{position:absolute;left:0;right:0;top:36px;bottom:0;max-height:none;margin:0;padding:10px 14px;background:var(--c-surface);border-top:1px solid var(--c-border);z-index:6}}
+.chat-workspace.compact-chat{height:680px;max-height:85dvh;min-height:460px}
 </style>
