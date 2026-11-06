@@ -21,6 +21,12 @@ def call(name, arguments='{}', index=0, call_id='call-test'):
     return NS(index=index, id=call_id, function=NS(name=name, arguments=arguments))
 
 
+def complete_overview_fixture(body):
+    # Shape-only fixture; all original tool/evidence assertions remain unchanged.
+    from water_quality_mcp.src.water_quality_mcp.river_answer import OVERVIEW_HEADINGS
+    return '## '+OVERVIEW_HEADINGS[0]+'\n'+body+'\n\n'+'\n\n'.join('## '+h+'\n受控测试尚不能给出该项现场结论，需补充证据。' for h in OVERVIEW_HEADINGS[1:])
+
+
 class AgentFlowTests(unittest.TestCase):
     def setUp(self):
         self.s = Session(id='flow', data_filename='controlled_仿真.xlsx', df=pd.DataFrame({
@@ -43,7 +49,7 @@ class AgentFlowTests(unittest.TestCase):
                 for name in ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary', 'generate_final_report')]
 
     def test_success_requires_stop_after_required_actual_tools(self):
-        frames = self.run_sequence(self.complete_tools()+[[chunk(text='已完成筛查，不能确认来源')]])
+        frames = self.run_sequence(self.complete_tools()+[[chunk(text=complete_overview_fixture('已完成筛查，不能确认来源'))]])
         self.assertTrue(self.s.analysis_done)
         self.assertIn('"status": "succeeded"', frames[-1])
         self.assertIsNotNone(self.s.black_spots)
@@ -108,7 +114,7 @@ class AgentFlowTests(unittest.TestCase):
         sequence = [[chunk(calls=[call(name)], finish='tool_calls')] for name in names]
         sequence += [[chunk(calls=[call('get_national_station_data', '{"province":"广东省"}')], finish='tool_calls')],
                      [chunk(calls=[call('generate_final_report')], finish='tool_calls')],
-                     [chunk(text='受控筛查完成，仍需复核')]]
+                     [chunk(text=complete_overview_fixture('受控筛查完成，仍需复核'))]]
         with patch('backend.agent.tools.get_national_station_data', return_value='{"含实时监测值":false}'):
             frames = self.run_sequence(sequence)
         steps = self.s.agent_run.snapshot()['steps']

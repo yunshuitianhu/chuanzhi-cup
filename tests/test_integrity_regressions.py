@@ -35,6 +35,12 @@ def monitoring():
                          'ammonia_nitrogen': [3.], 'dissolved_oxygen': [4.]})
 
 
+def complete_overview_fixture(body):
+    # Shape-only fixture; all original tool/evidence assertions remain unchanged.
+    from water_quality_mcp.src.water_quality_mcp.river_answer import OVERVIEW_HEADINGS
+    return '## '+OVERVIEW_HEADINGS[0]+'\n'+body+'\n\n'+'\n\n'.join('## '+h+'\n受控测试尚不能给出该项现场结论，需补充证据。' for h in OVERVIEW_HEADINGS[1:])
+
+
 class DataValidityTests(unittest.TestCase):
     def test_positive_detection_without_gps_does_not_invent_coordinates(self):
         df = monitoring()
@@ -239,7 +245,7 @@ class AgentCompletionTests(unittest.TestCase):
     def test_required_artifacts_and_steps_allow_success(self):
         sequence = [[self.tool_chunk(name, {'summary': 'ignored'} if name == 'generate_final_report' else {})]
                     for name in ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary', 'generate_final_report')]
-        sequence.append([self.text_chunk('结论')])
+        sequence.append([self.text_chunk(complete_overview_fixture('结论'))])
         with patch('backend.agent.loop.resolve_api_key', return_value='test-only'), \
                 patch('backend.agent.loop.OpenAI') as factory, \
                 patch('backend.agent.tools.generate_report', return_value='实际报告'):

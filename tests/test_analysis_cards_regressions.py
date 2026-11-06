@@ -87,6 +87,12 @@ def pick_coord_position(session, catalog):
     raise AssertionError('受控样本没有可用坐标记录')
 
 
+def complete_overview_fixture(body):
+    # Shape-only fixture; all original tool/evidence assertions remain unchanged.
+    from water_quality_mcp.src.water_quality_mcp.river_answer import OVERVIEW_HEADINGS
+    return '## '+OVERVIEW_HEADINGS[0]+'\n'+body+'\n\n'+'\n\n'.join('## '+h+'\n受控测试尚不能给出该项现场结论，需补充证据。' for h in OVERVIEW_HEADINGS[1:])
+
+
 class AnalysisCardCoreTests(unittest.TestCase):
     def setUp(self):
         self.s = sample_session()
@@ -532,7 +538,7 @@ class ReviewedIntegrationTests(unittest.TestCase):
         def response(**kwargs):
             name, args = steps.pop(0)
             if not name:
-                return [NS(choices=[NS(delta=NS(content='受控完成，非现场结论', tool_calls=None), finish_reason='stop')])]
+                return [NS(choices=[NS(delta=NS(content=complete_overview_fixture('受控完成，非现场结论'), tool_calls=None), finish_reason='stop')])]
             if args is None:
                 catalog = json.loads(kwargs['messages'][-1]['content'])['data']
                 args = {'catalog_token': 'invalid' if invalid else catalog['token'],

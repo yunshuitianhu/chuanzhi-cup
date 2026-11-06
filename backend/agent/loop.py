@@ -168,6 +168,13 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
     msgs = [] if auto else list(session.full_messages)
     system_prompt = SYSTEM_PROMPT_AUTO if auto else SYSTEM_PROMPT_CHAT
     system_prompt += '\n当前数据身份（服务器核对）：' + json.dumps(session.data_identity, ensure_ascii=False)
+    from water_quality_mcp.src.water_quality_mcp.river_answer import (
+        requires_overview, OVERVIEW_PROMPT, missing_overview_sections, missing_sections_notice)
+    overview_required = requires_overview(user_text, auto=auto, has_data=session.df is not None,
+        first_answer=not any(m.get('role')=='assistant' and m.get('evidence') for m in session.messages),
+        selected_context=bool(getattr(run,'question_context',None)))
+    if overview_required:
+        system_prompt += OVERVIEW_PROMPT
     question_context = getattr(run,'question_context',None)
     question_card = deepcopy(question_context['public']) if question_context else None
     if question_context:
@@ -459,11 +466,16 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         check()
         if not final_text.strip():
             raise RuntimeError('模型未返回有效正文，本轮不能视为成功。')
+        overview_missing = missing_overview_sections(final_text) if overview_required else []
+        if overview_missing:
+            notice = missing_sections_notice(overview_missing)
+            final_text += notice
+            yield emit('delta', {'text':notice})
         validate_citations(final_text, citation_sources)
-        status = 'partial' if run.has_unresolved_failures(ANALYSIS_CARD_TOOLS) else 'succeeded'
+        status = 'partial' if overview_missing or run.has_unresolved_failures(ANALYSIS_CARD_TOOLS) else 'succeeded'
         if auto:
             required = REQUIRED_ANALYSIS_STEPS | ({'analyze_video', 'cross_validate_video'} if session.video_frames else set())
-            complete = (bool(final_text) and run_revision == session.analysis_revision
+            complete = (bool(final_text) and not overview_missing and run_revision == session.analysis_revision
                         and session.black_spots is not None
                         and all(session.analysis_steps.get(name) == 'succeeded'
                                 for name in required)

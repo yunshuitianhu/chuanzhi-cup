@@ -5,6 +5,7 @@ from openai import OpenAI
 from .evidence import EVIDENCE_RULES, REPORT_STYLE
 from .agent_safety import context_cases, citation_catalog, validate_citations
 from .output_format import MARKDOWN_FORMAT_SKILL
+from .river_answer import OVERVIEW_PROMPT
 
 MODEL_NAME = "deepseek-flash"
 BASE_URL = "https://api.deepseek.com/v1"
@@ -130,7 +131,7 @@ def generate_report(api_key, summary, *, reference_sink=None):
         resp = client.chat.completions.create(
             model=MODEL_NAME,
             extra_body={"thinking":{"type":"disabled"}},
-            messages=[{'role': 'system', 'content': '你是水质辅助分析报告撰写助手。' + EVIDENCE_RULES + MARKDOWN_FORMAT_SKILL},
+            messages=[{'role': 'system', 'content': '你是水质辅助分析报告撰写助手。' + EVIDENCE_RULES + MARKDOWN_FORMAT_SKILL + OVERVIEW_PROMPT},
                       {"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=4000,
