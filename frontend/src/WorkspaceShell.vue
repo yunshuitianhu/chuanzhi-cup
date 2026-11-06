@@ -33,7 +33,8 @@ const routeRecovery = createRouteLoadRecovery({
 const detachRecovery = routeRecovery.attach(router)
 watch(() => [store.chatRunning, store.loading, store.switchingProject], () => routeRecovery.refreshBusy())
 onBeforeUnmount(detachRecovery)
-const navItems = routes.filter((r) => r.meta)
+const navItems = routes.filter((r) => r.meta?.mode === 'professional')
+const isSimple = computed(()=>route.meta.mode === 'simple')
 const navigationTrack = ref(null), navigationThumb = ref(null)
 let rubberNavigation
 onMounted(() => { rubberNavigation = mountRubberNavigation(navigationTrack.value, navigationThumb.value, route.path) })
@@ -98,9 +99,9 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
   <div class="shell" :class="{'has-side-questions':store.textQuestions.open}">
     <WorkspaceBackground />
     <a class="skip-link" href="#main-content">跳到主要内容</a>
-    <button v-if="narrow && mobileOpen" class="sidebar-backdrop" tabindex="-1" aria-label="关闭项目侧栏" @click="closeSidebar"></button>
+    <button v-if="!isSimple && narrow && mobileOpen" class="sidebar-backdrop" tabindex="-1" aria-label="关闭项目侧栏" @click="closeSidebar"></button>
     <!-- ─────────── 侧边栏 ─────────── -->
-    <aside v-show="sidebarOpen&&!store.textQuestions.open" id="project-sidebar" ref="sidebar" class="sidebar" :class="{drawer:narrow}" :role="narrow ? 'dialog' : undefined" :aria-modal="narrow ? 'true' : undefined" aria-label="项目与数据" @keydown="sidebarKeys">
+    <aside v-show="!isSimple && sidebarOpen&&!store.textQuestions.open" id="project-sidebar" ref="sidebar" class="sidebar" :class="{drawer:narrow}" :role="narrow ? 'dialog' : undefined" :aria-modal="narrow ? 'true' : undefined" aria-label="项目与数据" @keydown="sidebarKeys">
       <button v-if="narrow" class="drawer-close" @click="closeSidebar">关闭项目侧栏</button>
       <div class="brand"><div class="brand-symbol"><AppIcon name="river" /></div><div><div class="brand-title">水质监测与污染溯源助手</div><div class="brand-sub">河道巡检 · 证据辅助研判</div></div></div>
 
@@ -144,7 +145,8 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
 
     <!-- ─────────── 主区 ─────────── -->
     <main class="main" :inert="(narrow && mobileOpen)||quoteModal">
-      <nav class="tabs" aria-label="主要导航">
+      <header v-if="isSimple" class="simple-header"><RouterLink to="/">水质监测与污染溯源助手</RouterLink><span>{{store.projectState.current?.name || '临时会话'}} · {{store.status.rows || 0}} 条记录</span><nav aria-label="浏览模式"><strong>简易版</strong><RouterLink to="/chat">专业版</RouterLink><a href="#simple-help">帮助</a></nav></header>
+      <nav v-show="!isSimple" class="tabs" aria-label="主要导航">
         <button ref="sidebarToggle" class="sidebar-toggle" :aria-expanded="sidebarVisible" aria-controls="project-sidebar" :aria-label="sidebarVisible ? '收起项目侧栏' : '展开项目侧栏'" :title="sidebarVisible ? '收起项目侧栏' : '展开项目侧栏'" @click="toggleSidebar"><AppIcon name="panel" /><span class="toggle-label">项目与数据</span></button>
         <div ref="navigationTrack" class="tab-links rubber-segment">
         <RouterLink
@@ -163,6 +165,7 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
         </div>
         </div>
 
+        <RouterLink to="/simple" class="tab">简易版</RouterLink>
         <SideQuestions />
         <div class="tabs-right">
           <template v-if="store.status.has_data">
@@ -214,6 +217,7 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
 </template>
 
 <style scoped>
+.simple-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 5%;border-bottom:1px solid var(--c-border);background:#122330e8}.simple-header a{color:var(--c-accent);text-decoration:none}.simple-header nav{display:flex;gap:18px}.simple-header>span{font-size:13px;color:var(--c-sub)}
 .route-notice{border:1px solid var(--c-warning,#c99f54);background:var(--c-surface);border-radius:8px;padding:16px;margin-bottom:18px;overflow-wrap:anywhere}
 .route-notice p{font-size: 15px;line-height:1.7;margin:8px 0;color:var(--c-sub)}
 .route-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}

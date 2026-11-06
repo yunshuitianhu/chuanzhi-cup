@@ -59,7 +59,7 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
         headers['Content-Length'] = str(len(content))
         return Response(b'' if request.method == 'HEAD' else content, media_type=media_type, headers=headers)
 
-    for path in ('/', '/chat', '/charts', '/river', '/tech'):
+    for path in ('/', '/simple', '/chat', '/charts', '/river', '/tech'):
         web.add_api_route(path, page, methods=['GET', 'HEAD'], include_in_schema=False)
     web.add_api_route('/assets/{path:path}', asset, methods=['GET', 'HEAD'], include_in_schema=False)
     web.mount('/', api_app)
