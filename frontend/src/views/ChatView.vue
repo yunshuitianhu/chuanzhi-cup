@@ -22,7 +22,23 @@ import InvestigationBoard from '../components/InvestigationBoard.vue'
 import { consumeAgentStream } from '../utils/agentStream'
 import { createChatScroll } from '../utils/chatScroll'
 
-defineProps({compact:{type:Boolean,default:false}})
+const props=defineProps({compact:{type:Boolean,default:false}})
+const readingFullscreen=ref(false)
+const chatPanel=ref(null)
+let readingFocus=null,readingOverflow=''
+function toggleReading(event){
+  if(!readingFullscreen.value){readingFocus=event?.currentTarget;readingOverflow=document.body.style.overflow;document.body.style.overflow='hidden'}
+  else{document.body.style.overflow=readingOverflow;nextTick(()=>readingFocus?.focus())}
+  readingFullscreen.value=!readingFullscreen.value
+}
+function readingKeys(event){
+  if(!readingFullscreen.value)return
+  if(event.key==='Escape'){event.preventDefault();toggleReading();return}
+  if(event.key!=='Tab')return
+  const nodes=[...chatPanel.value.$el.querySelectorAll('button:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]')].filter(n=>n.getClientRects().length)
+  const first=nodes[0],last=nodes.at(-1)
+  if((event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last)){event.preventDefault();(event.shiftKey?last:first)?.focus()}
+}
 const store = useSessionStore()
 const input = computed({get:()=>store.chatDraft||'',set:value=>{store.chatDraft=value}})
 const canAsk = computed(()=>store.ready && !store.loading && !store.switchingProject)
@@ -122,6 +138,7 @@ async function stop() {
 }
 onMounted(()=>{
   document.addEventListener('selectionchange',selectionChanged)
+  document.addEventListener('keydown',readingKeys)
   scrollDown()
   refreshRun()
   let ticks=0
@@ -131,6 +148,8 @@ onUnmounted(()=>{
   clearInterval(timer)
   scrollController.dispose()
   document.removeEventListener('selectionchange',selectionChanged)
+  document.removeEventListener('keydown',readingKeys)
+  if(readingFullscreen.value)document.body.style.overflow=readingOverflow
 })
 
 async function scrollDown() {
@@ -329,8 +348,9 @@ async function submit(text,auto) {
 </script>
 
 <template>
-  <Panel id="image-asset" class="chat-workspace" :class="{'compact-chat':compact}" :title="compact?'AI 研判':'智能对话'" dense>
+  <Panel ref="chatPanel" id="image-asset" class="chat-workspace" :class="{'compact-chat':compact,'reading-fullscreen':readingFullscreen}" :role="readingFullscreen?'dialog':undefined" :aria-modal="readingFullscreen?'true':undefined" :aria-label="readingFullscreen?'AI 研判全屏阅读':undefined" :title="compact?'AI 研判':'智能对话'" dense>
     <template #actions>
+      <button v-if="compact" type="button" class="info-toggle" :aria-pressed="readingFullscreen" @click="toggleReading">{{readingFullscreen?'退出全屏':'全屏阅读'}}</button>
       <button type="button" class="info-toggle" :aria-expanded="analysisExpanded" aria-controls="chat-analysis-info" @click="toggleAnalysis">{{ analysisExpanded ? '收起分析信息' : '分析信息' }}</button>
       <button v-if="store.questionContext && ['video_frame','image_asset','text_quote'].includes(store.questionContext.kind)" type="button" class="info-toggle side-ask" :disabled="running || store.loading" @click="openSide">侧边追问</button>
       <button v-if="!compact" class="primary" :disabled="!store.canAnalyze || !store.ready || store.loading || running" :aria-busy="running" @click="autoAnalyze">
@@ -376,7 +396,7 @@ async function submit(text,auto) {
         </div>
         <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" :vision="m.vision" :question-context="m.question_context" :text-source="m.role==='assistant'?(m.text_source_id?{kind:'message',message_id:m.text_source_id}:m.run_id?{kind:'message',run_id:m.run_id}:null):null" @rendered="scrollDown" />
       </div>
-      <div class="reading-controls"><span>{{ scrollState.following ? '跟随最新内容' : '已暂停跟随，可继续阅读' }}</span><button v-if="!scrollState.following" type="button" class="latest" @click="latest">{{ scrollState.hasUnseen ? '有新内容 · 回到最新' : '回到最新' }} <span aria-hidden="true">↓</span></button></div>
+      <div class="reading-controls"><span>{{ compact&&!readingFullscreen ? '全文阅读 · 使用页面滚动' : scrollState.following ? '跟随最新内容' : '已暂停跟随，可继续阅读' }}</span><button v-if="!scrollState.following" type="button" class="latest" @click="latest">{{ scrollState.hasUnseen ? '有新内容 · 回到最新' : '回到最新' }} <span aria-hidden="true">↓</span></button></div>
     </div>
     <p v-if="aiNotice" class="tip warning" role="alert">{{aiNotice}} <button type="button" class="retry" @click="recheckConfig">刷新配置状态</button></p>
     <form class="composer" @submit.prevent="send">
@@ -430,5 +450,10 @@ async function submit(text,auto) {
 @media(max-width:1023px){.chat-workspace{height:calc(100dvh - 104px)}}
 @media(max-width:600px){.chat-workspace{height:calc(100dvh - 96px)}.chat-workspace > :deep(.head),.chat-workspace > :deep(.body){padding:8px 14px}.conversation{min-height:0}.keyboard-hint{display:none}.info-toggle{padding:5px 10px}}
 @media(max-height:520px){.chat-workspace{height:calc(100dvh - 88px)}.chat-workspace > :deep(.head){padding:4px 14px}.chat-workspace > :deep(.body){padding:4px 14px;position:relative}.info-toggle{min-height:26px;padding:3px 10px}.conversation{min-height:0}.placeholder{display:none}.reading-controls{min-height:26px;padding:2px}.composer{padding:5px 8px}.composer textarea{min-height:40px;max-height:96px}.analysis-info{position:absolute;left:0;right:0;top:36px;bottom:0;max-height:none;margin:0;padding:10px 14px;background:var(--c-surface);border-top:1px solid var(--c-border);z-index:6}}
-.chat-workspace.compact-chat{height:680px;max-height:85dvh;min-height:460px}
+.chat-workspace.compact-chat{height:auto;max-height:none;min-height:780px}
+.compact-chat:not(.reading-fullscreen)>:deep(.body){overflow:visible}
+.compact-chat:not(.reading-fullscreen) .conversation{min-height:420px;flex:auto}
+.compact-chat:not(.reading-fullscreen) .stream{overflow:visible;flex:auto;max-height:none}
+.chat-workspace.reading-fullscreen{position:fixed;inset:12px;z-index:3000;height:calc(100dvh - 24px);min-height:0;max-height:none;background:#12232f;box-shadow:0 0 0 100vmax #061019c9}
+@media(max-width:600px){.chat-workspace.reading-fullscreen{inset:0;height:100dvh;border-radius:0}.compact-chat .stream{padding-right:2px}}
 </style>
