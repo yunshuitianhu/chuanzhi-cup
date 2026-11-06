@@ -43,11 +43,16 @@ onBeforeUnmount(() => { disposed = true; disposeEffect() })
         <span class="title-line" aria-hidden="true"><TechTextLine text="与检测助手" /><span class="title-dot">.</span></span>
       </h1>
       <p class="welcome-description">读懂水质变化，追寻污染线索。<br>连接监测数据、可视分析与智能研判。</p>
+      <div class="welcome-entries">
       <RouterLink class="welcome-enter" to="/simple">
         <span>进入简易版</span>
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15M13 5l7 7-7 7" stroke="currentColor" stroke-width="1.5"/></svg>
       </RouterLink>
-      <RouterLink class="welcome-pro" to="/chat">进入专业版 →</RouterLink>
+      <RouterLink class="welcome-enter" to="/chat">
+        <span>进入专业版</span>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15M13 5l7 7-7 7" stroke="currentColor" stroke-width="1.5"/></svg>
+      </RouterLink>
+      </div>
       <p class="welcome-caption">从观测出发 · 以证据为依据</p>
     </section>
 
@@ -75,7 +80,8 @@ h1{font-size:clamp(42px,4.2vw,78px);line-height:1.4;font-weight:400;letter-spaci
 .title-line{display:block}
 .title-dot{color:#a6d8cf;margin-left:.04em}
 .welcome-eyebrow,.welcome-description,.welcome-enter,.welcome-caption{animation:welcome-arrive .9s ease backwards}
-.welcome-description{animation-delay:.3s}.welcome-pro{display:inline-block;margin:18px;color:#c2e5df;text-underline-offset:5px;font-size:14px}.welcome-enter{animation-delay:.45s}.welcome-caption{animation-delay:.55s}
+.welcome-description{animation-delay:.3s}.welcome-enter{animation-delay:.45s}.welcome-caption{animation-delay:.55s}
+.welcome-entries{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
 .welcome-description{font-size:14px;line-height:2.1;letter-spacing:.12em;color:#bdd0d7;margin:0 0 37px}
 .welcome-enter{display:inline-flex;align-items:center;justify-content:space-between;gap:55px;min-height:54px;padding:0 24px;background:#c2e5df;color:#18343c;border:1px solid #d4eee8;border-radius:3px;text-decoration:none;font-size:13px;letter-spacing:.15em;transition:background .25s,transform .25s,box-shadow .25s}
 .welcome-enter svg{width:22px;height:22px;transition:transform .25s}.welcome-enter:hover{background:#ddf3ee;box-shadow:0 6px 32px #bce4dc20;transform:translateY(-2px)}.welcome-enter:hover svg{transform:translateX(4px)}.welcome-enter:focus-visible{outline:2px solid #f0ffff;outline-offset:6px}
