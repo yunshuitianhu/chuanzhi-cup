@@ -25,6 +25,7 @@ import { simulationTrailLayer } from '../utils/simulationTrailLayer'
 import AskContext from './AskContext.vue'
 
 const props = defineProps({simulation:{type:Object,default:null}, frameIndex:{type:Number,default:0}, focusSampleId:{type:Number,default:null}})
+const emit = defineEmits({availability:count=>Number.isInteger(count)&&count>=0})
 
 const store = useSessionStore()
 const el = ref(null)
@@ -275,6 +276,7 @@ async function load() {
     const result = await api.traceMap()
     if (disposed || version !== loadVersion) return
     data.value = result
+    emit('availability',result.samples?.length || 0)
     render(true)
     focusEvidence()
   } catch (e) {

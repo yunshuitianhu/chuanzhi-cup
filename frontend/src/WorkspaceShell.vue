@@ -101,7 +101,7 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
     <a class="skip-link" href="#main-content">跳到主要内容</a>
     <button v-if="!isSimple && narrow && mobileOpen" class="sidebar-backdrop" tabindex="-1" aria-label="关闭项目侧栏" @click="closeSidebar"></button>
     <!-- ─────────── 侧边栏 ─────────── -->
-    <aside v-show="!isSimple && sidebarOpen&&!store.textQuestions.open" id="project-sidebar" ref="sidebar" class="sidebar" :class="{drawer:narrow}" :role="narrow ? 'dialog' : undefined" :aria-modal="narrow ? 'true' : undefined" aria-label="项目与数据" @keydown="sidebarKeys">
+    <aside v-if="!isSimple" v-show="sidebarOpen&&!store.textQuestions.open" id="project-sidebar" ref="sidebar" class="sidebar" :class="{drawer:narrow}" :role="narrow ? 'dialog' : undefined" :aria-modal="narrow ? 'true' : undefined" aria-label="项目与数据" @keydown="sidebarKeys">
       <button v-if="narrow" class="drawer-close" @click="closeSidebar">关闭项目侧栏</button>
       <div class="brand"><div class="brand-symbol"><AppIcon name="river" /></div><div><div class="brand-title">水质监测与污染溯源助手</div><div class="brand-sub">河道巡检 · 证据辅助研判</div></div></div>
 

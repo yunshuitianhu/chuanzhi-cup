@@ -251,7 +251,8 @@ export const api = {
   saveVideoFrame: (id, payload) => request(`/video/frames/${id}`, { method:'PUT', body:payload }),
   comprehensive: () => request('/analysis/comprehensive'),
 
-  timeSeries: () => request('/charts/time-series'),
+  /** @param {AbortSignal} [signal] */
+  timeSeries: (signal) => request('/charts/time-series',{signal}),
   traceMap: () => request('/charts/trace-map'),
   /** @param {Record<string,string>} params @param {AbortSignal} [signal] */
   amapStaticMap: (params, signal) => requestBlob(`/maps/amap-static?${new URLSearchParams(params)}`, { binary:true, signal }),
