@@ -393,6 +393,21 @@ test('最新一次报告失败时不沿用旧成功，紧凑摘要保持未完�
   }finally{v.close()}
 })
 
+test('卡片修正后显示提交成功并保留首次校验失败',async()=>{
+  const v=await mountAgent(makeRun({status:'succeeded',busy:false,tool_count:2,steps:[
+    {id:'c1',name:'submit_analysis_cards',operation_id:'cards',status:'failed',elapsed_s:0,
+      recovered_by:'c2',notice:'模型提交的卡片参数未能解析为 JSON 对象。'},
+    {id:'c2',name:'submit_analysis_cards',operation_id:'cards',status:'succeeded',elapsed_s:0.2,retry_of:'c1'},
+  ]}),3)
+  try{
+    assert.match(nodeText(v.root),/分析卡片修正后提交成功/)
+    assert.doesNotMatch(nodeText(v.root),/未恢复失败/)
+    await openDetails(v)
+    assert.match(nodeText(v.root),/未能解析为 JSON 对象/)
+    assert.match(nodeText(v.root),/后续卡片提交已通过校验/)
+  }finally{v.close()}
+})
+
 test('同名非报告工具没有重试关联时仍保留未恢复失败',async()=>{
   const v=await mountAgent(makeRun({
     run_id:'same-name',status:'succeeded',busy:false,turn:3,tool_count:2,

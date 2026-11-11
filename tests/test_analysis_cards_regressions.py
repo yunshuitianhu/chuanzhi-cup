@@ -528,23 +528,31 @@ class AnalysisCardWorkflowTests(AnalysisCardWorkflowFixture, unittest.TestCase):
 
 
 class ReviewedIntegrationTests(unittest.TestCase):
-    def run_script(self, invalid=False, cancel=False):
+    def run_script(self, invalid=False, cancel=False, retry=False, malformed=False):
         from types import SimpleNamespace as NS
         from backend.agent.loop import run_agent
         session = sample_session()
         steps = [('get_data_summary', {}), ('find_black_spots', {}),
             ('get_comprehensive_summary', {}), ('generate_final_report', {'summary':'受控报告'}),
-            ('get_analysis_card_catalog', {}), ('submit_analysis_cards', None), (None, None)]
+            ('get_analysis_card_catalog', {}), ('submit_analysis_cards', None)]
+        if retry:
+            steps.append(('submit_analysis_cards', None))
+        steps.append((None, None))
+        attempts = 0
         def response(**kwargs):
+            nonlocal attempts
             name, args = steps.pop(0)
             if not name:
                 return [NS(choices=[NS(delta=NS(content=complete_overview_fixture('受控完成，非现场结论'), tool_calls=None), finish_reason='stop')])]
             if args is None:
-                catalog = json.loads(kwargs['messages'][-1]['content'])['data']
-                args = {'catalog_token': 'invalid' if invalid else catalog['token'],
+                attempts += 1
+                catalog = next(json.loads(msg['content'])['data'] for msg in reversed(kwargs['messages'])
+                    if msg.get('tool_call_id') == 'get_analysis_card_catalog')
+                args = {'catalog_token': 'invalid' if invalid and attempts == 1 else catalog['token'],
                     'cards': [card_payload('ammonia_nitrogen.max')]}
+            raw_args = '{"catalog_token": "invalid",}' if malformed and name == 'submit_analysis_cards' and attempts == 1 else json.dumps(args,ensure_ascii=False)
             return [NS(choices=[NS(delta=NS(content=None,tool_calls=[NS(index=0,id=name,
-                function=NS(name=name,arguments=json.dumps(args,ensure_ascii=False)))]),finish_reason='tool_calls')])]
+                function=NS(name=name,arguments=raw_args))]),finish_reason='tool_calls')])]
         with patch('backend.agent.loop.resolve_api_key', return_value='controlled'), \
              patch('backend.agent.loop.OpenAI') as client, \
              patch('backend.agent.tools.generate_report', return_value='受控生成报告，非现场结论'):
@@ -586,6 +594,22 @@ class ReviewedIntegrationTests(unittest.TestCase):
         self.assertTrue(session.analysis_done)
         self.assertEqual(cards.public_cards(session,session.messages[-1]['evidence'])['status'],'invalid')
         self.assertIsNone(session._analysis_card_proposal)
+
+    def test_corrected_card_submission_recovers_failure_on_same_evidence(self):
+        session = self.run_script(invalid=True, retry=True)
+        first, second = [step for step in session.agent_run.steps if step['name'] == 'submit_analysis_cards']
+        self.assertEqual((first['status'], second['status']), ('failed', 'succeeded'))
+        self.assertIn('证据目录或引用未通过校验', first['notice'])
+        self.assertEqual(first['recovered_by'], second['id'])
+        self.assertFalse(session.agent_run.has_unresolved_failures())
+        self.assertEqual(cards.public_cards(session, session.messages[-1]['evidence'])['status'], 'ready')
+
+    def test_malformed_json_then_valid_proposal_is_linked_to_recovery(self):
+        session = self.run_script(malformed=True, retry=True)
+        first, second = [step for step in session.agent_run.steps if step['name'] == 'submit_analysis_cards']
+        self.assertIn('未能解析为 JSON 对象', first['notice'])
+        self.assertEqual(first['recovered_by'], second['id'])
+        self.assertFalse(session.agent_run.has_unresolved_failures())
 
     def test_stop_after_submission_never_persists_actionable_cards(self):
         session=self.run_script(cancel=True)

@@ -245,10 +245,11 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
     def perform_tool(name, args, call_id=None, internal_refresh=False):
         nonlocal tool_errors, vision_requested
         operation_key = None
-        if isinstance(args, dict):
+        if isinstance(args, dict) or name == 'submit_analysis_cards':
             try:
+                # 同一分析与结果版本的卡片提交替换整份草稿，包含参数解析失败后的修正。
                 operation_key = json.dumps({'name':name,
-                    'args':{} if name == 'generate_final_report' else args,
+                    'args':{} if name in ('generate_final_report', 'submit_analysis_cards') else args,
                     'analysis_revision':session.analysis_revision,
                     'results_revision':session.results_revision}, sort_keys=True, allow_nan=False)
             except (ValueError, TypeError):

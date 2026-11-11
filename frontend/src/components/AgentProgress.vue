@@ -142,7 +142,8 @@ const reportOutcome=computed(()=>{
   return {kind:'failed',label:'报告未生成',...base}
 })
 const showReport=computed(()=>!!props.run?.auto || !!props.run?.report_result || reportAttempts.value.length>0)
-const otherRecovered=computed(()=>recoveredFailures.value.filter(item=>item.step.name!=='generate_final_report').length)
+const cardRecovered=computed(()=>recoveredFailures.value.some(item=>item.step.name==='submit_analysis_cards'))
+const otherRecovered=computed(()=>recoveredFailures.value.filter(item=>!['generate_final_report','submit_analysis_cards'].includes(item.step.name)).length)
 const summaryParts=computed(()=>{
   if(!props.run?.run_id) return []
   const parts=[]
@@ -150,6 +151,7 @@ const summaryParts=computed(()=>{
   if(showReport.value && (finished.value || report.attempts.length)) parts.push(report.label)
   if(report.kind==='generated' && report.recovered)
     parts.push(`${report.recovered}次报告失败后重试成功`)
+  if(cardRecovered.value) parts.push('分析卡片修正后提交成功')
   if(otherRecovered.value)
     parts.push(`${otherRecovered.value}次失败已由同一请求的重试恢复`)
   if(unresolvedFailures.value.length)
@@ -165,7 +167,7 @@ const honestNotice=computed(()=>{
   if(run.status==='failed') return '本轮执行失败；已完成的步骤仍保留，失败原因见下方记录。'
   if(run.status==='partial') return '本轮部分完成；未恢复的失败或跳过项见下方记录。'
   if(run.status==='cancelled') return '本轮已停止；已完成的部分保留。'
-  if(unresolvedFailures.value.length) return `存在 ${unresolvedFailures.value.length} 次未恢复失败；仅核实到同一请求的重试成功才标记恢复。`
+  if(unresolvedFailures.value.length) return `存在 ${unresolvedFailures.value.length} 次未恢复失败，详情见下方记录。`
   if(recoveredFailures.value.length) return `曾有 ${recoveredFailures.value.length} 次失败，已核实后续重试成功；下方保留每次尝试。`
   return ''
 })
@@ -386,7 +388,7 @@ watch(()=>[steps.value.length,activeStep.value?.id,latestStep.value?.id,latestSt
             <span><span v-if='item.total>1' class='attempt'>第{{ item.attempt }}次</span> {{ toolLabel(item.step.name) }}</span>
             <span>{{ statusLabel(item.step.status) }}<template v-if='stepTime(item.step)'> · {{ stepTime(item.step) }}</template></span>
           </div>
-          <small v-if='item.recovered' class='relation'>{{ item.step.name==='generate_final_report' ? '后续报告调用已成功' : '后续同一请求重试已成功' }}</small>
+          <small v-if='item.recovered' class='relation'>{{ item.step.name==='generate_final_report' ? '后续报告调用已成功' : item.step.name==='submit_analysis_cards' ? '后续卡片提交已通过校验' : '后续同一请求重试已成功' }}</small>
           <small v-if='stepNotice(item.step)'>{{ stepNotice(item.step) }}</small>
         </li>
       </ol>

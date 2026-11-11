@@ -19,6 +19,7 @@ import json
 import logging
 import math
 
+from pydantic import ValidationError
 from river_model.tool_specs import RIVER_TOOL_SPECS
 from ..analysis_cards import Proposal, get_catalog, submit_cards
 from .. import model_state
@@ -151,7 +152,7 @@ TOOLS.extend([
     _tool('get_analysis_card_catalog', '证据收集和报告生成后获取本轮可引用目录；只读，不创建任务'),
     {'type': 'function', 'function': {
         'name': 'submit_analysis_cards',
-        'description': '按本轮目录提交至多5个待确认研判卡片；至少一个真实支持引用，不填实测、复核、责任概率或坐标；不会保存任务',
+        'description': '用合法 JSON 对象提交本轮目录令牌 catalog_token 与 cards 数组。每张卡至少一个真实支持引用；最多5张待确认卡片，不填实测、复核、责任概率或坐标；不会保存任务。',
         'parameters': Proposal.model_json_schema(),
     }},
 ])
@@ -465,7 +466,14 @@ def execute_tool(name: str, args: dict, session, api_key: str | None = None,
         except (ValueError, TypeError) as exc:
             session._analysis_card_proposal = None
             session._analysis_card_error = '研判卡片提交未通过校验，请重新生成。'
-            return json.dumps({'ok': False, 'data': None, 'error': str(exc)[:500], 'skipped': False}, ensure_ascii=False), True
+            outcome = {'ok': False, 'data': None, 'error': str(exc)[:500], 'skipped': False}
+            if name == 'submit_analysis_cards':
+                if not isinstance(args, dict):
+                    outcome['error_code'] = 'analysis_card_arguments_not_object'
+                else:
+                    outcome['error_code'] = ('analysis_card_format_invalid' if isinstance(exc, ValidationError)
+                        else 'analysis_card_evidence_invalid')
+            return json.dumps(outcome, ensure_ascii=False), True
     raw, failed = _dispatch_validated(name, args, session, api_key, amap_key)
     try:
         data = json.loads(raw)

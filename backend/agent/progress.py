@@ -18,6 +18,13 @@ def tool_notice(name, status, outcome, *, references=None):
             return '仿真数据不关联真实企业和国控站点；地名仅供地图参考。'
         return '当前输入不满足该可选步骤的条件，已跳过。'
     if status == 'failed':
+        if name == 'submit_analysis_cards' and isinstance(outcome, dict):
+            if outcome.get('error_code') == 'analysis_card_arguments_not_object':
+                return '模型提交的卡片参数未能解析为 JSON 对象，可修正后重新提交。'
+            if outcome.get('error_code') == 'analysis_card_format_invalid':
+                return '本次卡片的字段、格式或引用类型未通过校验，可修正后重新提交。'
+            if outcome.get('error_code') == 'analysis_card_evidence_invalid':
+                return '本次卡片的证据目录或引用未通过校验，需核对本轮证据后重新提交。'
         if isinstance(outcome, dict) and outcome.get('error_code') == 'report_prerequisites_missing':
             labels = {'get_data_summary':'监测摘要', 'find_black_spots':'异常点筛查',
                       'get_comprehensive_summary':'综合摘要', 'analyze_video':'视频线索分析',
@@ -26,7 +33,7 @@ def tool_notice(name, status, outcome, *, references=None):
             names = [labels[key] for key in missing if key in labels] if isinstance(missing, list) else []
             return '生成报告尚需完成：' + ('、'.join(names) if names else '本轮必要分析步骤') + '。'
         if any(key in error.lower() for key in ('chromadb', 'sentence_transformers', '依赖', '索引', '知识库')):
-            return '知识库或运行依赖不可用，请在技术展示页核对检索状态。'
+            return '知识库或运行依赖不可用，请在「工具」页核对检索状态。'
         if any(key in error.lower() for key in ('timeout', 'timed out', 'connect', '网络', '超时')):
             return '外部请求超时或连接失败，可检查网络后重试。'
         if any(key in error.lower() for key in ('quota', 'insufficient', 'balance', '额度', '余额', '429')):
