@@ -41,6 +41,10 @@ _ENGINE_LOCK = RLock()
 _ENGINES = {}
 
 
+class EmbeddingModelUnavailable(RuntimeError):
+    """本地嵌入模型无法加载，需要在检索之外准备。"""
+
+
 def configured_index_dir() -> str:
     return os.path.abspath(os.environ.get('WQ_RAG_INDEX_DIR') or DEFAULT_PERSIST_DIR)
 
@@ -64,7 +68,7 @@ class RAGEngine:
     """RAG 检索引擎（单例模式）。
 
     管理 sentence-transformers 嵌入模型和 ChromaDB 向量存储。
-    首次实例化时自动下载嵌入模型（~400MB），后续调用复用已加载的模型。
+    检索只使用本地模型，下载由显式的模型准备或索引构建触发。
     """
 
     _instance: RAGEngine | None = None
@@ -91,13 +95,23 @@ class RAGEngine:
 
     @property
     def embedding_model(self):
-        """延迟加载嵌入模型；同一实例的冷启动只执行一次。"""
+        return self.load_embedding_model()
+
+    def load_embedding_model(self, *, allow_download: bool = False):
+        """优先复用内存和本地缓存；仅在显式准备时允许联网。"""
         with self._lock:
             if self._embedding_model is None:
                 from sentence_transformers import SentenceTransformer
                 model = configured_embedding_model()
                 logger.info("加载嵌入模型: %s", model)
-                self._embedding_model = SentenceTransformer(model, trust_remote_code=False)
+                try:
+                    loaded = SentenceTransformer(model, trust_remote_code=False, local_files_only=True)
+                except OSError as exc:
+                    if not allow_download:
+                        raise EmbeddingModelUnavailable('本地嵌入模型未就绪；请先运行 '
+                            'python scripts/build_rag_index.py --prepare-model。') from exc
+                    loaded = SentenceTransformer(model, trust_remote_code=False, local_files_only=False)
+                self._embedding_model = loaded
                 logger.info("嵌入模型已加载，向量维度: %d", self._embedding_model.get_embedding_dimension())
             return self._embedding_model
 
@@ -379,6 +393,9 @@ def search_treatment_cases(
         logger.warning('RAG 可选依赖不可用，本次检索未执行')
         return json.dumps({'状态': '知识库依赖不可用，检索未执行',
             '建议': '请按项目依赖清单安装知识库依赖；当前结果不包含治理案例。'}, ensure_ascii=False)
+    except EmbeddingModelUnavailable as exc:
+        logger.warning('RAG 检索未完成：本地嵌入模型未就绪')
+        return json.dumps({'状态': '知识库检索未执行：' + str(exc)}, ensure_ascii=False)
     except Exception as exc:
         logger.warning('RAG 检索未完成: %s', type(exc).__name__, exc_info=True)
         return json.dumps({'状态': f'知识库查询失败（{type(exc).__name__}），检索未完成',

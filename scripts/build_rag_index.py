@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    from water_quality_mcp.src.water_quality_mcp.config import load_env
+
     parser = argparse.ArgumentParser(
         description="构建/重建 RAG 知识库索引 (ChromaDB + sentence-transformers)"
     )
@@ -52,7 +54,17 @@ def main():
         action="store_true",
         help="不清空已有索引，进行增量更新",
     )
+    parser.add_argument('--prepare-model', action='store_true',
+                        help='仅准备本地嵌入模型，保留现有索引')
     args = parser.parse_args()
+    load_env()
+
+    if args.prepare_model:
+        from water_quality_mcp.src.water_quality_mcp.rag_engine import get_rag_engine
+
+        get_rag_engine(args.persist_dir).load_embedding_model(allow_download=True)
+        print('[OK] 本地嵌入模型已准备，可启动服务检索。')
+        return
 
     knowledge_dir = os.path.abspath(args.knowledge_dir)
     if not os.path.isdir(knowledge_dir):

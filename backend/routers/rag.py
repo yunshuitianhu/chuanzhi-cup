@@ -68,6 +68,9 @@ def status(session: Session = Depends(get_session)) -> dict:
         state, notice = 'index_missing', '当前索引目录没有向量库；请核对配置目录或构建索引。'
     elif not chunks:
         state, notice = 'index_empty', '当前索引可读取但没有资料块，请构建知识库索引。'
+    elif last_error == 'EmbeddingModelUnavailable':
+        state, notice = 'retrieval_failed', ('本地嵌入模型未就绪，请运行 '
+            'python scripts/build_rag_index.py --prepare-model 后重试检索。')
     elif last_error:
         state, notice = 'retrieval_failed', f'索引可读，但最近检索失败（{last_error}）；请核查模型与依赖后重试。'
     elif verified:

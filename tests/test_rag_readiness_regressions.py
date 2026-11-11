@@ -55,6 +55,22 @@ class RagReadinessTests(unittest.TestCase):
                 _=engine.embedding_model
             self.assertEqual(module.SentenceTransformer.call_args.args[0],'controlled-local-model')
             self.assertFalse(module.SentenceTransformer.call_args.kwargs['trust_remote_code'])
+            self.assertTrue(module.SentenceTransformer.call_args.kwargs['local_files_only'])
+
+    def test_missing_cache_requires_explicit_model_preparation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            engine=core.RAGEngine(folder)
+            model=MagicMock()
+            module=ModuleType('sentence_transformers')
+            module.SentenceTransformer=MagicMock(side_effect=[OSError('cache miss'),OSError('cache miss'),model])
+            with patch.dict(sys.modules,{'sentence_transformers':module}):
+                with self.assertRaisesRegex(core.EmbeddingModelUnavailable,'--prepare-model'):
+                    _=engine.embedding_model
+                module.SentenceTransformer.assert_called_once()
+                self.assertIs(engine.load_embedding_model(allow_download=True),model)
+                self.assertIs(engine.embedding_model,model)
+            self.assertEqual([call.kwargs['local_files_only'] for call in module.SentenceTransformer.call_args_list],
+                             [True,True,False])
 
     def test_real_retrieve_success_and_failure_update_diagnostics(self):
         with tempfile.TemporaryDirectory() as folder:

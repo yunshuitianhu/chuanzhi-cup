@@ -245,6 +245,7 @@ class KnowledgeBaseManager:
             return 0
 
         engine = RAGEngine(self._persist_dir)
+        embedding_model = engine.load_embedding_model(allow_download=True)
 
         # 如果需要重置，删除旧集合
         if reset:
@@ -256,7 +257,6 @@ class KnowledgeBaseManager:
             engine._collection = None
 
         collection = engine.collection
-        embedding_model = engine.embedding_model
 
         total_chunks = 0
         for doc in documents:
