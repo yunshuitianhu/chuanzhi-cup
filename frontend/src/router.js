@@ -26,7 +26,7 @@ const routes = [
     path: '/tech',
     name: 'tech',
     component: () => import('./views/TechView.vue'),
-    meta: { mode:'professional', title: '技术展示', icon: '🔬' },
+    meta: { mode:'professional', title: '工具', icon: '🔬' },
   },
 ]
 
