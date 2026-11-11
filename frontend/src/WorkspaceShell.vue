@@ -206,7 +206,7 @@ const keySummary = computed(() => keyRows(store.config.keys, store.config.key_st
           <strong>出错了：</strong>{{ store.error }}
         </div>
         <TextSourceReturn />
-        <RouterView v-if="store.ready && !store.switchingProject" :key="store.workspaceRevision" />
+        <RouterView v-if="store.ready && (isSimple || !store.switchingProject)" :key="isSimple ? 'simple' : store.workspaceRevision" />
       </div>
     </main>
 

@@ -35,8 +35,9 @@ if __name__=='__main__':
   page.get_by_role('link',name='专业版',exact=True).click()
   page.get_by_role('navigation',name='主要导航').wait_for()
   assert page.locator('.tab-links>a').count()==4
+  assert page.get_by_role('navigation',name='主要导航').get_by_role('link',name='工具').get_attribute('href')=='/tech'
   page.locator('.tabs').get_by_role('link',name='简易版',exact=True).click()
-  page.get_by_role('heading',name='读懂本次检测').wait_for()
+  page.get_by_role('heading',name='从一张监测表开始').wait_for()
   assert sid==page.evaluate('localStorage.getItem("wq_session_id")')
   writes=[]
   page.on('request',lambda r:writes.append(r.url) if '/api/investigations' in r.url and r.method!='GET' else None)
@@ -49,7 +50,7 @@ if __name__=='__main__':
   for key in ('rows','analysis_revision','results_revision'):assert before[key]==after[key]
   project_before=page.request.get('http://127.0.0.1:5184/api/projects',headers={'X-Session-Id':sid}).json()['current']['id']
   page.reload()
-  page.get_by_role('heading',name='读懂本次检测').wait_for()
+  page.get_by_role('heading',name='从一张监测表开始').wait_for()
   assert sid==page.evaluate('localStorage.getItem("wq_session_id")')
   assert page.request.get('http://127.0.0.1:5184/api/projects',headers={'X-Session-Id':sid}).json()['current']['id']==project_before
   page.set_viewport_size({'width':390,'height':844});page.wait_for_timeout(200)
