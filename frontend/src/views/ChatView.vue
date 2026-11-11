@@ -75,6 +75,27 @@ function removeCollapsed(){
 }
 const scroller = ref(null)
 const clock=ref(Date.now())
+const waitingTips = [
+  '在「河道模型」里，可以填写实测河宽、水深等参数，再运行模拟。',
+  '在「分析图表」的溯源地图上，点一下采样点就能查看该处的监测读数。',
+  '选中回答中的一段文字，可以针对原文继续追问。',
+  '想下次接着分析？点左侧「保存项目」，就能从已保存的项目继续。',
+]
+const showWaitingTip = computed(() => {
+  const run = store.agentRun
+  if (props.compact || store.switchingProject || store.agentConnectionError) return false
+  if (run && (run.status !== 'running' || run.stop_requested)) return false
+  if (store.chatStreaming) return messages.value.at(-1)?.role !== 'assistant'
+  return !!run?.busy
+})
+const waitingTipStartedAt = ref(Date.now())
+watch(showWaitingTip, visible => {
+  if (visible) waitingTipStartedAt.value = Date.now()
+})
+const waitingTip = computed(() => {
+  const elapsedMs = Math.max(0, clock.value - waitingTipStartedAt.value)
+  return waitingTips[Math.floor(elapsedMs / 8000) % waitingTips.length]
+})
 const lastRequest=ref(null)
 const scrollState = ref({following:true,hasUnseen:false})
 const investigationVisited = ref(false)
@@ -396,6 +417,10 @@ async function submit(text,auto) {
         </div>
         <ChatBubble v-for="(m, i) in messages" :key="i" :role="m.role" :content="m.content" :incomplete="m.incomplete" :evidence="m.evidence" :vision="m.vision" :question-context="m.question_context" :text-source="m.role==='assistant'?(m.text_source_id?{kind:'message',message_id:m.text_source_id}:m.run_id?{kind:'message',run_id:m.run_id}:null):null" @rendered="scrollDown" />
       </div>
+      <div v-if="showWaitingTip" class="waiting-tip">
+        <span class="waiting-tip-label">使用提示</span>
+        <p>{{ waitingTip }}</p>
+      </div>
       <div class="reading-controls"><span>{{ compact&&!readingFullscreen ? '全文阅读 · 使用页面滚动' : scrollState.following ? '跟随最新内容' : '已暂停跟随，可继续阅读' }}</span><button v-if="!scrollState.following" type="button" class="latest" @click="latest">{{ scrollState.hasUnseen ? '有新内容 · 回到最新' : '回到最新' }} <span aria-hidden="true">↓</span></button></div>
     </div>
     <p v-if="aiNotice" class="tip warning" role="alert">{{aiNotice}} <button type="button" class="retry" @click="recheckConfig">刷新配置状态</button></p>
@@ -434,6 +459,9 @@ async function submit(text,auto) {
 .tip{margin:0 0 16px;padding:12px 14px;background:var(--c-surface-2);border-radius:var(--radius-sm);color:var(--c-sub);font-size: 16px}.warning{border-left:3px solid var(--sev-mild)}
 .conversation{position:relative;display:flex;flex-direction:column;flex:1;min-height:0}.stream{flex:1;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:6px 12px 20px 2px;display:flex;flex-direction:column;gap:28px;overflow-anchor:none}
 .reading-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:30px;padding:2px;color:var(--c-sub);font-size: 14px}.latest{white-space:nowrap;border:1px solid var(--c-border);border-radius:20px;background:var(--c-surface-2);color:var(--c-ink);padding:5px 12px;font-size: 14px;min-height:30px}
+.waiting-tip{display:flex;align-items:baseline;gap:12px;flex-shrink:0;margin:4px 0 8px;padding:9px 12px;border:1px solid var(--c-border);border-left:2px solid var(--c-accent);border-radius:8px;background:var(--c-surface-2);font-size:14px;line-height:1.5}
+.waiting-tip-label{flex-shrink:0;color:var(--c-accent);font-weight:600}
+.waiting-tip p{margin:0;color:var(--c-ink);min-width:0}
 .placeholder{padding:38px 12px;max-width:620px;width:100%;margin:auto;color:var(--c-sub)}.eyebrow{font-size: 14px;letter-spacing:.12em;color:var(--c-accent)}.placeholder h3{font-size: 27px;font-weight:600;color:var(--c-ink);margin:8px 0}.placeholder p{font-size: 17px;margin:0 0 24px;line-height:1.8}
 .suggestions{display:grid;gap:8px}.suggestions button{text-align:left;padding:12px 14px;border:1px solid var(--c-border);border-radius:var(--radius-sm);background:transparent;color:var(--c-ink);font-size: 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;line-height:1.6}.suggestions button:hover:not(:disabled){border-color:var(--c-accent);background:var(--c-surface-2)}.suggestions button:disabled{opacity:.45}
 .composer{margin-top:6px;border:1px solid var(--c-border);border-radius:var(--radius-md);background:var(--c-surface-2);padding:5px 10px;transition:border-color var(--duration-fast)}.composer:focus-within{border-color:var(--c-accent);box-shadow:0 0 0 2px #7cd4eb12}.composer textarea{display:block;resize:none;width:100%;min-height:52px;max-height:140px;overflow-y:auto;background:transparent;border:0;outline:0;color:var(--c-ink);padding:4px;font:inherit;font-size: 17px;line-height:1.65}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.composer-tools{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}.keyboard-hint{font-size: 14px;color:var(--c-sub)}.attach{background:transparent;color:var(--c-sub);border:1px solid var(--c-border);border-radius:6px;padding:4px 10px;font:inherit;font-size: 14px;min-height:30px}.attach:hover:not(:disabled){border-color:var(--c-accent);color:var(--c-ink)}.attach:disabled{opacity:.5}.attach-error{color:#ffb7a7;font-size: 14px;flex-basis:100%;order:3;margin:0}
