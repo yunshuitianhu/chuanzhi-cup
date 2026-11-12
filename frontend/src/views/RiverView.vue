@@ -28,6 +28,7 @@ const modelSteps = [
   { id: 'river-pollution', state: 'pollution', title: '污染情景', description: '设定排放，查看扩散过程' },
 ]
 const activeStep = computed(() => modelSteps.find(step => route.hash === `#${step.id}`))
+const recommendedStart = computed(() => store.status.has_data ? 'init' : 'hydro')
 const stepDetail = ref(null)
 const stepMenu = ref(null)
 watch(activeStep, () => (stepDetail.value || stepMenu.value)?.focus({ preventScroll: true }), { flush: 'post' })
@@ -49,6 +50,7 @@ const stepState = computed(()=>({
   hydro: busy.value==='hydro' ? 'running' : failedStep.value==='hydro' ? 'failed' : hydroResult.value ? 'done' : initResult.value ? 'ready' : 'blocked',
   pollution: busy.value==='pollution' ? 'running' : failedStep.value==='pollution' ? 'failed' : pollutionResult.value ? 'done' : hydroResult.value ? 'ready' : 'blocked',
 }))
+const parameterStepLabel = computed(() => store.status.has_data ? STEP_LABEL[stepState.value.init] : '需载入走航数据')
 
 const form = ref({
   n_cross_sections: 50,
@@ -342,25 +344,26 @@ const pollutionCompare = computed(() => {
       <div class="cv-title">模型适用范围</div>
       <p>给定河段、水流和排放条件，模拟污染物沿河移动与浓度变化。实际河流应用需要可靠参数；当前支持一维恒定流理想情景。</p>
       <p>项目自带求解器，无需安装商业水动力软件。几何、边界和反应参数仍需现场核实与率定；潮汐、支汊及二维回流暂不支持，不能据此认定污染责任。</p>
-      <div class="guide-paths">
-        <RouterLink :to="{ name: 'river', hash: '#river-hydrodynamics' }">先看理想河段演示</RouterLink>
-        <RouterLink :to="{ name: 'river', hash: '#river-parameters' }">配置自己的河段</RouterLink>
-      </div>
     </div>
 
-    <div v-if="!store.status.has_data" class="empty">未加载走航数据时可手工配置并运行情景模型；自动参数建议和轨迹动画需上传对应数据。</div>
     <p v-if="changedNotice" class="seq-hint" role="status">{{changedNotice}}</p>
 
     <nav ref="stepMenu" aria-label="河道模型步骤导航" tabindex="-1">
+      <p v-if="!activeStep" class="start-guide">
+        <template v-if="store.status.has_data"><strong>已载入走航数据，建议从 01 开始。</strong> 先核对参数建议，再到 02 配置模型。已有可靠参数时可直接进入 02。</template>
+        <template v-else><strong>未载入走航数据，直接从 02 开始。</strong> 可用初始模板试算，或手工填写河段参数。需要自动参数建议时，先载入数据再进入 01。</template>
+      </p>
       <ol class="model-guide">
         <li v-for="(step, index) in modelSteps" :key="step.id">
           <RouterLink :to="{ name: 'river', hash: `#${step.id}` }"
+            :class="{ 'recommended-start': !activeStep && recommendedStart === step.state }"
             :aria-current-value="activeStep?.id === step.id ? 'step' : 'false'">
             <span class="model-step-number" aria-hidden="true">0{{ index + 1 }}</span>
             <span class="model-step-copy">
               <strong>{{ step.title }}</strong>
               <small>{{ step.description }}</small>
-              <em class="step-status" :data-state="stepState[step.state]">{{ STEP_LABEL[stepState[step.state]] }}</em>
+              <span v-if="!activeStep && recommendedStart === step.state" class="start-label">从这里开始</span>
+              <em class="step-status" :data-state="stepState[step.state]">{{ step.state === 'init' ? parameterStepLabel : STEP_LABEL[stepState[step.state]] }}</em>
             </span>
           </RouterLink>
           <span v-if="index < modelSteps.length - 1" class="model-step-arrow" aria-hidden="true">→</span>
@@ -372,7 +375,7 @@ const pollutionCompare = computed(() => {
       <RouterLink class="mini model-back" :to="{ name: 'river' }">← 返回步骤列表</RouterLink>
       <!-- 参数自动检测 -->
       <section v-if="activeStep.state === 'init'" class="block">
-        <h3 class="st"><span class="section-number" aria-hidden="true">01</span>河道参数自动检测 <em class="step-status" :data-state="stepState.init">{{STEP_LABEL[stepState.init]}}</em></h3>
+        <h3 class="st"><span class="section-number" aria-hidden="true">01</span>河道参数自动检测 <em class="step-status" :data-state="stepState.init">{{parameterStepLabel}}</em></h3>
         <p class="desc">
           GPS 与地名识别提供位置和长度建议；缺失的水力参数以经验关系生成初始情景，需手工核实。
           参数建议不等于实测断面。缺少 GPS 时请直接手工配置；不自动套用任何特定河流的几何或流量。
@@ -545,9 +548,6 @@ const pollutionCompare = computed(() => {
 </template>
 
 <style scoped>
-.guide-paths { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-.guide-paths a { font-size: 14px; border:1px solid var(--c-border); border-radius:6px; padding:5px 9px; text-decoration:none; }
-.guide-paths a:hover { border-color:var(--c-accent); background:var(--c-surface-2); }
 .caveat {
   background: #30291c; border: 1px solid #655539; border-left: 3px solid #b99a61; border-radius: var(--radius-sm);
   padding: 14px 18px; margin-bottom: 20px; font-size: 15px; line-height: 1.8;
@@ -558,7 +558,8 @@ const pollutionCompare = computed(() => {
 .caveat code { background: #3a2a14; padding: 1px 5px; border-radius: 3px; }
 .cv-foot { opacity: .8; font-size: 14px; }
 
-.empty { padding:13px 16px; margin-bottom:16px; background:var(--c-surface-2); border-radius:var(--radius-sm); color:var(--c-sub); font-size: 15px; line-height:1.8; }
+.start-guide { padding:12px 14px; margin:0 0 12px; background:var(--c-surface-2); border-radius:var(--radius-sm); color:var(--c-sub); font-size:15px; line-height:1.7; }
+.start-guide strong { color:var(--c-ink); }
 
 .block { padding:28px 0; border-bottom:1px solid var(--c-border); scroll-margin-top:84px; }
 .block:last-child { border-bottom: none; }
@@ -610,7 +611,8 @@ const pollutionCompare = computed(() => {
 .model-guide { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; padding:0; margin:0; list-style:none; }
 .model-guide li { position:relative; min-width:0; }
 .model-guide a { display:flex; align-items:flex-start; gap:12px; height:100%; padding:14px; border:1px solid var(--c-border); border-radius:var(--radius-sm); background:var(--c-surface-2); color:var(--c-ink); text-decoration:none; }
-.model-guide a:hover, .model-guide a:focus-visible, .model-guide a[aria-current="step"] { border-color:var(--c-accent); background:var(--c-accent-soft); }
+.model-guide a:hover, .model-guide a:focus-visible, .model-guide a[aria-current="step"], .model-guide a.recommended-start { border-color:var(--c-accent); background:var(--c-accent-soft); }
+.start-label { color:var(--c-accent); font-size:13px; font-weight:600; }
 .model-step-number { color:var(--c-accent); font-size:14px; font-variant-numeric:tabular-nums; }
 .model-step-copy { display:grid; gap:4px; min-width:0; justify-items:start; }
 .model-step-copy small { font-size:14px; color:var(--c-sub); }

@@ -21,7 +21,8 @@ def main():
         b=browser.chromium.launch(); page=b.new_page(viewport={'width':1280,'height':800})
         page.goto(a.url,wait_until='domcontentloaded'); page.wait_for_selector('.model-guide',timeout=30000); page.wait_for_function("() => !document.querySelector('.connection-panel')",timeout=30000); page.wait_for_timeout(300)
         initial=measure(page)
-        initial['pass']=all(x in initial['statuses'] for x in ('可计算','未开始')) and initial['tabs']
+        initial['pass']=all(x in initial['statuses'] for x in ('需载入走航数据','未开始')) and initial['tabs']
+        initial['pass'] &= page.locator('.model-guide .recommended-start').get_attribute('href') == '/river#river-hydrodynamics'
         report['checks']['initial']=initial
         page.locator('.model-guide').get_by_role('link',name='配置与水动力').click()
         page.get_by_role('button',name='初始化模型').click()

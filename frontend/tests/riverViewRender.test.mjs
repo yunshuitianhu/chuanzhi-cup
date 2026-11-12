@@ -11,14 +11,22 @@ globalThis.localStorage = { getItem:()=>null, setItem:()=>{}, removeItem:()=>{} 
 const server=await createServer({configLoader:'runner',server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test'})
 test.after(async()=>{await server.close()})
 const { default:RiverView }=await server.ssrLoadModule('/src/views/RiverView.vue')
+const { useSessionStore }=await server.ssrLoadModule('/src/stores/session.js')
 test('河道模型默认显示流程入口，无数据也能打开对应的手工建模和污染事件控件',async()=>{
-  const app=createSSRApp(RiverView);app.use(createPinia())
+  const pinia=createPinia(),app=createSSRApp(RiverView);app.use(pinia)
   const router=createRouter({history:createMemoryHistory(),routes:[{path:'/river',name:'river',component:{render:()=>null}}]})
   await router.push('/river');app.use(router)
   const menu=await renderToString(app)
   assert.match(menu,/参数来源[\s\S]*配置与水动力[\s\S]*污染情景/)
   assert.equal((menu.match(/class="model-step-arrow"/g)||[]).length,2)
   assert.doesNotMatch(menu,/class="river-workspace"/)
+  assert.match(menu,/未载入走航数据，直接从 02 开始/)
+  assert.match(menu,/<a[^>]*href="\/river#river-hydrodynamics"[^>]*class="[^"]*recommended-start/)
+  useSessionStore(pinia).status.has_data=true
+  const loadedMenu=await renderToString(app)
+  assert.match(loadedMenu,/已载入走航数据，建议从 01 开始/)
+  assert.match(loadedMenu,/<a[^>]*href="\/river#river-parameters"[^>]*class="[^"]*recommended-start/)
+  useSessionStore(pinia).status.has_data=false
   await router.push('/river#river-hydrodynamics')
   const html=await renderToString(app)
   assert.doesNotMatch(html,/<template(?:\s|>)/i)
