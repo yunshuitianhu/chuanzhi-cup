@@ -5,20 +5,35 @@ import { createServer } from 'vite'
 import { createSSRApp } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 
 globalThis.localStorage = { getItem:()=>null, setItem:()=>{}, removeItem:()=>{} }
 const server=await createServer({configLoader:'runner',server:{middlewareMode:true,hmr:false,ws:false},optimizeDeps:{noDiscovery:true,entries:[]},appType:'custom',logLevel:'error',mode:'test'})
 test.after(async()=>{await server.close()})
 const { default:RiverView }=await server.ssrLoadModule('/src/views/RiverView.vue')
-test('无数据也显示手工建模、初始化、水动力和污染事件控件',async()=>{
+test('河道模型默认显示流程入口，无数据也能打开对应的手工建模和污染事件控件',async()=>{
   const app=createSSRApp(RiverView);app.use(createPinia())
+  const router=createRouter({history:createMemoryHistory(),routes:[{path:'/river',name:'river',component:{render:()=>null}}]})
+  await router.push('/river');app.use(router)
+  const menu=await renderToString(app)
+  assert.match(menu,/参数来源[\s\S]*配置与水动力[\s\S]*污染情景/)
+  assert.equal((menu.match(/class="model-step-arrow"/g)||[]).length,2)
+  assert.doesNotMatch(menu,/class="river-workspace"/)
+  await router.push('/river#river-hydrodynamics')
   const html=await renderToString(app)
   assert.doesNotMatch(html,/<template(?:\s|>)/i)
-  for(const label of ['河段名称','参考水面宽','初始化模型','运行水动力','模拟污染事件','排放开始 h','水质网格细分','4 倍（默认）']) {
+  for(const label of ['河段名称','参考水面宽','初始化模型','运行水动力']) {
     assert.ok(html.includes(label),`missing visible control: ${label}`)
   }
-  assert.ok((html.match(/<input\b/g)||[]).length>=20)
+  assert.ok((html.match(/<input\b/g)||[]).length>=19)
   assert.match(html,/class="river-workspace"/)
+  assert.doesNotMatch(html,/模拟污染事件|河道参数自动检测/)
+  await router.push('/river#river-pollution')
+  const pollution=await renderToString(app)
+  for(const label of ['模拟污染事件','排放开始 h','水质网格细分','4 倍（默认）']) {
+    assert.ok(pollution.includes(label),`missing visible control: ${label}`)
+  }
+  assert.doesNotMatch(pollution,/初始化模型|河段名称/)
 })
 
 test('独立网格明确区分水动力断面与细分水质节点',async()=>{

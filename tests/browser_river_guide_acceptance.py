@@ -23,6 +23,7 @@ def main():
         initial=measure(page)
         initial['pass']=all(x in initial['statuses'] for x in ('可计算','未开始')) and initial['tabs']
         report['checks']['initial']=initial
+        page.locator('.model-guide').get_by_role('link',name='配置与水动力').click()
         page.get_by_role('button',name='初始化模型').click()
         page.wait_for_selector('#river-hydrodynamics .result',timeout=30000)
         after_init=measure(page)

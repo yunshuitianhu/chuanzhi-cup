@@ -9,6 +9,7 @@
  * 参数默认取 `tidal_amplitude_m = 0`（恒定流），要跑潮汐需用户显式开启。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '../api/client'
 import { useSessionStore } from '../stores/session'
 import { toastErr, toastOk } from '../composables/useToast'
@@ -20,6 +21,16 @@ import CruiseAlignment from '../components/CruiseAlignment.vue'
 import { GEOMETRY_KEYS, POLLUTION_KEYS, restoreRiverWorkspace } from '../utils/projectRestore'
 
 const store = useSessionStore()
+const route = useRoute()
+const modelSteps = [
+  { id: 'river-parameters', state: 'init', title: '参数来源', description: '核对建议和现场依据' },
+  { id: 'river-hydrodynamics', state: 'hydro', title: '配置与水动力', description: '初始化断面，计算流场' },
+  { id: 'river-pollution', state: 'pollution', title: '污染情景', description: '设定排放，查看扩散过程' },
+]
+const activeStep = computed(() => modelSteps.find(step => route.hash === `#${step.id}`))
+const stepDetail = ref(null)
+const stepMenu = ref(null)
+watch(activeStep, () => (stepDetail.value || stepMenu.value)?.focus({ preventScroll: true }), { flush: 'post' })
 
 const params = ref(null)
 const initResult = ref(null)
@@ -331,21 +342,36 @@ const pollutionCompare = computed(() => {
       <div class="cv-title">模型适用范围</div>
       <p>给定河段、水流和排放条件，模拟污染物沿河移动与浓度变化。实际河流应用需要可靠参数；当前支持一维恒定流理想情景。</p>
       <p>项目自带求解器，无需安装商业水动力软件。几何、边界和反应参数仍需现场核实与率定；潮汐、支汊及二维回流暂不支持，不能据此认定污染责任。</p>
-      <div class="guide-paths"><a href="#river-hydrodynamics">先看理想河段演示</a><a href="#river-parameters">配置自己的河段</a></div>
+      <div class="guide-paths">
+        <RouterLink :to="{ name: 'river', hash: '#river-hydrodynamics' }">先看理想河段演示</RouterLink>
+        <RouterLink :to="{ name: 'river', hash: '#river-parameters' }">配置自己的河段</RouterLink>
+      </div>
     </div>
 
     <div v-if="!store.status.has_data" class="empty">未加载走航数据时可手工配置并运行情景模型；自动参数建议和轨迹动画需上传对应数据。</div>
     <p v-if="changedNotice" class="seq-hint" role="status">{{changedNotice}}</p>
 
-    <nav class="model-guide" aria-label="河道模型步骤导航">
-      <a href="#river-parameters"><span>01</span><div><b>参数来源</b><small>核对建议与现场依据 · {{STEP_LABEL[stepState.init]}}</small></div></a>
-      <a href="#river-hydrodynamics"><span>02</span><div><b>配置与水动力</b><small>初始化断面，计算流场 · {{STEP_LABEL[stepState.hydro]}}</small></div></a>
-      <a href="#river-pollution"><span>03</span><div><b>污染情景</b><small>设定排放，查看模拟结果 · {{STEP_LABEL[stepState.pollution]}}</small></div></a>
+    <nav ref="stepMenu" aria-label="河道模型步骤导航" tabindex="-1">
+      <ol class="model-guide">
+        <li v-for="(step, index) in modelSteps" :key="step.id">
+          <RouterLink :to="{ name: 'river', hash: `#${step.id}` }"
+            :aria-current-value="activeStep?.id === step.id ? 'step' : 'false'">
+            <span class="model-step-number" aria-hidden="true">0{{ index + 1 }}</span>
+            <span class="model-step-copy">
+              <strong>{{ step.title }}</strong>
+              <small>{{ step.description }}</small>
+              <em class="step-status" :data-state="stepState[step.state]">{{ STEP_LABEL[stepState[step.state]] }}</em>
+            </span>
+          </RouterLink>
+          <span v-if="index < modelSteps.length - 1" class="model-step-arrow" aria-hidden="true">→</span>
+        </li>
+      </ol>
     </nav>
 
-    <div class="river-workspace">
+    <div v-if="activeStep" :id="activeStep.id" ref="stepDetail" class="river-workspace" role="region" :aria-label="activeStep.title" tabindex="-1">
+      <RouterLink class="mini model-back" :to="{ name: 'river' }">← 返回步骤列表</RouterLink>
       <!-- 参数自动检测 -->
-      <section class="block" id="river-parameters">
+      <section v-if="activeStep.state === 'init'" class="block">
         <h3 class="st"><span class="section-number" aria-hidden="true">01</span>河道参数自动检测 <em class="step-status" :data-state="stepState.init">{{STEP_LABEL[stepState.init]}}</em></h3>
         <p class="desc">
           GPS 与地名识别提供位置和长度建议；缺失的水力参数以经验关系生成初始情景，需手工核实。
@@ -372,7 +398,7 @@ const pollutionCompare = computed(() => {
       </section>
 
       <!-- 模拟参数与运行 -->
-      <section class="block" id="river-hydrodynamics">
+      <section v-else-if="activeStep.state === 'hydro'" class="block">
         <h3 class="st"><span class="section-number" aria-hidden="true">02</span>运行模拟 <em class="step-status" :data-state="stepState.hydro">{{STEP_LABEL[stepState.hydro]}}</em></h3>
         <p class="desc">以下参数均可编辑。初始模板仅用于情景分析；水位与河底须使用同一高程基准。修改后重新初始化，才会进入本次计算。</p>
         <fieldset class="form-section">
@@ -450,7 +476,7 @@ const pollutionCompare = computed(() => {
       </section>
 
       <!-- 污染事件 -->
-      <section class="block" id="river-pollution">
+      <section v-else class="block">
         <h3 class="st"><span class="section-number" aria-hidden="true">03</span>污染事件模拟（ADR 模型） <em class="step-status" :data-state="stepState.pollution">{{STEP_LABEL[stepState.pollution]}}</em></h3>
         <div class="grid">
           <label>污染物
@@ -512,9 +538,9 @@ const pollutionCompare = computed(() => {
             右为「本次排放相对监测基线的增量影响」。
           </p>
         </template>
+        <CruiseAlignment :revision="pollutionResult" :model-busy="!!busy" @updated="alignmentRevision++" />
       </section>
     </div>
-    <CruiseAlignment :revision="pollutionResult" :model-busy="!!busy" @updated="alignmentRevision++" />
   </Panel>
 </template>
 
@@ -581,12 +607,17 @@ const pollutionCompare = computed(() => {
   padding: 6px 11px; background: #2a1e10; border-radius: 6px;
   border-left: 2px solid #6b4a10; display: inline-block;
 }
-.model-guide { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:6px; }
-.model-guide a { display:flex; align-items:center; gap:12px; padding:13px 14px; min-width:0; border:1px solid var(--c-border); border-radius:var(--radius-sm); color:var(--c-ink); text-decoration:none; }
-.model-guide a:hover { border-color:var(--c-accent); background:var(--c-surface-2); }
-.model-guide a>span { color:var(--c-accent); font-size: 14px; font-variant-numeric:tabular-nums; }
-.model-guide b { display:block; font-size: 14px; font-weight:600; }
-.model-guide small { display:block; margin-top:3px; font-size: 14px; color:var(--c-sub); }
+.model-guide { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; padding:0; margin:0; list-style:none; }
+.model-guide li { position:relative; min-width:0; }
+.model-guide a { display:flex; align-items:flex-start; gap:12px; height:100%; padding:14px; border:1px solid var(--c-border); border-radius:var(--radius-sm); background:var(--c-surface-2); color:var(--c-ink); text-decoration:none; }
+.model-guide a:hover, .model-guide a:focus-visible, .model-guide a[aria-current="step"] { border-color:var(--c-accent); background:var(--c-accent-soft); }
+.model-step-number { color:var(--c-accent); font-size:14px; font-variant-numeric:tabular-nums; }
+.model-step-copy { display:grid; gap:4px; min-width:0; justify-items:start; }
+.model-step-copy small { font-size:14px; color:var(--c-sub); }
+.model-step-copy .step-status { margin-left:0; }
+.model-step-arrow { position:absolute; top:50%; left:calc(100% + 7px); transform:translateY(-50%); color:var(--c-accent); font-size:18px; }
+.river-workspace { padding-top:20px; scroll-margin-top:84px; }
+.model-back { display:inline-flex; align-items:center; text-decoration:none; }
 .step-status { font-style:normal; margin-left:8px; padding:1px 6px; border:1px solid var(--c-border); border-radius:9px; font-size: 14px; color:var(--c-sub); }
 .step-status[data-state="ready"] { color:var(--c-accent); border-color:#34566a; }
 .step-status[data-state="done"] { color:#73d5be; border-color:#2d635a; }
@@ -601,6 +632,6 @@ details.hint { padding:12px 14px; background:var(--c-surface-2); border-radius:v
 details.hint summary { color:var(--c-ink); cursor:pointer; }
 details.hint[open] summary { margin-bottom:12px; }
 .playback-title { margin-top:24px; }
-@media(max-width:700px){.model-guide { grid-template-columns:1fr; gap:6px; }.model-guide a { padding:10px 12px; }.model-guide a>div { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }.model-guide small { margin-top:0; }.block { padding:24px 0; }.caveat { padding:12px 14px; }.grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }}
+@media(max-width:700px){.model-guide { grid-template-columns:1fr; gap:25px; }.model-guide a { padding:10px 12px; }.model-step-arrow { top:100%; left:50%; transform:translateX(-50%) rotate(90deg); }.block { padding:24px 0; }.caveat { padding:12px 14px; }.grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }}
 @media(max-width:390px){.grid { grid-template-columns:1fr; }.mini { min-height:40px; }.result { grid-template-columns:1fr 1fr; gap:12px; padding:12px; }.result b { font-size: 17px; }}
 </style>

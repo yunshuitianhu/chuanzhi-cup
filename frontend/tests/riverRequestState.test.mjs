@@ -3,13 +3,14 @@ import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
 import {parse,compileScript} from '@vue/compiler-sfc'
 import {createRenderer,nextTick,reactive} from 'vue'
+import {createMemoryHistory,createRouter} from 'vue-router'
 
 const file=new URL('../src/views/RiverView.vue',import.meta.url)
 const {descriptor}=parse(await readFile(file,'utf8'))
 const compiled=compileScript(descriptor,{id:'river-state-regression'})
 const fixtureURL='data:text/javascript,'+encodeURIComponent('export const api=globalThis.__riverApi;export const useSessionStore=()=>globalThis.__riverStore;export const toastErr=()=>{};export const toastOk=()=>{};export default {render:()=>null}')
 const code=compiled.content.replace(/from ['"]([^'"]+)['"]/g,(_match,source)=>{
-  const target=source==='vue'?import.meta.resolve('vue'):source==='../utils/projectRestore'
+  const target=source==='vue'||source==='vue-router'?import.meta.resolve(source):source==='../utils/projectRestore'
     ?new URL('../src/utils/projectRestore.js',import.meta.url).href:fixtureURL
   return `from ${JSON.stringify(target)}`
 })
@@ -29,7 +30,10 @@ async function mount(method,options={}){
   const uniqueCode=code.replaceAll(fixtureURL,fixtureURL+`#instance-${++instance}`)
   const {default:Component}=await import('data:text/javascript;base64,'+Buffer.from(uniqueCode).toString('base64'))
   Component.render=()=>null
-  const app=renderer.createApp(Component), vm=app.mount({children:[]})
+  const router=createRouter({history:createMemoryHistory(),routes:[{path:'/river',name:'river',component:Component}]})
+  await router.push('/river')
+  const app=renderer.createApp(Component);app.use(router)
+  const vm=app.mount({children:[]})
   await nextTick();await nextTick()
   return {state:vm.$.setupState,store:globalThis.__riverStore,resolve,reject,app,sent:()=>sent}
 }
