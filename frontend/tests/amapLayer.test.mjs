@@ -170,7 +170,7 @@ test('检测面板将非黑臭指数线索和观测跨度明确显示',async()=>
   assert.doesNotMatch(html,/时空额外发现|持续 60 min/)
 })
 
-test('技术页直接显示恢复的检测结果，包含零预警情形',async()=>{
+test('工具入口默认隐藏详情，打开筛查后显示恢复的零预警结果',async()=>{
   globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}}
   const {default:Tech}=await server.ssrLoadModule('/src/views/TechView.vue')
   const {useSessionStore}=await server.ssrLoadModule('/src/stores/session.js')
@@ -178,9 +178,14 @@ test('技术页直接显示恢复的检测结果，包含零预警情形',async(
   store.blackSpots={result:{'黑点总数':0,'提示':'恢复的零预警结果'}}
   store.status.has_detection=true;store.status.detection_outdated=true
   const app=createSSRApp(Tech);app.use(pinia)
-  const router=createRouter({history:createMemoryHistory(),routes:[{path:'/tech',component:{render:()=>null}}]})
+  const router=createRouter({history:createMemoryHistory(),routes:[{path:'/tech',name:'tech',component:{render:()=>null}}]})
   await router.push('/tech');app.use(router)
+  const list=await renderToString(app)
+  assert.equal((list.match(/href="\/tech#/g)||[]).length,7)
+  assert.doesNotMatch(list,/恢复的零预警结果|国控水质站点实时查询/)
+  await router.push('/tech#black-spot-detect')
   const html=await renderToString(app)
+  assert.doesNotMatch(html,/工具入口|国控水质站点实时查询/)
   assert.match(html,/恢复的零预警结果/)
   assert.match(html,/检测结果使用旧算法/)
 })
