@@ -175,7 +175,7 @@ async function detectParams() {
     form.value.chainage_m = form.value.length_m / 2
     toastOk(`识别到河道：${params.value.river_name}`)
   } catch (e) {
-    if (current()) paramsNotice.value = `自动参数建议未完成：${e.message}。可直接手工填写下方参数，不影响手工情景计算。`
+    if (current()) paramsNotice.value = `自动参数建议未完成：${e.message}。请进入 02 手工填写河段参数，再运行模拟。`
   } finally {
     // 旧请求不能清掉新请求的 busy；项目切换时仍要让本页退出“检测中”。
     if (ticket === paramsRequest && busy.value === 'params') busy.value = ''
@@ -380,10 +380,15 @@ const pollutionCompare = computed(() => {
           GPS 与地名识别提供位置和长度建议；缺失的水力参数以经验关系生成初始情景，需手工核实。
           参数建议不等于实测断面。缺少 GPS 时请直接手工配置；不自动套用任何特定河流的几何或流量。
         </p>
-        <button class="mini" :disabled="!!busy || store.chatRunning || !store.status.has_data" @click="detectParams">
-          {{ busy === 'params' ? '检测中…' : '重新检测' }}
-        </button>
         <p v-if="paramsNotice" class="seq-hint" role="status">{{paramsNotice}}</p>
+        <div class="btn-row parameter-actions">
+          <RouterLink class="mini primary model-link" :to="{ name: 'river', hash: '#river-hydrodynamics' }">
+            下一步：02 配置与水动力 <span aria-hidden="true">→</span>
+          </RouterLink>
+          <button class="mini" :disabled="!!busy || store.chatRunning || !store.status.has_data" @click="detectParams">
+            {{ busy === 'params' ? '检测中…' : '重新检测' }}
+          </button>
+        </div>
 
         <div v-if="params" class="params">
           <p class="param-note">百分比是参数估计参考，不是统计概率或现场率定；缺失值请手工核对。</p>
@@ -597,6 +602,8 @@ const pollutionCompare = computed(() => {
 .warn-text { color: var(--sev-mild); font-size: 14px; }
 
 .btn-row { display: flex; flex-wrap:wrap; gap: 10px; }
+.parameter-actions { margin-top:12px; }
+.model-link { display:inline-flex; align-items:center; gap:8px; text-decoration:none; }
 
 .result { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr)); gap:16px; margin-top:16px; padding:15px 16px; border:1px solid var(--c-border); border-radius:var(--radius-sm); font-size: 15px; color:var(--c-sub); }
 .result span { display:flex; flex-direction:column; gap:4px; min-width:0; }

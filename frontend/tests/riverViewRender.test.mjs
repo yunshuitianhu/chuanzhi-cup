@@ -27,6 +27,9 @@ test('河道模型默认显示流程入口，无数据也能打开对应的手�
   assert.match(loadedMenu,/已载入走航数据，建议从 01 开始/)
   assert.match(loadedMenu,/<a[^>]*href="\/river#river-parameters"[^>]*class="[^"]*recommended-start/)
   useSessionStore(pinia).status.has_data=false
+  await router.push('/river#river-parameters')
+  const parameters=await renderToString(app)
+  assert.match(parameters,/<a[^>]*href="\/river#river-hydrodynamics"[^>]*>\s*下一步：02 配置与水动力/)
   await router.push('/river#river-hydrodynamics')
   const html=await renderToString(app)
   assert.doesNotMatch(html,/<template(?:\s|>)/i)
