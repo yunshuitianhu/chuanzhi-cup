@@ -25,6 +25,15 @@ import ContextSourceFocus from '../components/ContextSourceFocus.vue'
 const store = useSessionStore()
 const running = ref(false)
 const summary = computed(() => store.blackSpots)
+const toolEntries = [
+  { id: 'station-query', title: '国控站点查询', description: '查看站点位置和公开水质监测数据' },
+  { id: 'black-spot-detect', title: '黑臭筛查', description: '筛查走航记录中的异常点和热点' },
+  { id: 'multi-source-trace', title: '多源溯源排查', description: '按位置查询周边潜在排查线索' },
+  { id: 'rag-search', title: '治理案例检索', description: '搜索治理资料并查看相关原文' },
+  { id: 'water-quality-grid', title: '水质正演模型', description: '查看水动力、扩散和网格验证结果' },
+  { id: 'single-source-validation', title: '单源反演验证', description: '查看受控算例及源头判断条件' },
+  { id: 'data-overview', title: '数据统计概览', description: '查看当前监测指标的均值和极值' },
+]
 
 async function runBlackSpots() {
   running.value = true
@@ -41,15 +50,15 @@ async function runBlackSpots() {
 
 <template>
   <ContextSourceFocus :kinds="['rag_excerpt']" />
-  <Panel title="核心技术能力展示" subtitle="独立体验分析能力，了解模型原理与验证依据">
+  <Panel title="工具" subtitle="选择一项工具，直接跳到查询、分析或模型验证。">
     <StatusBanner />
     <p v-for="message in store.resultsWarnings" :key="message" class="hint">{{ message }}</p>
 
-    <nav class="capability-index" aria-label="技术能力目录">
-      <a href="#station-query">站点查询</a><a href="#black-spot-detect">黑臭筛查</a>
-      <a href="#multi-source-trace">多源排查</a><a href="#rag-search">资料检索</a>
-      <a href="#water-quality-grid">正演模型</a><a href="#single-source-validation">反演验证</a>
-      <a href="#data-overview">数据概览</a>
+    <nav class="capability-index" aria-label="工具入口">
+      <a v-for="entry in toolEntries" :key="entry.id" class="tool-entry" :href="`#${entry.id}`">
+        <span class="tool-entry-head"><strong>{{ entry.title }}</strong><span aria-hidden="true">↓</span></span>
+        <span class="tool-entry-desc">{{ entry.description }}</span>
+      </a>
     </nav>
 
     <section class="block" id="station-query">
@@ -118,9 +127,20 @@ async function runBlackSpots() {
 </template>
 
 <style scoped>
-.capability-index { display:flex; flex-wrap:wrap; gap:8px; padding:2px 0 20px; border-bottom:1px solid var(--c-border); }
-.capability-index a { padding:7px 12px; color:var(--c-sub); border:1px solid var(--c-border); border-radius:var(--radius-sm); font-size: 14px; text-decoration:none; }
-.capability-index a:hover { color:var(--c-ink); background:var(--c-surface-2); border-color:var(--c-accent); }
+.capability-index {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, max(168px, calc((100% - 36px) / 4))), 1fr));
+  grid-auto-rows:1fr;
+  gap:12px; padding:2px 0 22px; border-bottom:1px solid var(--c-border);
+}
+.tool-entry {
+  display:flex; flex-direction:column; gap:9px; min-height:98px; padding:14px;
+  background:var(--c-surface-2); border:1px solid var(--c-border);
+  border-radius:var(--radius-sm); color:var(--c-ink); text-decoration:none;
+}
+.tool-entry:hover, .tool-entry:focus-visible { border-color:var(--c-accent); background:var(--c-accent-soft); }
+.tool-entry-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:16px; }
+.tool-entry-head > span { color:var(--c-accent); }
+.tool-entry-desc { color:var(--c-sub); font-size:14px; line-height:1.5; }
 .block { padding:28px 0; border-bottom:1px solid var(--c-border); scroll-margin-top:84px; }
 .block.last { border-bottom:none; }
 .block-head { display:flex; align-items:baseline; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; margin-bottom:14px; }
@@ -132,5 +152,5 @@ async function runBlackSpots() {
 .hint { margin:8px 0 12px; font-size: 14px; color:var(--c-sub); line-height:1.8; }
 .run { background:var(--c-accent); color:#06121c; border:none; min-height:40px; padding:9px 18px; border-radius:var(--radius-sm); font-weight:600; font-size: 15px; }
 .run:disabled { opacity:.45; cursor:not-allowed; }
-@media(max-width:600px){.block { padding:24px 0; }.block-head { gap:6px; }.bt { font-size: 17px; }.scope-tag { padding-left:25px; }.capability-index { gap:6px; padding-bottom:16px; }.capability-index a { font-size: 14px; padding:7px 10px; }}
+@media(max-width:600px){.block { padding:24px 0; }.block-head { gap:6px; }.bt { font-size: 17px; }.scope-tag { padding-left:25px; }.capability-index { grid-template-columns:repeat(auto-fill, minmax(min(100%, 130px), 1fr)); gap:8px; padding-bottom:16px; }.tool-entry { padding:11px; }.tool-entry-head { font-size:15px; }}
 </style>
