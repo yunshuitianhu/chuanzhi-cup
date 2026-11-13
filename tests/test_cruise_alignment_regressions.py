@@ -121,7 +121,7 @@ class AlignmentMathTests(unittest.TestCase):
         from unittest.mock import patch
         from river_model.parameter_estimator import RiverParameterEstimator
         with patch.object(RiverParameterEstimator,'_identify_river') as external:
-            with self.assertRaisesRegex(ValueError,'不能用累计航程推断河长'):
+            with self.assertRaisesRegex(ValueError,'无法确认沿同一河段重合'):
                 RiverParameterEstimator().estimate(self.df)
             external.assert_not_called()
 

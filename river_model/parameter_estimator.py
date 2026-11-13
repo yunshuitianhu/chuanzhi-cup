@@ -216,7 +216,7 @@ class RiverParameterEstimator:
         self._sources.update({
             "river_name": river_identity.get("name_source", "osm"),
             "location": river_identity.get("location_source", "reverse_geocode"),
-            "length_m": "gps_track_unregistered",
+            "length_m": gps_info.get('length_source', 'gps_track_unregistered'),
             "width_avg_m": width_source,
             "depth_avg_m": depth_source,
             "mannings_n": mannings_source,
@@ -297,34 +297,34 @@ class RiverParameterEstimator:
             return {}
 
         from .cruise_alignment import audit_track
+        from .track_coverage import repeated_track_length
         track = audit_track(pd.DataFrame({'latitude':lats,'longitude':lons}))
-        if track['possible_revisit']:
-            raise ValueError('当前轨迹可能包含返航、重复巡测或漂移，不能用累计航程推断河长；请核实参考线并手工配置河段')
+        revisit = track['possible_revisit']
+        if revisit and len(lats) != len(df):
+            raise ValueError('返航轨迹含缺失或无效 GPS，请核实参考线后手工填写河段长度')
 
         center_lat = float(np.mean(lats))
         center_lon = float(np.mean(lons))
 
-        # 尝试通过 geo_mapping 获取长度
-        # 直接计算 Haversine 累积距离
-        if len(lats) >= 2:
+        if revisit:
+            total_length_m = repeated_track_length(np.column_stack((lats, lons)))
+        else:
             distances = _haversine(lons[:-1], lats[:-1], lons[1:], lats[1:])
             total_length_m = float(np.sum(distances))
-        else:
-            raise ValueError('有效 GPS 点不足')
 
-        # GPS 横向展宽法估计河宽
-        # 平滑中心线 + 计算原始点到中心线的垂直距离
-        estimated_width = self._estimate_width_from_gps_spread(lats, lons, total_length_m)
-
-        # 仅使用当前会话的 DataFrame，不读取固定样本或其它会话的上传文件。
+        # 往返航迹的横向偏差不能用来推断河宽，也不生成累计航程的桩号映射。
+        estimated_width = None
         gps_mapping = None
-        try:
-            gps_mapping = build_chainage_gps_mapping(df, smoothing_sigma=3.0)
-        except (ValueError, KeyError, TypeError):
-            pass
+        if not revisit:
+            estimated_width = self._estimate_width_from_gps_spread(lats, lons, total_length_m)
+            try:
+                gps_mapping = build_chainage_gps_mapping(df, smoothing_sigma=3.0)
+            except (ValueError, KeyError, TypeError):
+                pass
 
         return {
             "total_length_m": total_length_m,
+            "length_source": 'gps_repeated_coverage' if revisit else 'gps_track_unregistered',
             "center_lat": center_lat,
             "center_lon": center_lon,
             "lat_min": float(np.min(lats)),
@@ -719,7 +719,9 @@ class RiverParameterEstimator:
 
         lat_v = pd.to_numeric(df_tmp["lat"], errors="coerce")
         lon_v = pd.to_numeric(df_tmp["lon"], errors="coerce")
-        valid = lat_v.notna() & lon_v.notna()
+        valid = lat_v.between(-85, 85) & lon_v.between(-180, 180)
+        if '__observed_coordinates' in df_tmp:
+            valid &= df_tmp['__observed_coordinates'].eq(True)
         return (lat_v[valid].to_numpy(dtype=float),
                 lon_v[valid].to_numpy(dtype=float))
 

@@ -274,6 +274,7 @@ const CONF_LABEL = {
   known_river_database: ['🟢 已知河道库', 'good'],
   gps: ['🟢 GPS 轨迹', 'good'],
   gps_track_unregistered: ['航程建议·待参考线核实', 'low'],
+  gps_repeated_coverage: ['往返去重·覆盖范围估算', 'low'],
   osm: ['🟡 OSM', 'mid'],
   regional_defaults: ['🟡 区域默认值', 'mid'],
   estimated_from_width: ['🟡 经验公式', 'mid'],
@@ -292,7 +293,7 @@ const paramRows = computed(() => {
   return [
     ['河道名称', p.river_name, 'river_name'],
     ['位置', p.location, 'location'],
-    ['河段长度', `${p.length_m} m`, 'length_m'],
+    [p.param_sources.length_m === 'gps_repeated_coverage' ? '走航覆盖长度' : '河段长度', `${p.length_m} m`, 'length_m'],
     ['平均宽度', `${p.width_avg_m} m`, 'width_avg_m'],
     ['平均水深', `${p.depth_avg_m} m`, 'depth_avg_m'],
     ['曼宁糙率', p.mannings_n, 'mannings_n'],
@@ -391,6 +392,7 @@ const pollutionCompare = computed(() => {
         </div>
 
         <div v-if="params" class="params">
+          <p v-if="params.param_sources.length_m === 'gps_repeated_coverage'" class="param-note coverage-note">往返重合路段只计一次。进入 02 前请核对建模河段的起止位置与长度。</p>
           <p class="param-note">百分比是参数估计参考，不是统计概率或现场率定；缺失值请手工核对。</p>
           <div v-for="[label, val, key] in paramRows" :key="key" class="prow">
             <span class="pk">{{ label }}</span>
@@ -634,6 +636,7 @@ const pollutionCompare = computed(() => {
 .step-status[data-state="blocked"] { color:var(--c-muted); }
 .step-status[data-state="failed"] { color:#ffb3c1; border-color:#794354; }
 .param-note { margin:0 0 8px; color:var(--c-sub); font-size: 14px; line-height:1.6; }
+.coverage-note { grid-column:1 / -1; }
 .section-number { font-size: 14px; letter-spacing:.05em; font-weight:500; color:var(--c-accent); }
 .form-section { min-width:0; margin:0 0 20px; padding:0; border:0; }
 .form-section legend { padding:0; margin-bottom:12px; font-size: 14px; font-weight:600; color:var(--c-ink); }
