@@ -631,7 +631,7 @@ def _analyze_video_frames_structured(frames):
     return result
 
 
-def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_sec=30):
+def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_sec=30, *, allow_unmatched=False):
     """视频与监测数据交叉印证。
 
     Args:
@@ -708,10 +708,10 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
             'cod': float(window['cod'].mean()) if 'cod' in window.columns else None,
             'matched_records': len(window),
         })
-    if len(matched) < 3:
+    if len(matched) < 3 and not allow_unmatched:
         return json.dumps({"error": f"时间匹配的记录不足 ({len(matched)} < 3)，请调整 time_offset_sec 或 time_window_sec"}, ensure_ascii=False)
 
-    match_df = pd.DataFrame(matched)
+    match_df = pd.DataFrame(matched) if matched else pd.DataFrame({'eligible': pd.Series(dtype=bool)})
     settings=vid_df.attrs['settings']
     usable=match_df.loc[match_df['eligible']].copy()
     alignment={'视频基准时间':str(base_time),'时间偏移秒':time_offset_sec,'匹配窗口秒':time_window_sec,
@@ -720,8 +720,12 @@ def cross_validate_video_with_monitoring(state, time_offset_sec=0, time_window_s
         '同步已人工声明':settings['sync_confirmed'] and time_offset_sec==settings['time_offset_sec'] and time_window_sec==settings['time_window_sec'],
         '同步依据':settings['sync_note']}
     if not alignment['同步已人工声明'] or len(usable)<3:
-        reason=('同步尚未由人工核实，或本次偏移/窗口与核实设置不一致。' if not alignment['同步已人工声明']
-                else '通过水面区域与画面质量检查的匹配帧不足3帧。')
+        if len(matched) < 3:
+            reason = '视频与监测表在当前时间设置下的匹配帧不足3帧，无法进行对照。'
+        elif not alignment['同步已人工声明']:
+            reason = '同步尚未由人工核实，或本次偏移/窗口与核实设置不一致。'
+        else:
+            reason = '通过水面区域与画面质量检查的匹配帧不足3帧。'
         return json.dumps({'状态':'未判定','视频质量版本':VIDEO_VERSION,'时间对齐':alignment,'视频质量':vid_df.attrs['quality'],
             '相关系数矩阵':[],'相关性限制':[reason],'相关性说明':'未满足区域、画面质量与同步条件，不计算相关或符合比例。',
             '黑臭判定一致性':{'一致率_%':None,'视频预警符合率_%':None,'传感器预警视频覆盖率_%':None,

@@ -34,7 +34,7 @@ from water_quality_mcp.src.water_quality_mcp.agent_safety import (
 
 from .tools import (
     SYSTEM_PROMPT_AUTO, SYSTEM_PROMPT_CHAT, TOOLS,
-    execute_tool, truncate, ANALYSIS_CARD_TOOLS, report_summary_needs_refresh,
+    execute_tool, truncate, ANALYSIS_CARD_TOOLS, report_prerequisites,
 )
 from .progress import AgentRun, AgentStopped, tool_notice
 from .error_text import model_error_message
@@ -52,8 +52,6 @@ MODEL_NAME = "deepseek-flash"
 BASE_URL = "https://api.deepseek.com/v1"
 MAX_TURNS = 15
 TIMEOUT = httpx.Timeout(120.0, connect=10.0)
-REQUIRED_ANALYSIS_STEPS = {'get_data_summary', 'find_black_spots',
-                           'get_comprehensive_summary', 'generate_final_report'}
 
 
 def _sse(event: str, data: dict) -> str:
@@ -242,7 +240,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
     stream = None
     pending_images = []
 
-    def perform_tool(name, args, call_id=None, internal_refresh=False):
+    def perform_tool(name, args, call_id=None, *, blocked_by=None):
         nonlocal tool_errors, vision_requested
         operation_key = None
         if isinstance(args, dict) or name == 'submit_analysis_cards':
@@ -260,14 +258,21 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
 
         check()
         tool_started_at = utc_now()
-        result, is_err = execute_tool(name, args, session, api_key, evidence_traces=evidence_traces)
+        if blocked_by:
+            result = json.dumps({'ok': True, 'skipped': True, 'data': None, 'error': None,
+                'reason': '必要分析未完成，本次没有请求生成报告。请说明实际缺失项，并使用已取得的证据回答。',
+                'missing_steps': blocked_by}, ensure_ascii=False)
+            is_err = False
+        else:
+            result, is_err = execute_tool(name, args, session, api_key, evidence_traces=evidence_traces)
         check()
         evidence_traces.append(capture_tool(name, args, result, tool_started_at))
         # 工具原文可能含请求 URL/凭据（例如网络异常文本）；进入模型上下文前统一脱敏。
         model_result = scrub(truncate(name, result))
         if name == 'search_treatment_cases':
             merge_catalog(citation_sources, result_catalog(model_result))
-        if name == 'generate_final_report' and not is_err:
+        outcome = json.loads(result)
+        if name == 'generate_final_report' and not is_err and not outcome.get('skipped'):
             # These are the actual snippets used by the report generator's
             # internal retrieval, not IDs inferred from its generated body.
             references = session.tool_evidence.get('report_treatment_cases')
@@ -277,7 +282,6 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                 evidence_traces.append(capture_tool('search_treatment_cases',
                     {'via':'generate_final_report'}, reference_result, tool_started_at))
                 merge_catalog(citation_sources, result_catalog(reference_result))
-        outcome = json.loads(result)
         loaded_here = False
         image_error = ''
         if name == 'inspect_visual_asset' and not is_err:
@@ -316,8 +320,6 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
             notice = image_error[:160]
         elif loaded_here:
             notice = '已读取图像，准备发送给模型。'
-        if internal_refresh and not is_err:
-            notice = '分析结果已更新，已重新取得综合摘要。'
         notice = scrub(notice)
         run.finish_tool(step_id,step_status,notice)
         if auto and name not in ANALYSIS_CARD_TOOLS:
@@ -425,9 +427,15 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
                     args = json.loads(call["function"]["arguments"] or "{}")
                 except json.JSONDecodeError:
                     args = None
-                if auto and name == 'generate_final_report' and report_summary_needs_refresh(session):
-                    yield from perform_tool('get_comprehensive_summary', {}, internal_refresh=True)
-                yield from perform_tool(name, args, call['id'])
+                blocked_by = None
+                if auto and name == 'generate_final_report' and isinstance(args, dict):
+                    for prerequisite in report_prerequisites(session):
+                        if prerequisite not in session.analysis_steps:
+                            yield from perform_tool(prerequisite, {})
+                        if session.analysis_steps.get(prerequisite) != 'succeeded':
+                            blocked_by = [prerequisite]
+                            break
+                yield from perform_tool(name, args, call['id'], blocked_by=blocked_by)
 
             if pending_images:
                 check()
@@ -475,7 +483,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         validate_citations(final_text, citation_sources)
         status = 'partial' if overview_missing or run.has_unresolved_failures(ANALYSIS_CARD_TOOLS) else 'succeeded'
         if auto:
-            required = REQUIRED_ANALYSIS_STEPS | ({'analyze_video', 'cross_validate_video'} if session.video_frames else set())
+            required = (*report_prerequisites(session), 'generate_final_report')
             complete = (bool(final_text) and not overview_missing and run_revision == session.analysis_revision
                         and session.black_spots is not None
                         and all(session.analysis_steps.get(name) == 'succeeded'

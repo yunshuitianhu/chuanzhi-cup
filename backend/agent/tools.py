@@ -165,16 +165,9 @@ RIVER_TOOLS = [
 
 
 def report_prerequisites(session):
-    steps = ('get_data_summary', 'find_black_spots', 'get_comprehensive_summary')
-    return steps + (('analyze_video', 'cross_validate_video') if session.video_frames else ())
-
-
-def report_summary_needs_refresh(session):
-    """Only repair a stale summary; never fabricate missing screening/video results."""
-    return (session.analysis_status == 'running' and session.df is not None
-            and session.analysis_steps.get('get_comprehensive_summary') != 'succeeded'
-            and all(session.analysis_steps.get(name) == 'succeeded'
-                    for name in report_prerequisites(session) if name != 'get_comprehensive_summary'))
+    monitoring = ('get_data_summary', 'find_black_spots')
+    video = ('analyze_video', 'cross_validate_video') if session.video_frames else ()
+    return monitoring + video + ('get_comprehensive_summary',)
 
 
 def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
@@ -231,9 +224,14 @@ def _execute_tool(name: str, args: dict, session, api_key: str | None = None,
         if name == "cross_validate_video":
             if not session.video_frames:
                 return json.dumps({"skipped": True, "reason": "未上传视频，跳过交叉印证"}, ensure_ascii=False), False
+            if not args and session.analysis_status == 'running':
+                from water_quality_mcp.src.water_quality_mcp.video_quality import settings_for
+                settings = settings_for(session.video_frames)
+                args = {key: settings[key] for key in ('time_offset_sec', 'time_window_sec')}
             ws = session.water_quality_state()
             raw = cross_validate_video_with_monitoring(
-                ws, args.get("time_offset_sec", 0), args.get("time_window_sec", 30))
+                ws, args.get("time_offset_sec", 0), args.get("time_window_sec", 30),
+                allow_unmatched=session.analysis_status == 'running')
             result = json.loads(raw) if isinstance(raw, str) else raw
             if "error" not in result:
                 session.set_cross_validation(result)
@@ -545,8 +543,9 @@ SYSTEM_PROMPT_AUTO = (
     "国控站点以本次工具返回的数据来源、含实时监测值、监测时间及查询条件为准。"
     "离线回退只说明该次查询状态，不得推断实时接口普遍不可用；技术页查询也会进入综合摘要。"
     "站点是监测背景，不能当作排污企业；当前站点数据不能冒充历史走航同日实测。\n"
-    "已上传视频时须完成 analyze_video 和 cross_validate_video，未上传则跳过；随后获取 get_comprehensive_summary，"
-    "按实际污染物检索 search_treatment_cases，最后生成 generate_final_report。\n"
+    "按实际污染物检索 search_treatment_cases，最后调用 generate_final_report。"
+    "报告调用前，服务器会补齐尚未运行的必要步骤，含已上传视频的画面检查、时序对照和最新综合摘要。"
+    "视频同步依据不足时保持未判定，不自行编造偏移或反复尝试不同窗口。\n"
     "遇到工具失败需说明缺失项，不得捏造结果或宣称所有分析成功。"
     "候选企业是排查线索，来源权重不是责任概率；视觉特征不是浊度实测值。"
     "仅当本次工具明确返回未验收潮汐结果时说明其被排除；未运行模型不属于求解失败，不能因此否定恒定流情景能力。"

@@ -19,7 +19,7 @@ from water_quality_mcp.src.water_quality_mcp.analysis import find_black_spots, b
 from water_quality_mcp.src.water_quality_mcp.state import WaterQualityState
 from river_model.state import RiverModelState, HydroResult, WQResult
 from river_model import tools as river_tools
-from backend.agent.loop import run_agent, REQUIRED_ANALYSIS_STEPS
+from backend.agent.loop import run_agent
 from backend.agent.tools import execute_tool
 
 

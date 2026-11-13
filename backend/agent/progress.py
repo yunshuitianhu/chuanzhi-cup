@@ -12,6 +12,8 @@ def tool_notice(name, status, outcome, *, references=None):
     data = outcome.get('data') if isinstance(outcome, dict) else None
     error = str(outcome.get('error') or '') if isinstance(outcome, dict) else ''
     if status == 'skipped':
+        if name == 'generate_final_report':
+            return '必要分析尚未完成，本次未请求生成报告。具体原因见前置步骤。'
         if name in ('analyze_video', 'cross_validate_video'):
             return '未上传视频，此步骤不适用；监测表分析可继续。'
         if name in ('search_nearby_pollution_sources', 'get_national_station_data'):
@@ -49,6 +51,8 @@ def tool_notice(name, status, outcome, *, references=None):
         return '该步骤未完成；已完成的结果保留，可核对输入或服务状态后重试。'
     if name == 'generate_final_report' and isinstance(references, dict) and not references.get('检索结果'):
         return '报告已生成，但本次未取得可用治理案例，不补造引用。'
+    if name == 'cross_validate_video' and isinstance(data, dict) and data.get('状态') == '未判定':
+        return '视频对照已检查，当前无法判定。报告仍可使用监测表证据。'
     if name == 'get_national_station_data' and isinstance(data, dict) and data.get('含实时监测值') is False:
         return '未取得实时监测值；当前返回站点目录或背景资料，不能作为同期水质证据。'
     return ''

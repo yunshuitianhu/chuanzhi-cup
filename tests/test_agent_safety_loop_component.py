@@ -42,10 +42,10 @@ def load_loop():
     # Keep the pure prerequisite planner real while scientific execution stays stubbed.
     tree = ast.parse((ROOT/'backend/agent/tools.py').read_text(encoding='utf-8'))
     pure = ast.Module(body=[node for node in tree.body if isinstance(node, ast.FunctionDef)
-                           and node.name in ('report_prerequisites','report_summary_needs_refresh')], type_ignores=[])
+                           and node.name == 'report_prerequisites'], type_ignores=[])
     namespace = {}
     exec(compile(pure, '<report-prerequisite-planner>', 'exec'), namespace)
-    tools.report_summary_needs_refresh = namespace['report_summary_needs_refresh']
+    tools.report_prerequisites = namespace['report_prerequisites']
     tools.execute_tool = MagicMock()
     tools.truncate = lambda name, text: compact_tool_result(text) if name=='search_treatment_cases' else text
     evidence = ModuleType(prefix+'.report_evidence')

@@ -127,19 +127,25 @@ class AgentFlowTests(unittest.TestCase):
         self.assertEqual(self.s.agent_run.snapshot()['report_result']['status'], 'succeeded')
         self.assertIn('"status": "succeeded"', frames[-1])
 
-    def test_report_repair_does_not_fabricate_missing_video_or_detection(self):
-        from backend.agent.tools import report_summary_needs_refresh
-        self.s.analysis_status='running'
-        self.s.analysis_steps={'get_data_summary':'succeeded'}
-        self.assertFalse(report_summary_needs_refresh(self.s))
-        self.s.analysis_steps['find_black_spots']='succeeded'
-        self.assertTrue(report_summary_needs_refresh(self.s))
-        self.s.video_frames=[{'time_sec':0}]
-        self.assertFalse(report_summary_needs_refresh(self.s))
-        self.s.analysis_steps.update(analyze_video='succeeded',cross_validate_video='succeeded')
-        self.assertTrue(report_summary_needs_refresh(self.s))
-        self.s.df=None
-        self.assertFalse(report_summary_needs_refresh(self.s))
+    def test_early_report_runs_uploaded_video_steps_and_refreshes_summary(self):
+        from test_video_quality_regressions import video, settings
+
+        self.s.video_frames = video()
+        self.s.video_frames[0]['video_settings'] = settings(
+            sync_confirmed=False, time_offset_sec=120)
+        sequence = self.complete_tools() + [[chunk(text=complete_overview_fixture('已完成监测筛查'))]]
+        frames = self.run_sequence(sequence)
+        steps = self.s.agent_run.snapshot()['steps']
+        self.assertEqual([s['name'] for s in steps][-4:], [
+            'analyze_video', 'cross_validate_video', 'get_comprehensive_summary', 'generate_final_report'])
+        self.assertEqual(self.s.agent_run.snapshot()['report_result']['attempts'], 1)
+        self.assertTrue(all(step['status'] == 'succeeded' for step in steps))
+        video_result = self.s.cross_validation
+        self.assertEqual(video_result['状态'], '未判定')
+        self.assertEqual(video_result['时间对齐']['时间偏移秒'], 120)
+        self.assertEqual(video_result['时间对齐']['匹配成功帧数'], 0)
+        self.assertEqual(video_result['相关系数矩阵'], [])
+        self.assertIn('"status": "succeeded"', frames[-1])
 
     def test_different_successful_query_cannot_complete_an_unresolved_query(self):
         self.s.data_filename='controlled.xlsx'
@@ -172,7 +178,7 @@ class AgentFlowTests(unittest.TestCase):
              patch('backend.agent.tools.build_comprehensive_summary',side_effect=summary):
             frames=self.run_sequence(sequence+[[chunk(text='摘要未完成，报告未生成')]])
         self.assertFalse(self.s.analysis_done)
-        self.assertEqual(self.s.agent_run.snapshot()['report_result']['status'],'failed')
+        self.assertEqual(self.s.agent_run.snapshot()['report_result']['status'],'skipped')
         self.assertIn('"status": "partial"',frames[-1])
 
     def test_generated_report_is_not_cut_at_generic_tool_limit(self):
