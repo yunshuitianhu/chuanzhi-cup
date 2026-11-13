@@ -277,6 +277,7 @@ const CONF_LABEL = {
   gps_repeated_coverage: ['往返去重·覆盖范围估算', 'low'],
   osm: ['🟡 OSM', 'mid'],
   regional_defaults: ['🟡 区域默认值', 'mid'],
+  type_default: ['河道类型默认值', 'mid'],
   estimated_from_width: ['🟡 经验公式', 'mid'],
   estimated: ['🟠 经验估算', 'low'],
   amap_address: ['🟠 高德地址', 'low'],
@@ -391,19 +392,21 @@ const pollutionCompare = computed(() => {
           </button>
         </div>
 
-        <div v-if="params" class="params">
-          <p v-if="params.param_sources.length_m === 'gps_repeated_coverage'" class="param-note coverage-note">往返重合路段只计一次。进入 02 前请核对建模河段的起止位置与长度。</p>
+        <div v-if="params" class="parameter-summary">
+          <p v-if="params.param_sources.length_m === 'gps_repeated_coverage'" class="param-note">往返重合路段只计一次。进入 02 前请核对建模河段的起止位置与长度。</p>
           <p class="param-note">百分比是参数估计参考，不是统计概率或现场率定；缺失值请手工核对。</p>
-          <div v-for="[label, val, key] in paramRows" :key="key" class="prow">
-            <span class="pk">{{ label }}</span>
-            <span class="pv">{{ val }}</span>
-            <span class="ps" :class="(CONF_LABEL[params.param_sources[key]] || ['',''])[1]">
-              {{ (CONF_LABEL[params.param_sources[key]] || [params.param_sources[key] || '—'])[0] }}
-              <i v-if="params.param_confidence[key] != null">
-                {{ (params.param_confidence[key] * 100).toFixed(0) }}%
-              </i>
-            </span>
-          </div>
+          <dl class="params">
+            <div v-for="[label, val, key] in paramRows" :key="key" class="prow">
+              <dt class="pk">{{ label }}</dt>
+              <dd class="pv" :class="{ 'numeric-value': key !== 'river_name' && key !== 'location' }">{{ val }}</dd>
+              <dd class="ps" :class="(CONF_LABEL[params.param_sources[key]] || ['',''])[1]">
+                {{ (CONF_LABEL[params.param_sources[key]] || [params.param_sources[key] || '—'])[0] }}
+                <i v-if="params.param_confidence[key] != null">
+                  {{ (params.param_confidence[key] * 100).toFixed(0) }}%
+                </i>
+              </dd>
+            </div>
+          </dl>
         </div>
       </section>
 
@@ -581,14 +584,17 @@ const pollutionCompare = computed(() => {
 .mini:disabled { opacity: .45; cursor: not-allowed; }
 .mini.primary { background: var(--c-accent); color: #06121c; border-color: var(--c-accent); font-weight: 600; }
 
-.params { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%,280px), 1fr)); gap: 6px; }
+.parameter-summary { margin-top:16px; }
+.params { margin:12px 0 0; display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap:10px; }
 .prow {
-  display:flex; align-items:baseline; flex-wrap:wrap; gap:5px 8px; font-size: 15px;
-  background: var(--c-surface-2); border-radius: 6px; padding: 7px 11px;
+  display:grid; grid-template-rows:auto 1fr auto; align-items:start; gap:4px;
+  background:var(--c-surface-2); border:1px solid var(--c-border-soft);
+  border-radius:var(--radius-sm); padding:10px 12px; min-width:0;
 }
-.pk { color: var(--c-sub); min-width: 74px; }
-.pv { flex:1; min-width:0; font-weight:600; overflow-wrap:anywhere; }
-.ps { font-size: 14px; color: var(--c-sub); }
+.pk { color:var(--c-sub); font-size:14px; }
+.pv { margin:0; color:var(--c-ink); font-size:18px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
+.numeric-value { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.ps { margin:0; font-size:13px; color:var(--c-sub); overflow-wrap:anywhere; }
 .ps i { opacity: .75; font-style: normal; margin-left: 3px; }
 .ps.good { color: var(--c-accent-2); }
 .ps.mid { color: var(--sev-mild); }
@@ -636,7 +642,6 @@ const pollutionCompare = computed(() => {
 .step-status[data-state="blocked"] { color:var(--c-muted); }
 .step-status[data-state="failed"] { color:#ffb3c1; border-color:#794354; }
 .param-note { margin:0 0 8px; color:var(--c-sub); font-size: 14px; line-height:1.6; }
-.coverage-note { grid-column:1 / -1; }
 .section-number { font-size: 14px; letter-spacing:.05em; font-weight:500; color:var(--c-accent); }
 .form-section { min-width:0; margin:0 0 20px; padding:0; border:0; }
 .form-section legend { padding:0; margin-bottom:12px; font-size: 14px; font-weight:600; color:var(--c-ink); }
