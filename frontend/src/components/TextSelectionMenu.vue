@@ -20,7 +20,10 @@ function changed(){cancelAnimationFrame(raf);raf=requestAnimationFrame(inspect)}
 async function use(target){
   if(!selected.value||error.value)return
   store.captureTextQuote(selected.value,target);hide()
-  if(target==='main')await router.push('/chat')
+  if(target==='main'){
+    if(route.name==='simple') store.simpleChatRequest++
+    else await router.push('/chat')
+  }
 }
 function key(event){
   if(event.key==='Escape'){hide();return}

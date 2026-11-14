@@ -20,6 +20,7 @@ export const useSessionStore = defineStore('session', {
     chatMessages: [],
     sideRunning:false,textQuestions:textQuestionState(),
     chatDraft:'',questionContext:null,questionContextNotice:'',questionContextRequest:0,
+    simpleChatRequest: 0,
     chatRunning: false,
     chatStreaming: false,
     agentRun: null,

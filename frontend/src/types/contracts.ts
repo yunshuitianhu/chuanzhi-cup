@@ -247,6 +247,7 @@ export interface SessionState {
   chatMessages: ChatMessage[]; chatRunning: boolean; chatStreaming: boolean
   sideRunning:boolean; textQuestions:TextQuestionState
   chatDraft:string; questionContext:QuestionContext|null; questionContextNotice:string; questionContextRequest:number
+  simpleChatRequest: number
   agentRun: AgentRun | null; agentRunAt: number; agentRunRequest: number; agentActiveId: string | null
   agentConnectionError: string; workspaceRevision: number; switchingProject: boolean
   projectState: ProjectState; riverForm: Partial<RiverForm> | null

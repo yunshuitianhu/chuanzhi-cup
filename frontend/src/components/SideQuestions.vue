@@ -1,6 +1,6 @@
 <script setup>
 import {computed,ref,watch,onMounted,onBeforeUnmount,nextTick} from 'vue'
-import {useRouter} from 'vue-router'
+import {useRoute,useRouter} from 'vue-router'
 import {useSessionStore} from '../stores/session'
 import {api,sseHeaders,adoptSessionFrom} from '../api/client'
 import {consumeAgentStream} from '../utils/agentStream'
@@ -8,7 +8,7 @@ import {quoteKey} from '../utils/textQuestions'
 import SafeMarkdown from './SafeMarkdown.vue'
 import TextQuoteCard from './TextQuoteCard.vue'
 import QuestionContextCard from './QuestionContextCard.vue'
-const store=useSessionStore(),router=useRouter(),panel=ref(null),scroller=ref(null)
+const store=useSessionStore(),router=useRouter(),route=useRoute(),panel=ref(null),scroller=ref(null)
 const q=computed(()=>store.textQuestions)
 const canAttachSide=computed(()=>store.ready&&!store.loading&&!store.chatRunning&&!store.switchingProject&&!sending.value)
 const active=computed(()=>q.value.threads.find(t=>t.id===q.value.active))
@@ -48,7 +48,9 @@ async function transfer(){
     }else{
       await store.transferQuoteToMain(quote)
     }
-    q.value.open=false;await router.push('/chat')
+    q.value.open=false
+    if(route.name==='simple') store.simpleChatRequest++
+    else await router.push('/chat')
   }catch(e){q.value.error=e.message}
 }
 function pickSideImage(){

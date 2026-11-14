@@ -15,7 +15,7 @@ async function compile(file,id,dependency){
 const markdownURL=await compile('../src/components/SafeMarkdown.vue','side-render-markdown',
   ()=>new URL('../src/utils/reportMarkdown.js',import.meta.url).href)
 const fixture='data:text/javascript,'+encodeURIComponent(`
-export const useRouter=()=>({push:async()=>{}});
+export const useRoute=()=>({name:"chat"});export const useRouter=()=>({push:async()=>{}});
 export const useSessionStore=()=>globalThis.__sideRenderStore;
 export const api={};export const sseHeaders=()=>({});export const adoptSessionFrom=()=>{};
 export const consumeAgentStream=async()=>{};export default {render:()=>null};`)

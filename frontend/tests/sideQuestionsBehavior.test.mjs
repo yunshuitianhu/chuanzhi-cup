@@ -25,7 +25,7 @@ async function mount(){
   globalThis.fetch=async()=>({ok:true,body:{},headers:{get:()=> 'run'}})
   const service={store,api:{},consume:async(_body,callback)=>{callback('delta',{thread_id:a,text:'A的回答'});callback('done',{thread_id:a,status:'succeeded'})}}
   globalThis.__sideReview=service
-  const fixture='data:text/javascript,'+encodeURIComponent('export const useRouter=()=>({push:async()=>{}});export const useSessionStore=()=>globalThis.__sideReview.store;export const api=globalThis.__sideReview.api;export const sseHeaders=()=>({});export const adoptSessionFrom=()=>{};export const consumeAgentStream=(...args)=>globalThis.__sideReview.consume(...args);export default {render:()=>null}')+'#'+(++serial)
+  const fixture='data:text/javascript,'+encodeURIComponent('export const useRoute=()=>({name:"chat"});export const useRouter=()=>({push:async()=>{}});export const useSessionStore=()=>globalThis.__sideReview.store;export const api=globalThis.__sideReview.api;export const sseHeaders=()=>({});export const adoptSessionFrom=()=>{};export const consumeAgentStream=(...args)=>globalThis.__sideReview.consume(...args);export default {render:()=>null}')+'#'+(++serial)
   const code=compiled.replace(/from ['"]([^'"]+)['"]/g,(_m,dep)=>'from '+JSON.stringify(dep==='vue'?vueURL:dep==='../utils/textQuestions'?new URL('../src/utils/textQuestions.js',import.meta.url).href:fixture))
   const {default:Component}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))
   Component.render=()=>null;const app=renderer.createApp(Component),vm=app.mount({children:[]});await settle()

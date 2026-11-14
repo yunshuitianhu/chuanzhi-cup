@@ -21,7 +21,7 @@ const report=(offset=0)=>({revision:'r'.repeat(64),settings:structuredClone(sett
 let serial=0
 async function mount(name,initialProps={},query={}){
  const pushes=[],clears=[],requests=[],focuses=[],scrolls=[],frames=[]
- const props=reactive(initialProps),route=reactive({query}),store=reactive({ready:true,loading:false,chatRunning:false,switchingProject:false,workspaceRevision:1,
+ const props=reactive(initialProps),route=reactive({query,name:'charts'}),store=reactive({ready:true,loading:false,chatRunning:false,switchingProject:false,workspaceRevision:1,simpleChatRequest:0,
   projectState:{current:{id:'a'}},status:{has_data:true,analysis_revision:1,results_revision:1,rows:1805,video_frames:40,video_filename:'controlled'},config:{target_water_class:'V',keys:{}},
   async prepareQuestionContext(selector){requests.push(selector);return card()},
   clearQuestionContextById(value){clears.push(value)},refreshStatus:async()=>{},async _run(fn){store.loading=true;try{return await fn()}finally{store.loading=false}}})
@@ -51,6 +51,16 @@ async function mount(name,initialProps={},query={}){
 test('采样点入口只传选择标识，准备完成后导航，不直接发模型请求',async()=>{
  const v=await mount('AskContext',{selector:{kind:'sample',sample_id:7}})
  try{await v.state.ask();assert.deepEqual(v.requests,[{kind:'sample',sample_id:7}]);assert.deepEqual(v.pushes,['/chat'])}finally{v.close()}
+})
+test('简易版采样点准备成功后在同一页打开 AI 研判',async()=>{
+ const v=await mount('AskContext',{selector:{kind:'sample',sample_id:7}})
+ try{
+  v.route.name='simple'
+  await v.state.ask()
+  assert.deepEqual(v.requests,[{kind:'sample',sample_id:7}])
+  assert.deepEqual(v.pushes,[])
+  assert.equal(v.store.simpleChatRequest,1)
+ }finally{v.close()}
 })
 test('准备期间切换项目，不采用迟到结果或导航',async()=>{
  const v=await mount('AskContext',{selector:{kind:'sample',sample_id:7}})

@@ -1,9 +1,9 @@
 <script setup>
 import {computed,onBeforeUnmount,ref,watch} from 'vue'
-import {useRouter} from 'vue-router'
+import {useRoute,useRouter} from 'vue-router'
 import {useSessionStore} from '../stores/session'
 const props=defineProps({selector:{type:Object,default:null},disabled:Boolean,label:{type:String,default:'让AI分析此处'}})
-const router=useRouter(),store=useSessionStore()
+const router=useRouter(),route=useRoute(),store=useSessionStore()
 const busy=ref(false),error=ref('')
 let ticket=0,disposed=false
 const locked=computed(()=>props.disabled||busy.value||!props.selector||!store.ready||store.loading||store.chatRunning||store.switchingProject)
@@ -22,7 +22,8 @@ async function ask(){
       store.clearQuestionContextById?.(card.id)
       error.value='当前选择已经变化，请重新选择后提问。';return
     }
-    await router.push('/chat')
+    if(route.name==='simple') store.simpleChatRequest++
+    else await router.push('/chat')
   }catch(e){if(request===ticket&&current())error.value=e.message}
   finally{if(request===ticket)busy.value=false}
 }
