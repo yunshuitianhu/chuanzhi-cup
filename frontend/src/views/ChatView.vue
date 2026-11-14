@@ -139,11 +139,15 @@ watch(() => [store.selectedInvestigationId,store.investigationRevision], async (
   await nextTick()
   if (current()) document.getElementById('investigation-board')?.scrollIntoView({block:'start'})
 })
-const suggestedQuestions = [
+const suggestedQuestions = computed(() => props.compact ? [
+  '这段河道的污染情况怎么样？',
+  '这段河道的污染最可能来自哪里？',
+  '这段河道后续怎么治理？',
+] : [
   '这批监测数据有哪些缺测或异常需要复核？',
   '请解释黑臭筛查的判定依据和适用限制。',
   '请根据现有证据建议下一步复测指标。',
-]
+])
 let timer, polling=false
 const elapsed=computed(()=>Math.max(0,(store.agentRun?.elapsed_s||0)+
   (store.agentRun?.busy ? (clock.value-store.agentRunAt)/1000 : 0)))
