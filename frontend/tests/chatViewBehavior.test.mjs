@@ -35,6 +35,7 @@ async function mount() {
     beginAgentStream(){if(store.chatRunning||store.loading||!store.ready)return false;store.chatRunning=true;return true},
     adoptAgentRun(){},
     clearQuestionContext(notice=''){store.questionContext=null;store.questionContextNotice=notice},
+    clearQuestionContextById(id){if(store.questionContext?.id===id)store.clearQuestionContext()},
     attachMedia:async file=>{store.attached=file;return {id:'attached'}},
   })
   const saved={window:globalThis.window,document:globalThis.document,fetch:globalThis.fetch,
@@ -45,13 +46,14 @@ async function mount() {
     getElementById:id=>({scrollIntoView:options=>scrolls.push({id,options})})}
   globalThis.requestAnimationFrame=fn=>{frames.set(++frameId,fn);return frameId}
   globalThis.cancelAnimationFrame=id=>frames.delete(id)
-  globalThis.fetch=async(_url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,body:{},headers:{get:()=> 'run-test'}}}
+  globalThis.fetch=async(_url,options)=>{calls.push(JSON.parse(options.body));return {ok:true,
+    body:[['delta',{text:'测试回答'}],['done',{status:'succeeded'}]],headers:{get:()=> 'run-test'}}}
   globalThis.__q17ChatStore=store
   const fixture='data:text/javascript,'+encodeURIComponent(
     "import {toRefs} from "+JSON.stringify(vueURL)+";export const storeToRefs=toRefs;"+
     "export const useSessionStore=()=>globalThis.__q17ChatStore;"+
     "export const sseHeaders=()=>({});export const adoptSessionFrom=()=>{};"+
-    "export const toastErr=()=>{};export const consumeAgentStream=async()=>{};"+
+    "export const toastErr=()=>{};export const consumeAgentStream=async(events,onEvent)=>{for(const event of events)await onEvent(...event)};"+
     "export default {render:()=>null}")
   const code=compiled.replace(/from ['"]([^'"]+)['"]/g,(_match,dependency)=>{
     const target=dependency==='vue'?vueURL:
@@ -238,11 +240,17 @@ function selectedContext(kind='sample') {
     scope:{project_id:'a',analysis_revision:1,results_revision:0,data_version:'f'.repeat(64)},
     selection:{sample_id:0},source_url:'/charts'}
 }
-test('明确发送才携带所选context_id，公卡随用户消息显示',async()=>{
+test('上下文只随本次提问发送，下一条自由提问不附加旧引用',async()=>{
   const v=await mount()
   try{v.store.questionContext=selectedContext();v.state.input='解释这个点';await v.state.send()
     assert.equal(v.calls.length,1);assert.equal(v.calls[0].context_id,selectedContext().id)
     assert.equal(v.store.chatMessages[0].question_context.id,selectedContext().id)
+    assert.equal(v.store.chatMessages[1].question_context.id,selectedContext().id)
+    assert.equal(v.store.questionContext,null)
+    v.state.input='该河道的污染情况怎么样';await v.state.send()
+    assert.deepEqual(v.calls[1],{message:'该河道的污染情况怎么样',auto:false})
+    assert.equal(v.store.chatMessages[2].question_context,undefined)
+    assert.equal(v.store.chatMessages[3].question_context,undefined)
   }finally{v.close()}
 })
 test('上下文409保留原问题，撤掉来源且不静默无引用重试',async()=>{
@@ -264,9 +272,13 @@ test('发送前发现客户端版本过期时不追加消息或发请求',async(
 })
 test('移除或更换引用后，上次请求重试必须让用户重新核对',async()=>{
   const v=await mount()
-  try{v.store.questionContext=selectedContext();v.state.input='最初问题';await v.state.send()
+  try{v.store.questionContext=selectedContext();v.state.input='最初问题'
+    let calls=0
+    globalThis.fetch=async()=>{calls++;return {ok:true,body:[['done',{status:'cancelled'}]],headers:{get:()=> 'run-test'}}}
+    await v.state.send()
+    assert.equal(v.store.questionContext?.id,selectedContext().id)
     v.store.questionContext={...selectedContext(),id:'c'.repeat(32)}
-    await v.state.retryLast();assert.equal(v.calls.length,1);assert.equal(v.state.input,'最初问题')
+    await v.state.retryLast();assert.equal(calls,1);assert.equal(v.state.input,'最初问题')
   }finally{v.close()}
 })
 test('没有监测表时仍可明确询问已选资料片段',async()=>{

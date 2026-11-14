@@ -257,7 +257,7 @@ watch(input,()=>nextTick(autosize))
 watch(()=>store.questionContext?.id,id=>{if(!id&&!running.value)visionStatus.value=''})
 
 async function retryLast() {
-  if(lastRequest.value?.context_id && lastRequest.value.context_id!==store.questionContext?.id) {
+  if(lastRequest.value && !lastRequest.value.auto && lastRequest.value.context_id!==(store.questionContext?.id??null)) {
     if(!input.value.trim())input.value=lastRequest.value.text
     store.questionContextNotice='上次问题的上下文已移除或变化，请核对选择后重新发送。'
     return
@@ -335,11 +335,16 @@ async function submit(text,auto) {
           answer=messages.value[messages.value.length-1]
         }
         answer.content+=payload.text || ''
-      } else if(event==='done' && payload.status!=='succeeded') {
-        incomplete()
-        messages.value.push({role:'error',uiRequest:token,content:payload.status==='cancelled'
-          ? '本轮已停止。已完成的部分分析可保留；重新分析会从当前数据重新取证。'
-          : '本轮未完整完成，请查看失败或缺失步骤后重新分析。'})
+      } else if(event==='done') {
+        if(payload.status==='succeeded') {
+          if(questionContext)store.clearQuestionContextById(questionContext.id)
+          lastRequest.value=null
+        } else {
+          incomplete()
+          messages.value.push({role:'error',uiRequest:token,content:payload.status==='cancelled'
+            ? '本轮已停止。已完成的部分分析可保留；重新分析会从当前数据重新取证。'
+            : '本轮未完整完成，请查看失败或缺失步骤后重新分析。'})
+        }
       } else if(event==='error') {
         if(visionStatus.value==='准备图片')visionStatus.value='图片发送状态未知'
         incomplete()
