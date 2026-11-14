@@ -42,7 +42,7 @@ from water_quality_mcp.src.water_quality_mcp.rag_retrieval import compact_tool_r
 from water_quality_mcp.src.water_quality_mcp.report import generate_report
 from water_quality_mcp.src.water_quality_mcp.evidence import EVIDENCE_RULES
 from water_quality_mcp.src.water_quality_mcp.trace_engine import multi_source_trace
-from .response_style import AUXILIARY_NOTICE, PLAIN_TERMS, RESPONSE_STYLE
+from .response_style import AUXILIARY_NOTICE_PROMPT, PLAIN_TERMS, RESPONSE_STYLE
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,6 @@ DATA_TOOL_GUIDE = (
     '可调用 inspect_visual_asset 读取实际图像；没有附件或当前选择时提示用户选择，不擅自使用旧图。'
     '工具不能读取密钥、任意路径、SQL或Shell命令，也不修改报告、任务或当前项目。'
     '常用说法：' + '；'.join(f'{key} → {value}' for key, value in PLAIN_TERMS.items()) + '。'
-    '研判类回答末尾只用一次：“' + AUXILIARY_NOTICE + '”'
 )
 
 
@@ -586,5 +585,5 @@ CARD_PROMPT_CHAT = (
     '提交后如调用会改变证据的其他工具，必须重取目录并重新提交。'
     '卡片工具失败须说明卡片未生成，可以保留已成功的原报告。'
 )
-SYSTEM_PROMPT_AUTO += CARD_PROMPT_AUTO
+SYSTEM_PROMPT_AUTO += AUXILIARY_NOTICE_PROMPT + CARD_PROMPT_AUTO
 SYSTEM_PROMPT_CHAT += CARD_PROMPT_CHAT

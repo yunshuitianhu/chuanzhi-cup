@@ -47,7 +47,7 @@ export function questionContextLocation(item) {
 }
 /** @param {import('../types/contracts').QuestionContextKind} kind */
 export function contextQuestion(kind) {
-  return {text_quote:'请解释所选文字的含义、依据和适用限制。',sample:'请分析这个采样点，说明观测依据、缺口和下一步复测建议。',
+  return {text_quote:'请解释所选文字的含义、依据和适用限制。',sample:'请用约300字给我一份行动简报。这个采样点的主要水质问题是什么？可能是生活污水排口吗？请结合氨氮形态、硝化和相邻读数判断，并告诉我复查最该带什么便携设备。',
     time_range:'请分析所选时段的变化，区分真实观测、缺测和推测。',
     video_frame:'请先说明这帧画面实际能看到什么，再结合记录解释；看不清或不能判断的地方直接说明。',
     image_asset:'请先说明这张图片里实际能看到什么，再结合当前记录解释；看不清或不能判断的地方直接说明。',

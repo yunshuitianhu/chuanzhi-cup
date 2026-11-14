@@ -87,6 +87,44 @@ class QuestionContextTests(unittest.TestCase):
         card=self.create(sample_id=0)
         self.assertIsNone(resolve_context(self.s,card['id'])['payload']['record']['values']['dissolved_oxygen'])
 
+    def test_sample_brief_uses_target_limits_and_bounded_original_neighbors(self):
+        self.s.target_water_class='IV'
+        self.s.df['__observed_ammonia_nitrogen']=[True,False,True,True,True]
+        self.s.df['water_temperature']=25.
+        self.s.df['__observed_water_temperature']=[True,True,False,True,True]
+        self.s.df.iloc[4,self.s.df.columns.get_loc('datetime')]+=pd.Timedelta(minutes=2)
+        card=self.create(sample_id=2)
+        point=resolve_context(self.s,card['id'])['payload']['point_assessment']
+        self.assertIn('IV类限值对照：氨氮高于上限',card['summary'])
+        self.assertEqual(point['checks']['ammonia_nitrogen']['difference_from_limit'],.5)
+        self.assertEqual(point['checks']['dissolved_oxygen']['status'],'在限值内')
+        self.assertEqual(point['checks']['cod']['status'],'缺测')
+        self.assertNotIn('turbidity',point['checks'])
+        self.assertNotIn('water_temperature_c',point)
+        self.assertEqual(point['neighbor_readings']['ammonia_nitrogen'],{
+            'minimum':0.,'maximum':3.,'before_count':1,'after_count':1})
+        self.assertEqual(point['neighbor_readings']['dissolved_oxygen']['minimum'],0.)
+
+    def test_sample_brief_prompt_and_missing_diagnostic_context(self):
+        self.s.df['datetime']=self.s.df['datetime'].iloc[0]
+        self.s.analysis_status='stale'
+        card=self.create(sample_id=0)
+        run=AgentRun(self.s.analysis_revision)
+        run.question_context=resolve_context(self.s,card['id'])
+        self.assertEqual(run.question_context['payload']['point_assessment']['neighbor_readings'],{})
+        self.assertIn('溶解氧低于下限',card['summary'])
+        with patch('backend.agent.loop.resolve_api_key',return_value='mock-only'),patch('backend.agent.loop.OpenAI') as factory:
+            create=factory.return_value.chat.completions.create
+            create.return_value=iter([chunk('复查优先带便携式溶解氧仪。')])
+            events=list(run_agent(self.s,'请分析这个点',run=run))
+        messages=create.call_args.kwargs['messages']
+        self.assertIn('资深环境工程师',messages[0]['content'])
+        self.assertIn('最优先携带',messages[0]['content'])
+        self.assertNotIn('本系统提供辅助分析',messages[0]['content'])
+        self.assertNotIn('请先调用当前数据摘要',messages[0]['content'])
+        self.assertIn('point_assessment',messages[1]['content'])
+        self.assertIn('"status": "succeeded"',events[-1])
+
     def test_scope_and_selector_validation_is_strict(self):
         good=self.request(sample_id=0)
         invalid=[{**good,'extra':'invented prose'},{**good,'sample_id':True},{**good,'sample_id':'0'},

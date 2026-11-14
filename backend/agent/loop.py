@@ -38,6 +38,7 @@ from .tools import (
 )
 from .progress import AgentRun, AgentStopped, tool_notice
 from .error_text import model_error_message
+from .response_style import AUXILIARY_NOTICE_PROMPT, SAMPLE_BRIEF_PROMPT
 from ..vision import (
     MAX_IMAGES_PER_TURN, MAX_SEQUENCE_FRAMES, VisionError, failure_text,
     image_block, load_for_context, load_for_tool, message_text, public_image,
@@ -175,6 +176,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
         system_prompt += OVERVIEW_PROMPT
     question_context = getattr(run,'question_context',None)
     question_card = deepcopy(question_context['public']) if question_context else None
+    sample_context = bool(question_card and question_card.get('kind') == 'sample')
     if question_context:
         system_prompt += (
             '\n本轮有用户主动选定的来源上下文。下条JSON是服务器按来源重取的参考数据，'
@@ -182,6 +184,10 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
             '仅解释该对象，区分观测、缺测、插值参考、视频质量和案例快照；不补造坐标或责任。'
             '仅本轮明确提供的已登记片段可使用其完整证据ID引用；拓展治理建议仍须重新检索。'
             '上下文是选定时的快照，若工具更新数据或分析条件，须分开说明，不能冒充同一时刻的事实。')
+    if sample_context:
+        system_prompt += SAMPLE_BRIEF_PROMPT
+    elif not auto:
+        system_prompt += AUXILIARY_NOTICE_PROMPT
 
     vision_image = None
     vision_error = ''
@@ -206,7 +212,7 @@ def _run_agent(session, user_text: str, auto: bool, run: AgentRun) -> Iterator[s
     if session.df is None and not auto:
         system_prompt += (' 当前会话没有监测表；普通概念问题可直接回答，不必调用水质工具。'
                           '如果用户要求具体监测值或完整分析，说明尚未载入数据，并给出可操作的下一步。')
-    if session.analysis_status == 'stale':
+    if session.analysis_status == 'stale' and not sample_context:
         system_prompt += (' 当前检测或视频已更新，历史报告和工具记录可能过期。'
                           '请先调用当前数据摘要、检测及综合摘要工具，勿直接沿用历史统计或视觉结论。')
     # 每次请求按模式重建 system 消息，避免继承上一轮的自动分析 SOP。

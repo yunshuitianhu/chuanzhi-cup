@@ -24,6 +24,7 @@ from .report_evidence import _digest, record
 MAX_CONTEXTS = 20
 MAX_RETRIEVALS = 8
 MAX_RANGE_RECORDS = 20
+POINT_NEIGHBOR_ROWS = 4  # 每侧最多四条相邻记录，遇时间断点即停止。
 LABELS = {'ammonia_nitrogen':('氨氮','mg/L'), 'dissolved_oxygen':('溶解氧','mg/L'),
     'turbidity':('浊度','NTU'), 'ph':('pH',''), 'cod':('COD','mg/L')}
 BASE_NOTICE = ('这是用户选定对象的服务器快照，解释与推断仍须核对；仿真、插值、'
@@ -151,15 +152,86 @@ def _value(value,unit):
     return '缺测' if value is None else str(value)+(' '+unit if unit else '')
 
 
+def _point_checks(values, limits):
+    checks = {}
+    for key, low, high in (
+        ('ammonia_nitrogen', None, limits['nh3']),
+        ('dissolved_oxygen', limits['do'], None),
+        ('ph', 6.0, 9.0),
+        ('cod', None, limits['cod']),
+    ):
+        value = values[key]
+        status, difference = '缺测', None
+        if value is not None:
+            status, difference = '在限值内', 0.0
+            if low is not None and value < low:
+                status, difference = '低于下限', low - value
+            elif high is not None and value > high:
+                status, difference = '高于上限', value - high
+        checks[key] = {'lower_limit': low, 'upper_limit': high, 'status': status,
+                       'difference_from_limit': difference, 'unit': LABELS[key][1]}
+    return checks
+
+
+def _point_neighbors(df, position, max_gap):
+    start = max(0, position - POINT_NEIGHBOR_ROWS)
+    window = df.iloc[start:position + POINT_NEIGHBOR_ROWS + 1]
+    if 'datetime' not in window:
+        return {}
+    center = position - start
+    times = pd.to_datetime(window['datetime'], errors='coerce', utc=True).reset_index(drop=True)
+    unique = times.notna() & ~times.duplicated(keep=False)
+    if not unique.iloc[center]:
+        return {}
+    offsets = []
+    for direction in (-1, 1):
+        previous = center
+        stop = -1 if direction < 0 else len(window)
+        for index in range(center + direction, stop, direction):
+            if not unique.iloc[index]:
+                break
+            seconds = direction * (times.iloc[index] - times.iloc[previous]).total_seconds()
+            if not 0 < seconds <= max_gap:
+                break
+            offsets.append(index)
+            previous = index
+    stats = {}
+    for key in ('ammonia_nitrogen', 'dissolved_oxygen'):
+        if key not in window:
+            continue
+        valid = _observed(window, key)
+        positions = [index for index in offsets if valid[index]]
+        if not positions:
+            continue
+        values = pd.to_numeric(window[key].iloc[positions])
+        stats[key] = {'minimum': float(values.min()), 'maximum': float(values.max()),
+                      'before_count': sum(index < center for index in positions),
+                      'after_count': sum(index > center for index in positions)}
+    return stats
+
+
 def _sample(session,payload):
     df=_frame(session)
     if payload.sample_id>=len(df): raise HTTPException(404,'当前数据没有该采样记录。')
-    row=_record(session,payload.sample_id,quality_report(df,session.analysis_config))
-    summary=(str(row['time'] or '时间缺失')+' · 氨氮 '+_value(row['values']['ammonia_nitrogen'],'mg/L')
+    config = session.analysis_config
+    row=_record(session,payload.sample_id,quality_report(df,config))
+    checks = _point_checks(row['values'], config.get_target_limits())
+    # 浊度用于描述水体特征，不纳入 GB 3838 表1限值对照。
+    comparisons = '，'.join(LABELS[key][0] + item['status'] for key, item in checks.items())
+    summary=(f"{config.target_water_class}类限值对照：{comparisons}。\n"
+        +str(row['time'] or '时间缺失')+' · 氨氮 '+_value(row['values']['ammonia_nitrogen'],'mg/L')
         +' · DO '+_value(row['values']['dissolved_oxygen'],'mg/L'))
     if row['coord'] is None: summary+=' · 无有效GPS'
+    assessment = {'target_class': config.target_water_class, 'checks': checks,
+                  'neighbor_readings': _point_neighbors(df, payload.sample_id, config.quality_control.max_gap_s),
+                  'neighbor_basis': '同一次走航中时间连续的相邻记录，排除所选点和插值；不代表固定站点或已知上下游。'}
+    if 'water_temperature' in df:
+        sample = df.iloc[payload.sample_id]
+        temp = finite(sample.get('water_temperature'))
+        if sample.get('__observed_water_temperature', True) == True and temp is not None and 0 <= temp <= 45:
+            assessment['water_temperature_c'] = temp
     return {'title':f"采样记录 #{payload.sample_id+1}",'summary':summary,
-        'selection':{'sample_id':payload.sample_id},'payload':{'record':row},'anchor':'trace-map'}
+        'selection':{'sample_id':payload.sample_id},'payload':{'record':row,'point_assessment':assessment},'anchor':'trace-map'}
 
 
 def _timestamp(value):
