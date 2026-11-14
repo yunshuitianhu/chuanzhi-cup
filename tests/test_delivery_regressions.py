@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from backend.main import app as api_app
 from backend.session import STORE
 from backend.web import create_app
-from scripts.serve_web import check_frontend, check_port
+from scripts.serve_web import bind_port, check_frontend
 from scripts.package_delivery import write_bundle, worktree_problems
 from scripts.verify_delivery import fingerprint
 
@@ -98,8 +98,21 @@ class DeliveryTests(unittest.TestCase):
             listener.bind(('127.0.0.1', 0))
             listener.listen()
             with self.assertRaisesRegex(RuntimeError, '不可绑定或已占用'):
-                check_port(listener.getsockname()[1])
+                bind_port(listener.getsockname()[1])
             self.assertGreater(listener.fileno(), -1)
+
+    def test_auto_port_keeps_an_available_socket_when_first_port_is_busy(self):
+        with socket.socket() as occupied:
+            occupied.bind(('127.0.0.1', 0))
+            occupied.listen()
+            port = occupied.getsockname()[1]
+            if port == 65535:
+                self.skipTest('系统分配到最后一个端口，无法向后查找')
+            with bind_port(port, auto_port=True) as selected:
+                self.assertGreater(selected.getsockname()[1], port)
+                with self.assertRaisesRegex(RuntimeError, '不可绑定或已占用'):
+                    bind_port(selected.getsockname()[1])
+                self.assertGreater(occupied.fileno(), -1)
 
     def test_missing_lazy_chunk_and_traversal_in_manifest_are_rejected(self):
         manifest = self.dist / '.vite' / 'manifest.json'

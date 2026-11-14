@@ -9,9 +9,14 @@ import re
 import socket
 import sys
 import tempfile
+import webbrowser
 from pathlib import Path
+from threading import Thread
 
 ROOT = Path(__file__).resolve().parents[1]
+HOST = '127.0.0.1'
+DEFAULT_PORT = 5174
+AUTO_PORT_COUNT = 20
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -42,15 +47,25 @@ def check_frontend(dist: Path) -> None:
         raise RuntimeError('前端构建清单缺失或资源不完整，请重新执行 npm run build。') from exc
 
 
-def check_port(port: int) -> None:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+def bind_port(port: int, *, auto_port: bool = False) -> socket.socket:
+    last_port = min(65535, port + AUTO_PORT_COUNT - 1) if auto_port else port
+    for candidate in range(port, last_port + 1):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.bind(('127.0.0.1', port))
+            if sys.platform == 'win32':
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            sock.bind((HOST, candidate))
         except OSError as exc:
-            raise RuntimeError(f'端口{port}不可绑定或已占用。请使用 --port 其它端口；原服务不会被终止。') from exc
+            sock.close()
+            if candidate == last_port:
+                label = f'{port}–{last_port}' if auto_port else str(port)
+                raise RuntimeError(f'端口{label}不可绑定或已占用。请使用 --port 指定其它端口。') from exc
+        else:
+            return sock
+    raise ValueError('无可选端口')
 
 
-def preflight(port: int):
+def preflight():
     if sys.version_info < (3, 11):
         raise RuntimeError('请使用Python 3.11或更新版本；本机已在Python 3.14.0完成回归和交付副本验收。')
     check_frontend(ROOT / 'frontend' / 'dist')
@@ -69,8 +84,7 @@ def preflight(port: int):
             probe.write(b'wq-startup-check')
     except OSError as exc:
         raise RuntimeError('项目目录不可写，请将WQ_PROJECT_HOME设置到有写权限的目录。') from exc
-    check_port(port)
-    print(f'[OK] Python {sys.version.split()[0]}；前端构建、API导入、项目目录和端口检查通过。', flush=True)
+    print(f'[OK] Python {sys.version.split()[0]}；前端构建、API导入和项目目录检查通过。', flush=True)
     print(f'[INFO] 项目目录：{home}', flush=True)
     for key, label in (('DEEPSEEK_API_KEY', '智能体/报告'), ('AMAP_KEY', '高德查询'), ('CLOUD_TOKEN', '星图影像')):
         print(f'[{"OK" if resolve_api_key(key) else "WARN"}] {label}：'
@@ -86,22 +100,44 @@ def preflight(port: int):
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--port', type=int, default=5174, help='本地网页和API共用端口，默认5174')
+    parser.add_argument('--port', type=int, help=f'本地网页和API共用端口，默认{DEFAULT_PORT}')
+    parser.add_argument('--auto-port', action='store_true', help='未指定端口时，默认端口占用则继续查找空闲端口')
+    parser.add_argument('--open-browser', action='store_true', help='服务启动后打开默认浏览器')
     parser.add_argument('--check', action='store_true', help='只检查，不启动服务')
     args = parser.parse_args(argv)
-    if not 1 <= args.port <= 65535:
+    port = DEFAULT_PORT if args.port is None else args.port
+    if not 1 <= port <= 65535:
         parser.error('--port必须为1到65535之间的整数')
     try:
-        app = preflight(args.port)
+        app = preflight()
+        listener = bind_port(port, auto_port=args.auto_port and args.port is None)
     except Exception as exc:
         print(f'[ERROR] {exc}', file=sys.stderr, flush=True)
         return 1
-    if args.check:
-        return 0
-    print(f'[START] http://127.0.0.1:{args.port}/', flush=True)
-    print('[INFO] 请保持此终端运行；关闭终端将停止服务。仅监听本机，单worker。', flush=True)
-    import uvicorn
-    uvicorn.run(app, host='127.0.0.1', port=args.port, workers=1)
+    with listener:
+        actual_port = listener.getsockname()[1]
+        if actual_port != port:
+            print(f'[INFO] 端口{port}已占用或不可用，已选用{actual_port}。', flush=True)
+        print(f'[OK] 本机端口 {actual_port} 检查通过。', flush=True)
+        if args.check:
+            return 0
+        import uvicorn
+
+        url = f'http://{HOST}:{actual_port}/'
+
+        class LocalServer(uvicorn.Server):
+            async def startup(self, sockets=None):
+                await super().startup(sockets=sockets)
+                if self.started:
+                    print(f'[START] {url}', flush=True)
+                    print('[INFO] 请保持此终端运行；关闭终端将停止服务。', flush=True)
+                    if args.open_browser:
+                        Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+
+        server = LocalServer(uvicorn.Config(app, host=HOST, port=actual_port, workers=1))
+        server.run(sockets=[listener])
+        if not server.started:
+            return 1
     return 0
 
 

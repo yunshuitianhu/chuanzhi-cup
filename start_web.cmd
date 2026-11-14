@@ -7,12 +7,12 @@ pushd "%~dp0"
 if defined WQ_PYTHON goto custom_python
 where python >nul 2>nul
 if errorlevel 1 goto no_python
-python scripts\serve_web.py %*
+python scripts\serve_web.py --auto-port --open-browser %*
 set "wq_result=%errorlevel%"
 goto finish
 :custom_python
 if not exist "%WQ_PYTHON%" goto bad_python
-"%WQ_PYTHON%" scripts\serve_web.py %*
+"%WQ_PYTHON%" scripts\serve_web.py --auto-port --open-browser %*
 set "wq_result=%errorlevel%"
 goto finish
 :bad_python
