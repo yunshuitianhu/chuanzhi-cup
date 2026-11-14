@@ -1,6 +1,6 @@
 import {textQuestionState,quoteKey,matchesTextQuote,MAX_QUOTE} from '../utils/textQuestions'
 import { defineStore } from 'pinia'
-import { api, errorMessage } from '../api/client'
+import { api, ApiError, errorMessage } from '../api/client'
 import { isQuestionContext, questionContextMatches, contextQuestion } from '../utils/questionContext'
 
 /**
@@ -75,7 +75,15 @@ export const useSessionStore = defineStore('session', {
         this.questionContextNotice=selected.source?.kind==='page'?'已加入页面选文，作为待解释材料；已有问题草稿保留。':'已加入选中文字，发送时会核对来源；已有问题草稿保留。'
         if(!this.chatDraft.trim())this.chatDraft='请解释所选文字的含义、依据和适用限制。'
       }else{
-        this.textQuestions.pendingSide=quote
+        const q=this.textQuestions
+        const previous=q.pendingSide
+        const key=quoteKey(quote)
+        if(!q.active && previous && previous.project_id===quote.project_id && !q.drafts[key]
+            && quoteKey({...previous,analysis_revision:quote.analysis_revision,results_revision:quote.results_revision})===key
+            && q.drafts[quoteKey(previous)]) {
+          q.drafts[key]=q.drafts[quoteKey(previous)]
+        }
+        q.pendingSide=quote
         const thread=this.textQuestions.threads.find(t=>!t.historical&&matchesTextQuote(quote,t.quote))
         this.textQuestions.active=thread?.id||''
         this.textQuestions.notice=''
@@ -108,8 +116,19 @@ export const useSessionStore = defineStore('session', {
       const current=()=>workspace===this.workspaceRevision&&!this.switchingProject&&this.textQuestions===q
         &&!q.active&&!!q.pendingSide&&quoteKey(q.pendingSide)===key
       return this._run(async()=>{
-        const card=await api.createQuestionContext({kind:'text_quote',text:quote.text,source:quote.source,
-          project_id:quote.project_id,analysis_revision:quote.analysis_revision,results_revision:quote.results_revision})
+        let card
+        try {
+          card=await api.createQuestionContext({kind:'text_quote',text:quote.text,source:quote.source,
+            project_id:quote.project_id,analysis_revision:quote.analysis_revision,results_revision:quote.results_revision})
+        } catch (error) {
+          if(current() && error instanceof ApiError && error.status===409
+              && error.message==='项目或数据版本已变化，请从当前页面重新选择对象。') {
+            try { await this.refreshStatus() }
+            catch { throw new Error('暂时无法同步项目版本。请复制问题草稿，刷新页面并重新选中文字。') }
+            throw new Error('引用版本已过期。问题草稿已保留，请在当前页面重新选中文字后再发送。')
+          }
+          throw error
+        }
         if(!current())return null
         const thread=await api.createSideThread(card.id)
         if(!current())return null

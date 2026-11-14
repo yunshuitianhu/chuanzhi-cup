@@ -94,3 +94,26 @@ test('当前选中的线程丢失时明确报错，不能点击发送后无反�
   const s=state();s.captureTextQuote(selection,'side');s.textQuestions.active='missing'
   await assert.rejects(s.prepareSideThread(),/线程.*不存在|重新选择/)
 })
+test('侧边选文版本冲突后同步最新状态，重选同一文字保留草稿并可发送',async()=>{
+  const s=state(), page={text:'受控单源反演与拒绝机制',source:{kind:'page',path:'/tech',anchor:'main-content'},title:'工具 · 页面选文'}
+  const nextScope={...scope,results_revision:3}
+  const nextCard={...card,scope:nextScope,selection:{text:page.text,source:page.source},excerpt:page.text}
+  const scopes=[]
+  s.captureTextQuote(page,'side')
+  s.textQuestions.drafts[quoteKey(s.textQuestions.pendingSide)]='这是什么意思？'
+  globalThis.fetch=async (url,options)=>{
+    if(url.endsWith('/api/data/status'))return reply({has_data:false,...nextScope})
+    if(url.endsWith('/context')){
+      scopes.push(JSON.parse(options.body).results_revision)
+      if(scopes.at(-1)===2)return new Response(JSON.stringify({detail:'项目或数据版本已变化，请从当前页面重新选择对象。'}),{status:409,headers:{'Content-Type':'application/json'}})
+      return reply(nextCard)
+    }
+    return reply({id:'b'.repeat(32),quote:nextCard,messages:[],requests:[],updated_at:'now'})
+  }
+  await assert.rejects(s.prepareSideThread(),/草稿已保留/)
+  assert.deepEqual(scopes,[2])
+  s.captureTextQuote(page,'side')
+  const thread=await s.prepareSideThread()
+  assert.deepEqual(scopes,[2,3])
+  assert.equal(s.textQuestions.drafts[thread.id],'这是什么意思？')
+})

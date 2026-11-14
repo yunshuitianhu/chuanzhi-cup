@@ -59,11 +59,13 @@ for(const [name,method] of [['MultiSourceTrace','multiSource'],['StationQuery','
     }finally{v.app.unmount()}
   })
 }
-test('站点查询已成功但状态刷新失败时保留查询结果并显示同步提示',async()=>{
-  const v=await mount('StationQuery');try{v.store.refreshStatus=async()=>{throw Error('状态断网')};await v.state.run()
+for(const name of ['StationQuery','MultiSourceTrace']){
+test(`${name} 查询已成功但状态刷新失败时保留查询结果并显示同步提示`,async()=>{
+  const v=await mount(name);try{v.store.refreshStatus=async()=>{throw Error('状态断网')};await v.state.run()
     assert.equal(v.state.data.marker,'first');assert.match(v.state.error,/状态.*刷新/)
   }finally{v.app.unmount()}
 })
+}
 test('统计卡片在记录数和版本相同的项目之间重新加载',async()=>{
   const v=await mount('SummaryCards');try{v.api.summary=async()=>({marker:'new-project'});v.store.projectState.current.id='b';await settle();assert.equal(v.state.data.marker,'new-project')
   }finally{v.app.unmount()}
@@ -76,8 +78,9 @@ test('开始切换项目后统计卡片丢弃旧请求，切换结束才重新�
 })
 
 
-test('站点查询自身刷新状态对象时仍接纳本次结果',async()=>{
- const v=await mount('StationQuery')
+for(const name of ['StationQuery','MultiSourceTrace']){
+test(`${name} 刷新版本后仍接纳本次结果`,async()=>{
+ const v=await mount(name)
  try{
   v.store.refreshStatus=async()=>{v.store.status={...v.store.status,results_revision:2,analysis_status:'stale'}}
   await v.state.run();await settle()
@@ -87,6 +90,7 @@ test('站点查询自身刷新状态对象时仍接纳本次结果',async()=>{
   assert.equal(v.state.loading,false)
  }finally{v.app.unmount()}
 })
+}
 for(const name of ['StationQuery','MultiSourceTrace']){
  test(`${name} 同项目同数据的状态或项目对象替换不清空已显示结果`,async()=>{
   const v=await mount(name)

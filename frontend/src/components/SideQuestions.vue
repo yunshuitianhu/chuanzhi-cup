@@ -96,7 +96,7 @@ async function send(){
   const current=()=>workspace===store.workspaceRevision&&project===store.projectState.current?.id&&!store.switchingProject
   const originKey=draftKey.value
   let key=originKey,failed=false,title=active.value?.quote.title||q.value.pendingSide?.title||'所选引用'
-  const showError=message=>{q.value.error=q.value.active===key?message:'另一解释线程（'+title+'）：'+message}
+  const showError=message=>{q.value.error=draftKey.value===key?message:'另一解释线程（'+title+'）：'+message}
   sending.value=true;q.value.error='';q.value.notice='';partial.value='';visionNote.value=''
   try{
     const thread=await store.prepareSideThread()

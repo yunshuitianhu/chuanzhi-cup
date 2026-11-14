@@ -41,9 +41,17 @@ async function run() {
   data.value = null
   error.value = ''
   try {
-    const result = await store._run(() => api.multiSource(request.payload))
+    const {result, warning} = await store._run(async () => {
+      const result = await api.multiSource(request.payload)
+      let warning = ''
+      // 后端保存了新的溯源依据，下一次引用需要使用更新后的结果版本。
+      try { await store.refreshStatus() }
+      catch { warning = '查询已完成，但分析状态刷新失败，请刷新页面后再引用。' }
+      return {result, warning}
+    })
     if (disposed || version !== requestVersion) return
     data.value = result
+    error.value = warning
     toastOk(`查询完成：返回 ${(result['综合污染源列表'] || []).length} 条候选线索`)
   } catch (e) {
     if (!disposed && version === requestVersion) {
