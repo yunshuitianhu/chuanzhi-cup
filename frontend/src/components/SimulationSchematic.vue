@@ -66,8 +66,8 @@ const segments = computed(() => trailIntervals(props.simulation, props.frameInde
 
 <style scoped>
 .schematic {margin:16px 0;border:1px solid #31515e;border-radius:12px;background:#0c1c27;overflow:hidden;color:#c3dce3;}
-header {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:18px 20px 0;}header strong {color:#e6f4f8;font-size:18px;}header span {font-size:12px;color:#80b8c7;border:1px solid #2e535e;border-radius:20px;padding:4px 9px;}
-p {font-size:13px;margin:10px 20px;color:#8daeb9;line-height:1.6;}svg {display:block;width:100%;height:auto;min-height:200px;}text {font:16px sans-serif;fill:#b5d3dc;}
-footer {display:flex;gap:16px;justify-content:space-between;align-items:center;flex-wrap:wrap;padding:14px 20px;border-top:1px solid #243f4b;font-size:12px;color:#99bac6;}.scale {display:flex;align-items:center;flex-wrap:wrap;gap:8px;}.scale i {display:block;width:95px;height:6px;border-radius:8px;background:linear-gradient(90deg,#6f236b,#f43f5e 65%,#ffded5);}
+header {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:18px 20px 0;}header strong {color:#e6f4f8;font-size:18px;}header span {font-size:var(--font-small);color:#80b8c7;border:1px solid #2e535e;border-radius:20px;padding:4px 9px;}
+p {font-size:var(--font-small);margin:10px 20px;color:#8daeb9;line-height:1.6;}svg {display:block;width:100%;height:auto;min-height:200px;}text {font:16px sans-serif;fill:#b5d3dc;}
+footer {display:flex;gap:16px;justify-content:space-between;align-items:center;flex-wrap:wrap;padding:14px 20px;border-top:1px solid #243f4b;font-size:var(--font-small);color:#99bac6;}.scale {display:flex;align-items:center;flex-wrap:wrap;gap:8px;}.scale i {display:block;width:95px;height:6px;border-radius:8px;background:linear-gradient(90deg,#6f236b,#f43f5e 65%,#ffded5);}
 @media(max-width:600px) {header,p,footer {padding-left:12px;padding-right:12px;}p {margin-left:0;margin-right:0;}text {font-size:22px;}}
 </style>

@@ -31,17 +31,17 @@ const percent = value => `${(value * 100).toFixed(2)}%`
 </template>
 
 <style scoped>
-.inverse-tech { font-size: 14px; color: var(--c-sub); line-height: 1.85; }
+.inverse-tech { font-size: var(--font-label); color: var(--c-sub); line-height: 1.85; }
 p { margin: 8px 0; max-width: 850px; }
-.scope { color: var(--c-ink); font-size: 14px; }
+.scope { color: var(--c-ink); font-size: var(--font-label); }
 .table-scroll { overflow-x: auto; border: 1px solid var(--c-border); border-radius: 8px; margin-top: 12px; }
 table { width: 100%; min-width: 470px; border-collapse: collapse; text-align: left; font-variant-numeric: tabular-nums; }
-caption { padding: 9px 12px; background: var(--c-surface-2); text-align: left; font-size: 14px; }
+caption { padding: 9px 12px; background: var(--c-surface-2); text-align: left; font-size: var(--font-label); }
 th, td { padding: 9px 12px; border-top: 1px solid var(--c-border); }
 th { font-weight: 500; color: var(--c-ink); }
-.note, details { font-size: 14px; }
+.note, details { font-size: var(--font-label); }
 details { margin-top: 12px; }
 summary { cursor: pointer; color: var(--c-ink); }
-.limitation { margin-top: 12px; border-left: 3px solid var(--c-accent); padding: 4px 12px; background: var(--c-surface-2); font-size: 14px; }
+.limitation { margin-top: 12px; border-left: 3px solid var(--c-accent); padding: 4px 12px; background: var(--c-surface-2); font-size: var(--font-label); }
 .table-scroll:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 3px; }
 </style>

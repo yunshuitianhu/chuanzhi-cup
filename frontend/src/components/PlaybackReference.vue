@@ -43,5 +43,5 @@ async function run(apply=false){
   </section>
 </template>
 <style scoped>
-.reference{margin:14px 0;padding:16px;border:1px solid #365462;border-radius:8px;background:#12232d;color:var(--c-sub);font-size:14px;line-height:1.7;}.reference strong{color:var(--c-text);}p{margin:8px 0;}label{display:flex;gap:8px;align-items:center;margin:8px 0;}button,input{font:inherit;color:var(--c-text);background:#182e3c;border:1px solid #456575;border-radius:5px;padding:7px;}button{cursor:pointer;}button:disabled{opacity:.45;cursor:default;}.fields{display:flex;flex-wrap:wrap;gap:12px;}.fields input{width:85px;}
+.reference{margin:14px 0;padding:16px;border:1px solid #365462;border-radius:8px;background:#12232d;color:var(--c-sub);font-size:var(--font-label);line-height:1.7;}.reference strong{color:var(--c-text);}p{margin:8px 0;}label{display:flex;gap:8px;align-items:center;margin:8px 0;}button,input{font:inherit;color:var(--c-text);background:#182e3c;border:1px solid #456575;border-radius:5px;padding:7px;}button{cursor:pointer;}button:disabled{opacity:.45;cursor:default;}.fields{display:flex;flex-wrap:wrap;gap:12px;}.fields input{width:85px;}
 </style>
